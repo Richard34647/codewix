@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Workspace | CodeWix</title>
+    <!-- Links to your main global styles file -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Workspace Control Header Navigation -->
+    <header class="studio-header">
+        <div class="header-brand">
+            <span class="studio-logo">CodeWix</span>
+            <span class="env-badge">HTML/JS Sandbox</span>
+        </div>
+        <nav class="studio-nav">
+            <a href="dashboard.html" class="active">Workspace</a>
+            <a href="ai-assistance.html">AI Assistant</a>
+        </nav>
+        <div class="user-session">
+            <span id="dashUser">Developer</span>
+            <button class="exit-btn" id="logoutBtn">Exit Studio</button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Split Container Panel -->
+    <main class="studio-workspace">
+        
+        <!-- Left Column: File Tree Explorer Subsystem Panel -->
+        <aside class="file-explorer">
+            <div class="panel-header">
+                <h3>Files</h3>
+                <button class="action-icon-btn" id="newFileBtn" title="Create New File">+</button>
+            </div>
+            <ul class="file-list" id="fileTreeList">
+                <li class="file-item active" data-filename="index.html">🌐 index.html</li>
+                <li class="file-item" data-filename="style.css">🎨 style.css</li>
+                <li class="file-item" data-filename="script.js">⚡ script.js</li>
+            </ul>
+        </aside>
+
+        <!-- Center Column: Main Core IDE Code Editor Viewport Block -->
+        <section class="editor-area">
+            <div class="panel-header">
+                <div class="active-tab-indicator">Editing: <span id="currentFileLabel">index.html</span></div>
+                <div class="editor-controls">
+                    <button class="studio-btn primary-btn" id="runCodeBtn">Build & Run</button>
+                </div>
+            </div>
+            <div class="editor-body">
+                <div class="gutter-line-numbers" id="editorLineGutter">1</div>
+                <!-- Textarea remains structurally empty to prevent VS Code script syntax tagging errors -->
+                <textarea class="raw-code-input" id="codeEditor" spellcheck="false" autocomplete="off"></textarea>
+            </div>
+        </section>
+
+        <!-- Right Column: Live Simulated Sandbox Viewport Preview Canvas -->
+        <section class="preview-area">
+            <div class="panel-header">
+                <h3>Live Preview Output</h3>
+            </div>
+            <div class="preview-frame-container">
+               <iframe id="livePreviewFrame"
+        sandbox="allow-scripts allow-same-origin allow-modals"></iframe>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom App System Metadata Status Reporting Indicator Strip -->
+    <footer class="studio-status-bar">
+        <div class="status-left-node">
+            <span class="status-indicator-dot online"></span>
+            <span id="userEmail">Session active</span>
+        </div>
+        <div class="status-right-node">
+            <span>Encoding: UTF-8</span>
+            <span>DOM Engine: Active</span>
+        </div>
+    </footer>
+
+    <footer>
+        <p>© 2026 CodeWix Learn to Code</p>
+        <a href="#">Terms and Conditions</a>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Contact Us</a>
+    </footer>
+
+    <!-- Firebase compat SDK — MUST be here, before script.js -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+
+    <!-- App logic -->
+    <script src="script.js"></script>
+</body>
+</html>

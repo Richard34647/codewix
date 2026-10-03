@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant | CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="studio-header">
+        <div class="header-brand">
+            <span class="studio-logo">CodeWix</span>
+            <span class="env-badge">Groq AI Assistant</span>
+        </div>
+        <nav class="studio-nav">
+            <a href="dashboard.html">Workspace</a>
+            <a href="ai-assistant.html" class="active">AI Assistant</a>
+        </nav>
+        <div class="user-session">
+            <span id="dashUser">Developer</span>
+            <button class="exit-btn" id="logoutBtn">Exit Studio</button>
+        </div>
+    </header>
+
+    <main class="ai-workspace">
+        <div class="ai-header">
+            <h1>CodeWix <span>AI Assistant</span></h1>
+            <div class="ai-controls">
+                <select id="modelSelect">
+                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Recommended)</option>
+                    <option value="llama-3.1-8b-instant">Llama 3.1 8B (Fastest)</option>
+                    <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+                    <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+                    <option value="qwen/qwen3-32b">Qwen 3 32B</option>
+                </select>
+                <button id="clearChatBtn" class="exit-btn">Clear Chat</button>
+            </div>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-message assistant-message">
+                <div class="message-role">Assistant</div>
+                <div class="message-content">Hello! I'm your CodeWix AI Assistant powered by Groq. Ask me to explain code, debug an error, or help you build a project.</div>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <textarea id="chatInput" placeholder="Ask about code, debugging, project ideas..." rows="1" spellcheck="false"></textarea>
+            <button id="sendBtn" class="studio-btn primary-btn">Send</button>
+        </div>
+
+        <div class="chat-status" id="chatStatus">Ready</div>
+    </main>
+
+    <footer class="studio-status-bar">
+        <div class="status-left-node">
+            <span class="status-indicator-dot online"></span>
+            <span id="userEmail">Session active</span>
+        </div>
+        <div class="status-right-node">
+            <span id="modelIndicator">llama-3.3-70b-versatile</span>
+            <span>Groq Cloud</span>
+        </div>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
