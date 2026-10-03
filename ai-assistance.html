@@ -28,11 +28,9 @@
             <h1>CodeWix <span>AI Assistant</span></h1>
             <div class="ai-controls">
                 <select id="modelSelect">
-                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Recommended)</option>
-                    <option value="llama-3.1-8b-instant">Llama 3.1 8B (Fastest)</option>
-                    <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
-                    <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
-                    <option value="qwen/qwen3-32b">Qwen 3 32B</option>
+                    <option value="openai/gpt-oss-120b">GPT-OSS 120B (Recommended)</option>
+                    <option value="openai/gpt-oss-20b">GPT-OSS 20B (Fastest)</option>
+                    <option value="qwen/qwen3.6-27b">Qwen 3.6 27B (Preview)</option>
                 </select>
                 <button id="clearChatBtn" class="exit-btn">Clear Chat</button>
             </div>
@@ -59,13 +57,15 @@
             <span id="userEmail">Session active</span>
         </div>
         <div class="status-right-node">
-            <span id="modelIndicator">llama-3.3-70b-versatile</span>
+            <span id="modelIndicator">openai/gpt-oss-120b</span>
             <span>Groq Cloud</span>
         </div>
     </footer>
 
+    <!-- Firebase compat SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <!-- App logic -->
     <script src="script.js"></script>
 </body>
 </html>
