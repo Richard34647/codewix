@@ -884,3 +884,220 @@ footer a:hover {
 .thinking-toggle input:checked ~ .toggle-label {
     color: #a78bfa;
 }
+
+/* ==========================================================================
+   Legal Pages (TOS / Privacy)
+   ========================================================================== */
+
+.legal-page {
+    max-width: 900px;
+}
+
+.legal-updated {
+    color: #64748b;
+    font-size: 14px;
+    margin-top: 8px;
+}
+
+.legal-content section {
+    margin-bottom: 36px;
+}
+
+.legal-content h2 {
+    color: #38bdf8;
+    font-size: 20px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.legal-content p {
+    color: #cbd5e1;
+    line-height: 1.7;
+    margin-bottom: 12px;
+    font-size: 15px;
+}
+
+.legal-content ul {
+    color: #cbd5e1;
+    line-height: 1.7;
+    margin: 8px 0 12px 24px;
+    font-size: 15px;
+}
+
+.legal-content li {
+    margin-bottom: 6px;
+}
+
+.legal-content a {
+    color: #38bdf8;
+    text-decoration: none;
+}
+
+.legal-content a:hover {
+    text-decoration: underline;
+}
+
+.legal-content code {
+    background: #020617;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #34d399;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   About Page Extras
+   ========================================================================== */
+
+.about-story,
+.about-values {
+    margin-top: 60px;
+}
+
+.about-story h2,
+.about-values h2 {
+    color: #38bdf8;
+    font-size: 28px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.about-story p {
+    color: #cbd5e1;
+    line-height: 1.7;
+    font-size: 16px;
+    max-width: 800px;
+    margin: 0 auto 16px;
+    text-align: center;
+}
+
+.about-story code {
+    background: #020617;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #34d399;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Contact Page
+   ========================================================================== */
+
+.contact-subtitle {
+    color: #cbd5e1;
+    font-size: 16px;
+    max-width: 600px;
+    margin: 12px auto 0;
+    text-align: center;
+    line-height: 1.6;
+}
+
+.contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    margin-top: 50px;
+    align-items: start;
+}
+
+@media (max-width: 800px) {
+    .contact-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.contact-info h2 {
+    color: #38bdf8;
+    font-size: 24px;
+    margin-bottom: 16px;
+}
+
+.contact-info > p {
+    color: #cbd5e1;
+    line-height: 1.7;
+    margin-bottom: 24px;
+}
+
+.contact-item {
+    display: flex;
+    gap: 16px;
+    padding: 18px;
+    background: #1e293b;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    margin-bottom: 14px;
+}
+
+.contact-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.contact-item h3 {
+    color: #38bdf8;
+    font-size: 15px;
+    margin-bottom: 4px;
+}
+
+.contact-item p {
+    color: #cbd5e1;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.contact-item a {
+    color: #38bdf8;
+    text-decoration: none;
+}
+
+.contact-item a:hover {
+    text-decoration: underline;
+}
+
+.contact-form-wrapper {
+    width: 100%;
+}
+
+.contact-form {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+}
+
+.contact-form textarea {
+    width: 100%;
+    padding: 12px;
+    background: #020617;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: white;
+    font-size: 16px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 120px;
+    outline: none;
+}
+
+.contact-form textarea:focus {
+    border-color: #38bdf8;
+}
+
+.contact-form .button {
+    width: 100%;
+    border: none;
+    cursor: pointer;
+}
+
+.success-box {
+    display: none;
+    background: #064e3b;
+    color: #a7f3d0;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    line-height: 1.5;
+}

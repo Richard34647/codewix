@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us | CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="projects.html">Projects</a>
+            <a href="register.html">Register an Account</a>
+            <a href="login.html">Login</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="page-title">
+            <h1>Contact <span>Us</span></h1>
+            <p class="contact-subtitle">Have a question, bug report, or feature idea? We'd love to hear from you.</p>
+        </div>
+
+        <div class="contact-grid">
+            <div class="contact-info">
+                <h2>Get in Touch</h2>
+                <p>We typically reply within 1–2 business days. For urgent issues with your account, please include the email address you registered with.</p>
+
+                <div class="contact-item">
+                    <div class="contact-icon">✉️</div>
+                    <div>
+                        <h3>Email</h3>
+                        <p>support@codewix.example</p>
+                    </div>
+                </div>
+
+                <div class="contact-item">
+                    <div class="contact-icon">💬</div>
+                    <div>
+                        <h3>AI Assistant</h3>
+                        <p>Got a coding question? Try our <a href="ai-assistant.html">AI Assistant</a> for instant help.</p>
+                    </div>
+                </div>
+
+                <div class="contact-item">
+                    <div class="contact-icon">🐛</div>
+                    <div>
+                        <h3>Bug Reports</h3>
+                        <p>Found a bug? Describe what happened, what you expected, and include any error messages.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-form-wrapper">
+                <form id="contactForm" class="form-container contact-form">
+                    <h2>Send a <span>Message</span></h2>
+
+                    <div id="contactError" class="error-box"></div>
+                    <div id="contactSuccess" class="success-box"></div>
+
+                    <div class="input-group">
+                        <label for="contactName">Your Name</label>
+                        <input type="text" id="contactName" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="contactEmail">Email Address</label>
+                        <input type="email" id="contactEmail" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="contactSubject">Subject</label>
+                        <input type="text" id="contactSubject" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="contactMessage">Message</label>
+                        <textarea id="contactMessage" rows="6" required></textarea>
+                    </div>
+
+                    <button type="submit" class="button">Send Message</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2026 CodeWix Learn to Code</p>
+        <a href="tos.html">Terms and Conditions</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="contact.html">Contact Us</a>
+    </footer>
+
+    <script>
+        // Basic client-side contact form handler.
+        // Swap the setTimeout block for a real backend call (EmailJS, Formspree, or your own /api/contact route) later.
+        document.getElementById('contactForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var name    = document.getElementById('contactName').value.trim();
+            var email   = document.getElementById('contactEmail').value.trim();
+            var subject = document.getElementById('contactSubject').value.trim();
+            var message = document.getElementById('contactMessage').value.trim();
+
+            var errBox = document.getElementById('contactError');
+            var okBox  = document.getElementById('contactSuccess');
+            errBox.style.display = 'none';
+            okBox.style.display  = 'none';
+
+            if (!name || !email || !subject || !message) {
+                errBox.textContent = 'Please fill in every field before sending.';
+                errBox.style.display = 'block';
+                return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                errBox.textContent = 'Please enter a valid email address.';
+                errBox.style.display = 'block';
+                return;
+            }
+
+            // Placeholder success — replace with a real send call when you're ready.
+            okBox.textContent = 'Thanks, ' + name + '! Your message has been received. We\u2019ll reply to ' + email + ' soon.';
+            okBox.style.display = 'block';
+            this.reset();
+        });
+    </script>
+
+</body>
+</html>
