@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn to Code | CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="studio-header">
+        <div class="header-brand">
+            <span class="studio-logo">CodeWix</span>
+            <span class="env-badge">Daily Lessons</span>
+        </div>
+        <nav class="studio-nav">
+            <a href="dashboard.html">Workspace</a>
+            <a href="learn.html" class="active">Learn</a>
+            <a href="ai-assistant.html">AI Assistant</a>
+        </nav>
+        <div class="user-session">
+            <span id="dashUser">Developer</span>
+            <button class="exit-btn" id="logoutBtn">Exit Studio</button>
+        </div>
+    </header>
+
+    <main class="learn-workspace">
+        <div class="learn-header">
+            <h1>Today's <span>Lesson</span></h1>
+            <p id="lessonDayLabel" class="learn-day">Day 1</p>
+        </div>
+
+        <article class="lesson-card-full">
+            <h2 id="lessonTitle">Loading…</h2>
+            <div id="lessonBody" class="lesson-body"></div>
+        </article>
+
+        <section class="browse-section">
+            <h2>Browse All Lessons</h2>
+            <p class="browse-subtitle">Click any lesson to jump to it. Today's is highlighted.</p>
+            <div id="lessonList" class="lesson-list"></div>
+        </section>
+    </main>
+
+    <footer class="studio-status-bar">
+        <div class="status-left-node">
+            <span class="status-indicator-dot online"></span>
+            <span id="userEmail">Session active</span>
+        </div>
+        <div class="status-right-node">
+            <span>Learn to Code</span>
+            <span>Updated daily</span>
+        </div>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

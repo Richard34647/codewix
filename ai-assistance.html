@@ -15,6 +15,7 @@
         </div>
         <nav class="studio-nav">
             <a href="dashboard.html">Workspace</a>
+            <a href="learn.html">Learn</a>
             <a href="ai-assistant.html" class="active">AI Assistant</a>
         </nav>
         <div class="user-session">
@@ -28,17 +29,23 @@
             <h1>CodeWix <span>AI Assistant</span></h1>
             <div class="ai-controls">
                 <select id="modelSelect">
-                    <option value="openai/gpt-oss-120b">GPT-OSS 120B (Recommended)</option>
-                    <option value="openai/gpt-oss-20b">GPT-OSS 20B (Fastest)</option>
-                    <option value="qwen/qwen3.6-27b">Qwen 3.6 27B (Preview)</option>
+                    <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+                    <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+                    <option value="qwen/qwen3.6-27b">Qwen 3.6 27B</option>
                 </select>
-                <label class="thinking-toggle" title="Show the AI's reasoning process">
+                <label class="thinking-toggle" title="Show the AI's reasoning">
                     <input type="checkbox" id="thinkingToggle">
                     <span class="toggle-slider"></span>
-                    <span class="toggle-label">Show thinking</span>
+                    <span class="toggle-label">Thinking</span>
                 </label>
-                <button id="clearChatBtn" class="exit-btn">Clear Chat</button>
+                <button class="studio-btn ghost-btn" id="newChatBtn" title="Start a new conversation">+ New Chat</button>
+                <button class="studio-btn ghost-btn" id="historyBtn" title="View past conversations">📜 History</button>
+                <a href="learn.html" class="studio-btn ghost-btn" id="learnBtn" title="Daily coding lessons">📚 Learn</a>
             </div>
+        </div>
+
+        <div class="chat-title-bar" id="chatTitleBar" style="display:none;">
+            <span id="currentChatTitle">Untitled Chat</span>
         </div>
 
         <div class="chat-container" id="chatContainer">
@@ -69,8 +76,22 @@
         </div>
     </footer>
 
+    <!-- Chat History Modal -->
+    <div class="modal-backdrop" id="historyModal" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Chat History</h2>
+                <button class="modal-close" id="closeHistoryModalBtn">×</button>
+            </div>
+            <div class="modal-body" id="historyListContainer">
+                <p class="modal-empty">Loading…</p>
+            </div>
+        </div>
+    </div>
+
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

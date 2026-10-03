@@ -1550,3 +1550,361 @@ footer a:hover {
     .preview-area { height: 80vh; }
     .chat-container { max-height: 80vh; }
 }
+
+/* ==========================================================================
+   Learn Page
+   ========================================================================== */
+
+.learn-workspace {
+    flex: 1;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+}
+
+.learn-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.learn-header h1 {
+    font-size: 34px;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+}
+.learn-header h1 span { color: #38bdf8; }
+
+.learn-day {
+    color: #64748b;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.lesson-card-full {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 40px;
+}
+
+.lesson-card-full h2 {
+    font-size: 26px;
+    color: #38bdf8;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #334155;
+}
+
+.lesson-meta {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.lesson-level {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.level-beginner      { background: #064e3b; color: #6ee7b7; }
+.level-intermediate  { background: #78350f; color: #fbbf24; }
+.level-advanced      { background: #4c1d95; color: #c4b5fd; }
+
+.lesson-lang {
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: #0b1324;
+    color: #38bdf8;
+    font-size: 11px;
+    font-weight: bold;
+    font-family: monospace;
+    text-transform: uppercase;
+}
+
+.lesson-section {
+    margin-bottom: 24px;
+}
+
+.lesson-section h3 {
+    color: #38bdf8;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+}
+
+.lesson-section p {
+    color: #cbd5e1;
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+.lesson-section code {
+    background: #020617;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #34d399;
+    font-size: 13px;
+}
+
+.hint-reveal {
+    margin-top: 12px;
+    background: #0b1324;
+    border-left: 3px solid #a78bfa;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.hint-reveal summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    color: #a78bfa;
+    font-size: 13px;
+    font-weight: 600;
+    user-select: none;
+    list-style: none;
+}
+.hint-reveal summary::-webkit-details-marker { display: none; }
+.hint-reveal summary::before { content: '▸ '; }
+.hint-reveal[open] summary::before { content: '▾ '; }
+
+.hint-reveal p {
+    padding: 0 14px 12px;
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1.6;
+    border-top: 1px solid #1e293b;
+    padding-top: 12px;
+    margin-top: 4px;
+}
+
+.lesson-actions {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #334155;
+    text-align: right;
+}
+
+/* Browse lessons */
+.browse-section h2 {
+    color: #38bdf8;
+    font-size: 22px;
+    margin-bottom: 6px;
+}
+
+.browse-subtitle {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
+.lesson-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.lesson-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.lesson-card:hover {
+    border-color: #38bdf8;
+    background: #253449;
+    transform: translateY(-1px);
+}
+
+.lesson-card.today {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 1px #38bdf8 inset;
+}
+
+.lesson-card-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #0b1324;
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.lesson-card-info h4 {
+    font-size: 14px;
+    color: #e2e8f0;
+    margin-bottom: 3px;
+}
+
+.lesson-card-info p {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.today-badge {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 9px;
+    background: #38bdf8;
+    color: #020617;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* ==========================================================================
+   AI Chat History — Title Bar & Modal Additions
+   ========================================================================== */
+
+.chat-title-bar {
+    padding: 8px 14px;
+    background: #0b1324;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chat-title-bar::before {
+    content: '💬';
+    font-size: 14px;
+}
+
+#currentChatTitle {
+    color: #e2e8f0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Learn button as an anchor tag needs button styling */
+a.studio-btn {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+/* History modal rows */
+.history-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: #0b1324;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.history-row:hover {
+    border-color: #38bdf8;
+    background: #0f1a2e;
+}
+
+.history-row.active {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 1px #38bdf8 inset;
+}
+
+.history-info {
+    flex: 1;
+    min-width: 0; /* allows truncation */
+}
+
+.history-info h3 {
+    font-size: 14px;
+    color: #e2e8f0;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.history-info p {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.history-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.history-actions button {
+    background: transparent;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 5px 10px;
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.history-actions button:hover {
+    background: #1e293b;
+    color: #38bdf8;
+    border-color: #38bdf8;
+}
+
+.history-actions button.danger:hover {
+    color: #f87171;
+    border-color: #f87171;
+}
+
+/* Mobile adjustments for new elements */
+@media (max-width: 768px) {
+    .chat-title-bar { font-size: 11px; padding: 6px 12px; }
+
+    .history-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .history-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    a.studio-btn {
+        padding: 5px 8px;
+        font-size: 10px;
+    }
+}

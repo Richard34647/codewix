@@ -1,14 +1,5 @@
 // ==========================================================================
 // CodeWix — app logic (classic script, no ES modules)
-// Sections:
-//   1. Firebase boot
-//   2. Helpers
-//   3. Auth guard
-//   4. Logout
-//   5. Register
-//   6. Login
-//   7. Sandbox IDE (dashboard.html) — includes save/load/download
-//   8. AI Assistant (ai-assistant.html) — code blocks, copy, download, thinking
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -17,13 +8,13 @@ window.addEventListener('DOMContentLoaded', function () {
   console.log('[CodeWix] DOMContentLoaded fired');
 
   // ======================================================================
-  // 1. Firebase boot (compat SDK)
+  // 1. Firebase boot
   // ======================================================================
   var auth = null;
   var db = null;
 
   if (typeof firebase === 'undefined') {
-    console.error('[CodeWix] firebase global is undefined. Missing compat SDK script tags?');
+    console.error('[CodeWix] firebase global is undefined.');
   } else {
     try {
       if (!firebase.apps.length) {
@@ -38,9 +29,7 @@ window.addEventListener('DOMContentLoaded', function () {
         });
       }
       auth = firebase.auth();
-      if (firebase.firestore) {
-        db = firebase.firestore();
-      }
+      if (firebase.firestore) db = firebase.firestore();
       console.log('[CodeWix] Firebase ready ✔ (firestore:', !!db, ')');
     } catch (err) {
       console.error('[CodeWix] Firebase init failed:', err);
@@ -60,11 +49,8 @@ window.addEventListener('DOMContentLoaded', function () {
 
   function escapeHtml(s) {
     return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function showToast(msg, type) {
@@ -88,8 +74,7 @@ window.addEventListener('DOMContentLoaded', function () {
   function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
+    a.href = url; a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -98,26 +83,33 @@ window.addEventListener('DOMContentLoaded', function () {
 
   function extensionForLang(lang) {
     var map = {
-      'javascript': 'js', 'js': 'js', 'jsx': 'jsx',
-      'typescript': 'ts', 'ts': 'ts', 'tsx': 'tsx',
-      'python': 'py', 'py': 'py',
-      'html': 'html', 'xml': 'html',
-      'css': 'css', 'scss': 'scss', 'sass': 'sass',
-      'json': 'json', 'yaml': 'yml', 'yml': 'yml',
-      'bash': 'sh', 'sh': 'sh', 'shell': 'sh', 'zsh': 'sh',
-      'sql': 'sql', 'java': 'java', 'c': 'c', 'cpp': 'cpp',
-      'csharp': 'cs', 'cs': 'cs', 'go': 'go', 'rust': 'rs',
-      'php': 'php', 'ruby': 'rb', 'swift': 'swift', 'kotlin': 'kt',
-      'markdown': 'md', 'md': 'md', 'text': 'txt', 'plaintext': 'txt'
+      'javascript':'js','js':'js','jsx':'jsx','typescript':'ts','ts':'ts','tsx':'tsx',
+      'python':'py','py':'py','html':'html','xml':'html','css':'css','scss':'scss','sass':'sass',
+      'json':'json','yaml':'yml','yml':'yml','bash':'sh','sh':'sh','shell':'sh','zsh':'sh',
+      'sql':'sql','java':'java','c':'c','cpp':'cpp','csharp':'cs','cs':'cs','go':'go',
+      'rust':'rs','php':'php','ruby':'rb','swift':'swift','kotlin':'kt',
+      'markdown':'md','md':'md','text':'txt','plaintext':'txt'
     };
     return map[String(lang).toLowerCase()] || 'txt';
   }
 
+  // ---- Auto-inject "Learn" link into navs (fallback) --------------------
+  document.querySelectorAll('nav').forEach(function (nav) {
+    if (!nav.querySelector('a[href="learn.html"]')) {
+      var a = document.createElement('a');
+      a.href = 'learn.html';
+      a.textContent = 'Learn';
+      var home = nav.querySelector('a[href="index.html"]');
+      if (home && home.nextSibling) nav.insertBefore(a, home.nextSibling);
+      else nav.appendChild(a);
+    }
+  });
+
   // ======================================================================
-  // 3. Auth guard — dashboard.html + ai-assistant.html require login
+  // 3. Auth guard
   // ======================================================================
   var path = location.pathname.toLowerCase();
-  var protectedPages = ['dashboard.html', 'ai-assistant.html'];
+  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
 
   if (auth && onProtectedPage) {
@@ -144,7 +136,6 @@ window.addEventListener('DOMContentLoaded', function () {
   // 5. Register
   // ======================================================================
   if ($('registerForm')) {
-    console.log('[CodeWix] register form detected');
     $('registerForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var email = $('email').value.trim();
@@ -157,10 +148,7 @@ window.addEventListener('DOMContentLoaded', function () {
           alert('Registration successful! Taking you to your dashboard…');
           location.href = 'dashboard.html';
         })
-        .catch(function (err) {
-          console.error('[CodeWix] register error:', err);
-          showError(errBox, err.message);
-        });
+        .catch(function (err) { showError(errBox, err.message); });
     });
   }
 
@@ -168,7 +156,6 @@ window.addEventListener('DOMContentLoaded', function () {
   // 6. Login
   // ======================================================================
   if ($('loginForm')) {
-    console.log('[CodeWix] login form detected');
     $('loginForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var email = $('email').value.trim();
@@ -181,15 +168,12 @@ window.addEventListener('DOMContentLoaded', function () {
           alert('Login successful! Loading your workspace…');
           location.href = 'dashboard.html';
         })
-        .catch(function (err) {
-          console.error('[CodeWix] login error:', err);
-          showError(errBox, 'Authentication failed: ' + err.message);
-        });
+        .catch(function (err) { showError(errBox, 'Authentication failed: ' + err.message); });
     });
   }
 
   // ======================================================================
-  // 7. Sandbox IDE (dashboard.html only)
+  // 7. Sandbox IDE (dashboard.html)
   // ======================================================================
   var codeEditor       = $('codeEditor');
   var runCodeBtn       = $('runCodeBtn');
@@ -210,7 +194,7 @@ window.addEventListener('DOMContentLoaded', function () {
   var projectStatusLbl = $('projectStatusLabel');
 
   if (codeEditor || runCodeBtn || fileTreeList) {
-    console.log('[CodeWix] IDE detected on this page');
+    console.log('[CodeWix] IDE detected');
 
     var DEFAULT_FILES = {
       'index.html': '<h1>Hello World!</h1>\n<p>Edit me then click Build &amp; Run.</p>\n<button onclick="hi()">Click Me</button>\n<script>\nfunction hi(){ alert("Sandbox JS works!"); }\n<\/script>',
@@ -225,11 +209,9 @@ window.addEventListener('DOMContentLoaded', function () {
     var lastSavedSnapshot = null;
 
     function snapshot() { return JSON.stringify(files); }
-
     function markUnsaved() {
       if (!unsavedIndicator) return;
-      var dirty = lastSavedSnapshot !== snapshot();
-      unsavedIndicator.style.display = dirty ? 'inline' : 'none';
+      unsavedIndicator.style.display = (lastSavedSnapshot !== snapshot()) ? 'inline' : 'none';
     }
 
     function rebuildFileTree() {
@@ -260,14 +242,11 @@ window.addEventListener('DOMContentLoaded', function () {
     function renderPreview() {
       if (!livePreviewFrame) return;
       if (codeEditor) files[activeFile] = codeEditor.value;
-      var html =
+      livePreviewFrame.srcdoc =
         '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-        (files['style.css'] || '') +
-        '</style></head><body>' +
-        (files['index.html'] || '') +
-        '<script>' + (files['script.js'] || '') + '<\/script>' +
-        '</body></html>';
-      livePreviewFrame.srcdoc = html;
+        (files['style.css'] || '') + '</style></head><body>' +
+        (files['index.html'] || '') + '<script>' +
+        (files['script.js'] || '') + '<\/script></body></html>';
     }
 
     function loadFilesIntoEditor(newFiles, projectId, projectName) {
@@ -281,14 +260,9 @@ window.addEventListener('DOMContentLoaded', function () {
       updateGutter();
       renderPreview();
       if (unsavedIndicator) unsavedIndicator.style.display = 'none';
-      if (projectStatusLbl) {
-        projectStatusLbl.textContent = currentProjectName
-          ? 'Project: ' + currentProjectName
-          : 'No project loaded';
-      }
+      if (projectStatusLbl) projectStatusLbl.textContent = currentProjectName ? 'Project: ' + currentProjectName : 'No project loaded';
     }
 
-    // ---- Editor wiring -----------------------------------------------
     if (codeEditor) {
       codeEditor.value = files[activeFile];
       lastSavedSnapshot = snapshot();
@@ -300,23 +274,15 @@ window.addEventListener('DOMContentLoaded', function () {
       updateGutter();
     }
 
-    if (runCodeBtn) {
-      runCodeBtn.addEventListener('click', function () {
-        renderPreview();
-        showToast('Preview refreshed');
-      });
-    }
-
+    if (runCodeBtn) runCodeBtn.addEventListener('click', function () { renderPreview(); showToast('Preview refreshed'); });
     renderPreview();
 
-    // ---- File tree click ---------------------------------------------
     if (fileTreeList) {
       fileTreeList.addEventListener('click', function (e) {
         var item = e.target.closest('.file-item');
         if (!item || !codeEditor) return;
         files[activeFile] = codeEditor.value;
-        var all = document.querySelectorAll('.file-item');
-        for (var i = 0; i < all.length; i++) all[i].classList.remove('active');
+        document.querySelectorAll('.file-item').forEach(function (el) { el.classList.remove('active'); });
         item.classList.add('active');
         activeFile = item.getAttribute('data-filename');
         if (currentFileLabel) currentFileLabel.textContent = activeFile;
@@ -325,7 +291,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // ---- New file ----------------------------------------------------
     if (newFileBtn) {
       newFileBtn.addEventListener('click', function () {
         var name = prompt('New filename (e.g. app.js):');
@@ -340,51 +305,31 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // ---- Download current file ---------------------------------------
     if (downloadFileBtn) {
       downloadFileBtn.addEventListener('click', function () {
         if (!codeEditor) return;
         files[activeFile] = codeEditor.value;
-        var content = files[activeFile] || '';
-        var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-        downloadBlob(blob, activeFile);
+        downloadBlob(new Blob([files[activeFile] || ''], { type: 'text/plain;charset=utf-8' }), activeFile);
         showToast('Downloaded ' + activeFile, 'success');
       });
     }
 
-    // ---- Download all as ZIP -----------------------------------------
     if (downloadZipBtn) {
       downloadZipBtn.addEventListener('click', async function () {
-        if (typeof JSZip === 'undefined') {
-          alert('ZIP library not loaded. Check the JSZip script tag in dashboard.html.');
-          return;
-        }
+        if (typeof JSZip === 'undefined') { alert('ZIP library not loaded.'); return; }
         if (codeEditor) files[activeFile] = codeEditor.value;
-
         downloadZipBtn.disabled = true;
         downloadZipBtn.textContent = 'Zipping…';
-
         try {
           var zip = new JSZip();
-          Object.keys(files).forEach(function (name) {
-            zip.file(name, files[name] || '');
-          });
+          Object.keys(files).forEach(function (name) { zip.file(name, files[name] || ''); });
           var blob = await zip.generateAsync({ type: 'blob' });
           downloadBlob(blob, 'codewix-project.zip');
           showToast('ZIP downloaded', 'success');
-        } catch (err) {
-          console.error('[CodeWix] zip failed:', err);
-          showToast('ZIP failed: ' + err.message, 'error');
-        } finally {
-          downloadZipBtn.disabled = false;
-          downloadZipBtn.textContent = '📦 Download All';
-        }
+        } catch (err) { showToast('ZIP failed: ' + err.message, 'error'); }
+        finally { downloadZipBtn.disabled = false; downloadZipBtn.textContent = '📦 Download All'; }
       });
     }
-
-    // ======================================================================
-    // 7b. Save / Load Projects (Firestore)
-    // ======================================================================
 
     function projectsCollection() {
       if (!db || !auth || !auth.currentUser) return null;
@@ -392,12 +337,8 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function saveProject() {
-      if (!codeEditor) return;
-      if (!db) { showToast('Firestore not loaded.', 'error'); return; }
-      if (!auth || !auth.currentUser) { showToast('Not signed in.', 'error'); return; }
-
+      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready to save.', 'error'); return; }
       files[activeFile] = codeEditor.value;
-
       var name = currentProjectName;
       if (!name) {
         name = prompt('Name this project:', 'My Project');
@@ -405,59 +346,39 @@ window.addEventListener('DOMContentLoaded', function () {
         name = name.trim();
         if (!name) return;
       }
-
       saveProjectBtn.disabled = true;
       saveProjectBtn.textContent = 'Saving…';
-
       var payload = {
-        name: name,
-        files: files,
-        activeFile: activeFile,
+        name: name, files: files, activeFile: activeFile,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
-
       var col = projectsCollection();
       var promise;
       if (currentProjectId) {
         promise = col.doc(currentProjectId).update(payload);
       } else {
         payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-        promise = col.add(payload).then(function (ref) {
-          currentProjectId = ref.id;
-        });
+        promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; });
       }
-
-      promise
-        .then(function () {
-          currentProjectName = name;
-          lastSavedSnapshot = snapshot();
-          if (unsavedIndicator) unsavedIndicator.style.display = 'none';
-          if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name;
-          showToast('Project saved ✔', 'success');
-        })
-        .catch(function (err) {
-          console.error('[CodeWix] save error:', err);
-          showToast('Save failed: ' + err.message, 'error');
-        })
-        .finally(function () {
-          saveProjectBtn.disabled = false;
-          saveProjectBtn.textContent = 'Save';
-        });
+      promise.then(function () {
+        currentProjectName = name;
+        lastSavedSnapshot = snapshot();
+        if (unsavedIndicator) unsavedIndicator.style.display = 'none';
+        if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name;
+        showToast('Project saved ✔', 'success');
+      }).catch(function (err) { showToast('Save failed: ' + err.message, 'error'); })
+        .finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; });
     }
 
     function openProjectsModal() {
       if (!projectsModal) return;
       projectsModal.style.display = 'flex';
       projectsListBox.innerHTML = '<p class="modal-empty">Loading…</p>';
-
       if (!db || !auth || !auth.currentUser) {
         projectsListBox.innerHTML = '<p class="modal-empty">Sign in to view your projects.</p>';
         return;
       }
-
-      projectsCollection()
-        .orderBy('updatedAt', 'desc')
-        .get()
+      projectsCollection().orderBy('updatedAt', 'desc').get()
         .then(function (snapshot) {
           projectsListBox.innerHTML = '';
           if (snapshot.empty) {
@@ -469,10 +390,8 @@ window.addEventListener('DOMContentLoaded', function () {
             var row = document.createElement('div');
             row.className = 'project-row';
             row.innerHTML =
-              '<div class="project-info">' +
-                '<h3>' + escapeHtml(data.name || 'Untitled') + '</h3>' +
-                '<p>Last saved: ' + formatDate(data.updatedAt) + '</p>' +
-              '</div>' +
+              '<div class="project-info"><h3>' + escapeHtml(data.name || 'Untitled') + '</h3>' +
+              '<p>Last saved: ' + formatDate(data.updatedAt) + '</p></div>' +
               '<div class="project-actions">' +
                 '<button data-action="open" data-id="' + doc.id + '">Open</button>' +
                 '<button data-action="download" data-id="' + doc.id + '">⬇ ZIP</button>' +
@@ -482,24 +401,16 @@ window.addEventListener('DOMContentLoaded', function () {
           });
         })
         .catch(function (err) {
-          console.error('[CodeWix] list error:', err);
-          projectsListBox.innerHTML = '<p class="modal-empty">Failed to load projects: ' + escapeHtml(err.message) + '</p>';
+          projectsListBox.innerHTML = '<p class="modal-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
         });
     }
 
-    function closeProjectsModal() {
-      if (projectsModal) projectsModal.style.display = 'none';
-    }
+    function closeProjectsModal() { if (projectsModal) projectsModal.style.display = 'none'; }
 
     if (saveProjectBtn) saveProjectBtn.addEventListener('click', saveProject);
     if (myProjectsBtn)  myProjectsBtn.addEventListener('click', openProjectsModal);
     if (closeModalBtn)  closeModalBtn.addEventListener('click', closeProjectsModal);
-
-    if (projectsModal) {
-      projectsModal.addEventListener('click', function (e) {
-        if (e.target === projectsModal) closeProjectsModal();
-      });
-    }
+    if (projectsModal)  projectsModal.addEventListener('click', function (e) { if (e.target === projectsModal) closeProjectsModal(); });
 
     if (projectsListBox) {
       projectsListBox.addEventListener('click', async function (e) {
@@ -509,57 +420,38 @@ window.addEventListener('DOMContentLoaded', function () {
         var id = btn.getAttribute('data-id');
 
         if (action === 'open') {
-          btn.disabled = true;
-          btn.textContent = 'Opening…';
-          projectsCollection().doc(id).get()
-            .then(function (doc) {
-              if (!doc.exists) { showToast('Project not found.', 'error'); return; }
-              var data = doc.data();
-              loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled');
-              closeProjectsModal();
-              showToast('Project loaded ✔', 'success');
-            })
-            .catch(function (err) {
-              showToast('Open failed: ' + err.message, 'error');
-            })
-            .finally(function () {
-              btn.disabled = false;
-              btn.textContent = 'Open';
-            });
-
-        } else if (action === 'download') {
-          if (typeof JSZip === 'undefined') { showToast('ZIP library missing.', 'error'); return; }
-          btn.disabled = true;
-          btn.textContent = 'Zipping…';
+          btn.disabled = true; btn.textContent = 'Opening…';
           try {
             var doc = await projectsCollection().doc(id).get();
-            if (!doc.exists) { showToast('Project not found.', 'error'); return; }
+            if (!doc.exists) { showToast('Not found.', 'error'); return; }
             var data = doc.data();
+            loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled');
+            closeProjectsModal();
+            showToast('Project loaded ✔', 'success');
+          } catch (err) { showToast('Open failed: ' + err.message, 'error'); }
+          finally { btn.disabled = false; btn.textContent = 'Open'; }
+
+        } else if (action === 'download') {
+          if (typeof JSZip === 'undefined') { showToast('ZIP missing.', 'error'); return; }
+          btn.disabled = true; btn.textContent = 'Zipping…';
+          try {
+            var d = await projectsCollection().doc(id).get();
+            if (!d.exists) { showToast('Not found.', 'error'); return; }
+            var dd = d.data();
             var zip = new JSZip();
-            Object.keys(data.files || {}).forEach(function (name) {
-              zip.file(name, data.files[name] || '');
-            });
+            Object.keys(dd.files || {}).forEach(function (name) { zip.file(name, dd.files[name] || ''); });
             var blob = await zip.generateAsync({ type: 'blob' });
-            var safeName = (data.name || 'codewix-project').replace(/[^a-z0-9-_]/gi, '_');
-            downloadBlob(blob, safeName + '.zip');
-            showToast('Downloaded ' + safeName + '.zip', 'success');
-          } catch (err) {
-            showToast('ZIP failed: ' + err.message, 'error');
-          } finally {
-            btn.disabled = false;
-            btn.textContent = '⬇ ZIP';
-          }
+            var safe = (dd.name || 'codewix-project').replace(/[^a-z0-9-_]/gi, '_');
+            downloadBlob(blob, safe + '.zip');
+            showToast('Downloaded ' + safe + '.zip', 'success');
+          } catch (err) { showToast('ZIP failed: ' + err.message, 'error'); }
+          finally { btn.disabled = false; btn.textContent = '⬇ ZIP'; }
 
         } else if (action === 'delete') {
           if (!confirm('Delete this project permanently?')) return;
           projectsCollection().doc(id).delete()
-            .then(function () {
-              showToast('Project deleted', 'success');
-              openProjectsModal();
-            })
-            .catch(function (err) {
-              showToast('Delete failed: ' + err.message, 'error');
-            });
+            .then(function () { showToast('Deleted', 'success'); openProjectsModal(); })
+            .catch(function (err) { showToast('Delete failed: ' + err.message, 'error'); });
         }
       });
     }
@@ -574,7 +466,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // Ctrl/Cmd + S saves
     document.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
@@ -582,7 +473,6 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // Warn on unload if there are unsaved changes
     window.addEventListener('beforeunload', function (e) {
       if (lastSavedSnapshot !== null && lastSavedSnapshot !== snapshot()) {
         e.preventDefault();
@@ -592,30 +482,176 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // 8. AI Assistant (ai-assistant.html)
+  // 8. AI Assistant — multiple chat sessions + history
   // ======================================================================
-  var chatContainer  = $('chatContainer');
-  var chatInput      = $('chatInput');
-  var sendBtn        = $('sendBtn');
-  var clearChatBtn   = $('clearChatBtn');
-  var modelSelect    = $('modelSelect');
-  var chatStatus     = $('chatStatus');
-  var modelIndicator = $('modelIndicator');
-  var thinkingToggle = $('thinkingToggle');
+  var chatContainer      = $('chatContainer');
+  var chatInput          = $('chatInput');
+  var sendBtn            = $('sendBtn');
+  var modelSelect        = $('modelSelect');
+  var chatStatus         = $('chatStatus');
+  var modelIndicator     = $('modelIndicator');
+  var thinkingToggle     = $('thinkingToggle');
+  var newChatBtn         = $('newChatBtn');
+  var historyBtn         = $('historyBtn');
+  var historyModal       = $('historyModal');
+  var historyListBox     = $('historyListContainer');
+  var closeHistoryBtn    = $('closeHistoryModalBtn');
+  var chatTitleBar       = $('chatTitleBar');
+  var currentChatTitleEl = $('currentChatTitle');
 
   if (chatContainer && chatInput && sendBtn) {
     console.log('[CodeWix] AI Assistant detected');
 
     var API_URL = '/api/chat';
 
-    var conversation = [
-      {
-        role: 'system',
-        content: 'You are the CodeWix AI Assistant. You help users learn to code, debug errors, and build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name, like ```javascript ... ```. Never paste code inline without a fence.'
-      }
-    ];
+    var SYSTEM_PROMPT = {
+      role: 'system',
+      content: 'You are the CodeWix AI Assistant. You help users learn to code, debug errors, and build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name, like ```javascript ... ```. Never paste code inline without a fence.'
+    };
 
-    // ---- Render content: splits on ``` fences, builds code boxes ------
+    var conversation = [SYSTEM_PROMPT];
+    var currentChatId = null;
+    var currentChatTitle = '';
+    var saveTimer = null;
+    var authUser = null;
+
+    // ---- Firestore refs -------------------------------------------------
+    function chatsCollection() {
+      if (!db || !authUser) return null;
+      return db.collection('users').doc(authUser.uid).collection('chats');
+    }
+
+    function updateTitleBar() {
+      if (!chatTitleBar || !currentChatTitleEl) return;
+      if (currentChatTitle) {
+        chatTitleBar.style.display = 'flex';
+        currentChatTitleEl.textContent = currentChatTitle;
+      } else {
+        chatTitleBar.style.display = 'none';
+      }
+    }
+
+    // ---- Save (debounced 700 ms) ----------------------------------------
+    function scheduleSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { saveChatNow(); }, 700);
+    }
+
+    async function saveChatNow() {
+      if (!authUser || !db) return;
+      var messagesToSave = conversation.filter(function (m) { return m.role !== 'system'; });
+      if (!messagesToSave.length) return;
+
+      var col = chatsCollection();
+      if (!col) return;
+
+      // Derive a title from the first user message
+      var firstUser = messagesToSave.find(function (m) { return m.role === 'user'; });
+      var title = currentChatTitle;
+      if (!title && firstUser) {
+        title = firstUser.content.replace(/\s+/g, ' ').trim().substring(0, 48);
+        if (firstUser.content.length > 48) title += '…';
+      }
+      if (!title) title = 'New Chat';
+
+      var payload = {
+        title: title,
+        messages: messagesToSave,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      try {
+        if (currentChatId) {
+          await col.doc(currentChatId).update(payload);
+        } else {
+          payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          var ref = await col.add(payload);
+          currentChatId = ref.id;
+        }
+        currentChatTitle = title;
+        updateTitleBar();
+      } catch (err) {
+        console.warn('[CodeWix] chat save failed:', err);
+      }
+    }
+
+    // ---- Load a chat into the UI ----------------------------------------
+    function renderConversation() {
+      chatContainer.innerHTML = '';
+      conversation.forEach(function (m) {
+        if (m.role === 'user') {
+          var d = appendMessage('user');
+          setUserMessage(d, m.content);
+        } else if (m.role === 'assistant') {
+          var d2 = appendMessage('assistant');
+          setAssistantMessage(d2, m.content, '');
+        }
+      });
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function loadChat(id, data) {
+      currentChatId = id || null;
+      currentChatTitle = (data && data.title) || '';
+      var saved = (data && data.messages) || [];
+      conversation = [SYSTEM_PROMPT].concat(saved);
+      updateTitleBar();
+      if (saved.length) {
+        renderConversation();
+      } else {
+        showWelcome();
+      }
+    }
+
+    function startNewChat() {
+      currentChatId = null;
+      currentChatTitle = '';
+      conversation = [SYSTEM_PROMPT];
+      updateTitleBar();
+      showWelcome();
+      chatInput.focus();
+    }
+
+    function showWelcome() {
+      chatContainer.innerHTML =
+        '<div class="chat-message assistant-message">' +
+          '<div class="message-role">Assistant</div>' +
+          '<div class="message-content">' +
+            '<div class="text-part">Hello! I\'m your CodeWix AI Assistant. Ask me to explain code, debug an error, or help you build a project.</div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    // ---- On sign-in: load most recent chat ------------------------------
+    function onUserReady(user) {
+      authUser = user;
+      var col = chatsCollection();
+      if (!col) { showWelcome(); return; }
+
+      col.orderBy('updatedAt', 'desc').limit(1).get()
+        .then(function (snap) {
+          if (snap.empty) {
+            startNewChat();
+          } else {
+            var doc = snap.docs[0];
+            loadChat(doc.id, doc.data());
+            setStatus('Loaded previous conversation');
+          }
+        })
+        .catch(function (err) {
+          console.warn('[CodeWix] chat load failed:', err);
+          startNewChat();
+        });
+    }
+
+    if (auth) {
+      auth.onAuthStateChanged(function (user) {
+        if (!user) return;
+        onUserReady(user);
+      });
+    }
+
+    // ---- Render content with code blocks --------------------------------
     function renderContent(text) {
       var parts = String(text).split(/```/);
       var html = '';
@@ -691,9 +727,8 @@ window.addEventListener('DOMContentLoaded', function () {
       sendBtn.textContent = loading ? 'Thinking…' : 'Send';
     }
 
-    // ---- Copy + Download buttons on code blocks ----------------------
+    // ---- Copy + download on code blocks ---------------------------------
     chatContainer.addEventListener('click', function (e) {
-      // Download
       var dlBtn = e.target.closest('.download-code-btn');
       if (dlBtn) {
         var block = dlBtn.closest('.code-block');
@@ -701,17 +736,14 @@ window.addEventListener('DOMContentLoaded', function () {
         var codeEl = block.querySelector('code');
         if (!codeEl) return;
         var lang = block.getAttribute('data-lang') || 'code';
-        var text = codeEl.textContent;
         var ext = extensionForLang(lang);
-        var filename = 'codewix-snippet-' + Date.now() + '.' + ext;
-        var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        downloadBlob(blob, filename);
+        downloadBlob(new Blob([codeEl.textContent], { type: 'text/plain;charset=utf-8' }),
+                     'codewix-snippet-' + Date.now() + '.' + ext);
         dlBtn.textContent = '✓ Saved';
         setTimeout(function () { dlBtn.textContent = '⬇ Download'; }, 1500);
         return;
       }
 
-      // Copy
       var btn = e.target.closest('.copy-btn');
       if (!btn) return;
       var block2 = btn.closest('.code-block');
@@ -728,12 +760,9 @@ window.addEventListener('DOMContentLoaded', function () {
           btn.classList.remove('copied');
         }, 1500);
       }
-
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text2).then(flash).catch(fallback);
-      } else {
-        fallback();
-      }
+      } else fallback();
 
       function fallback() {
         var ta = document.createElement('textarea');
@@ -745,15 +774,21 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // ---- Send to Groq ------------------------------------------------
+    // ---- Send to Groq ---------------------------------------------------
     async function sendToGroq(userText) {
       var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
       if (modelIndicator) modelIndicator.textContent = model;
       var showThinking = thinkingToggle ? thinkingToggle.checked : false;
 
+      // If the chat container still has the welcome bubble, clear it
+      if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) {
+        chatContainer.innerHTML = '';
+      }
+
       conversation.push({ role: 'user', content: userText });
       var userDiv = appendMessage('user');
       setUserMessage(userDiv, userText);
+      scheduleSave();
 
       var assistantDiv = appendMessage('assistant');
       assistantDiv.querySelector('.message-content').innerHTML =
@@ -776,13 +811,10 @@ window.addEventListener('DOMContentLoaded', function () {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
         var data = await response.json();
 
         if (!response.ok) {
-          var msg =
-            (data && data.error && (data.error.message || data.error)) ||
-            ('HTTP ' + response.status);
+          var msg = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + response.status);
           throw new Error(msg);
         }
 
@@ -794,6 +826,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
         setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
         conversation.push({ role: 'assistant', content: reply });
+        scheduleSave();
         setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
 
       } catch (err) {
@@ -827,18 +860,106 @@ window.addEventListener('DOMContentLoaded', function () {
       chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px';
     });
 
-    if (clearChatBtn) {
-      clearChatBtn.addEventListener('click', function () {
-        conversation = [conversation[0]];
-        chatContainer.innerHTML =
-          '<div class="chat-message assistant-message">' +
-            '<div class="message-role">Assistant</div>' +
-            '<div class="message-content"><div class="text-part">Chat cleared. What would you like to build?</div></div>' +
-          '</div>';
-        setStatus('Ready');
+    // ---- New Chat button ------------------------------------------------
+    if (newChatBtn) {
+      newChatBtn.addEventListener('click', async function () {
+        // Save the current chat before starting fresh
+        clearTimeout(saveTimer);
+        await saveChatNow();
+        startNewChat();
+        setStatus('New chat started');
+        showToast('New chat', 'success');
       });
     }
 
+    // ---- History modal --------------------------------------------------
+    function openHistoryModal() {
+      if (!historyModal) return;
+      historyModal.style.display = 'flex';
+      historyListBox.innerHTML = '<p class="modal-empty">Loading…</p>';
+
+      var col = chatsCollection();
+      if (!col) {
+        historyListBox.innerHTML = '<p class="modal-empty">Sign in to view history.</p>';
+        return;
+      }
+
+      col.orderBy('updatedAt', 'desc').limit(50).get()
+        .then(function (snap) {
+          historyListBox.innerHTML = '';
+          if (snap.empty) {
+            historyListBox.innerHTML = '<p class="modal-empty">No chat history yet.</p>';
+            return;
+          }
+          snap.forEach(function (doc) {
+            var data = doc.data() || {};
+            var msgCount = (data.messages || []).length;
+            var row = document.createElement('div');
+            row.className = 'history-row' + (doc.id === currentChatId ? ' active' : '');
+            row.setAttribute('data-id', doc.id);
+            row.innerHTML =
+              '<div class="history-info">' +
+                '<h3>' + escapeHtml(data.title || 'Untitled') + '</h3>' +
+                '<p>' + formatDate(data.updatedAt) + ' · ' + msgCount + ' message' + (msgCount === 1 ? '' : 's') + '</p>' +
+              '</div>' +
+              '<div class="history-actions">' +
+                '<button data-action="delete" data-id="' + doc.id + '" class="danger">Delete</button>' +
+              '</div>';
+            historyListBox.appendChild(row);
+          });
+        })
+        .catch(function (err) {
+          console.error('[CodeWix] history list error:', err);
+          historyListBox.innerHTML = '<p class="modal-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
+        });
+    }
+
+    function closeHistoryModal() { if (historyModal) historyModal.style.display = 'none'; }
+
+    if (historyBtn) historyBtn.addEventListener('click', openHistoryModal);
+    if (closeHistoryBtn) closeHistoryBtn.addEventListener('click', closeHistoryModal);
+    if (historyModal) {
+      historyModal.addEventListener('click', function (e) {
+        if (e.target === historyModal) closeHistoryModal();
+      });
+    }
+
+    if (historyListBox) {
+      historyListBox.addEventListener('click', async function (e) {
+        var delBtn = e.target.closest('button[data-action="delete"]');
+        if (delBtn) {
+          e.stopPropagation();
+          var idToDelete = delBtn.getAttribute('data-id');
+          if (!confirm('Delete this chat permanently?')) return;
+          try {
+            await chatsCollection().doc(idToDelete).delete();
+            // If deleting the active chat, start a new one
+            if (idToDelete === currentChatId) {
+              startNewChat();
+            }
+            showToast('Chat deleted', 'success');
+            openHistoryModal(); // refresh
+          } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
+          return;
+        }
+
+        // Click anywhere else on the row = open that chat
+        var row = e.target.closest('.history-row');
+        if (!row) return;
+        var id = row.getAttribute('data-id');
+        if (id === currentChatId) { closeHistoryModal(); return; }
+        try {
+          var doc = await chatsCollection().doc(id).get();
+          if (!doc.exists) { showToast('Chat not found.', 'error'); return; }
+          loadChat(doc.id, doc.data());
+          closeHistoryModal();
+          setStatus('Loaded previous conversation');
+          showToast('Chat loaded', 'success');
+        } catch (err) { showToast('Load failed: ' + err.message, 'error'); }
+      });
+    }
+
+    // ---- Model selector indicator ---------------------------------------
     if (modelSelect && modelIndicator) {
       modelSelect.addEventListener('change', function () {
         modelIndicator.textContent = modelSelect.value;
