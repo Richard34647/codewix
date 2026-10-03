@@ -701,3 +701,186 @@ footer a:hover {
     0%, 80%, 100% { opacity: 0.2; }
     40% { opacity: 1; }
 }
+
+/* ==========================================================================
+   Code Blocks (rendered inside AI messages)
+   ========================================================================== */
+
+.code-block {
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    margin: 12px 0;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+}
+
+.code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #0b1324;
+    padding: 8px 12px;
+    border-bottom: 1px solid #1e293b;
+}
+
+.code-lang {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #38bdf8;
+    font-weight: bold;
+}
+
+.copy-btn {
+    background: #1e293b;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.copy-btn:hover {
+    background: #334155;
+    color: #38bdf8;
+    border-color: #38bdf8;
+}
+
+.copy-btn.copied {
+    background: #059669;
+    color: white;
+    border-color: #34d399;
+}
+
+.code-block pre {
+    margin: 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    background: #020617;
+}
+
+.code-block code {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #e2e8f0;
+    line-height: 1.5;
+    white-space: pre;
+}
+
+/* Inline code (single backticks) */
+.message-content code:not(.code-block code) {
+    background: #020617;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #34d399;
+}
+
+.text-part {
+    color: #e2e8f0;
+    line-height: 1.6;
+}
+
+/* ==========================================================================
+   Thinking / Reasoning Section
+   ========================================================================== */
+
+.reasoning-section {
+    background: #0b1324;
+    border-left: 3px solid #a78bfa;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    padding: 0;
+    font-size: 13px;
+}
+
+.reasoning-section summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    color: #a78bfa;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    user-select: none;
+    list-style: none;
+}
+
+.reasoning-section summary::-webkit-details-marker { display: none; }
+
+.reasoning-section summary::before {
+    content: '▸ ';
+    display: inline-block;
+    transition: transform 0.15s ease;
+}
+
+.reasoning-section[open] summary::before {
+    content: '▾ ';
+}
+
+.reasoning-content {
+    padding: 0 14px 12px 14px;
+    color: #94a3b8;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-style: italic;
+    border-top: 1px solid #1e293b;
+    padding-top: 10px;
+    margin-top: 4px;
+}
+
+/* ==========================================================================
+   Thinking Toggle Switch
+   ========================================================================== */
+
+.thinking-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #94a3b8;
+    user-select: none;
+}
+
+.thinking-toggle input { display: none; }
+
+.toggle-slider {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: #334155;
+    border-radius: 20px;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.toggle-slider::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #94a3b8;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.thinking-toggle input:checked + .toggle-slider {
+    background: #a78bfa;
+}
+
+.thinking-toggle input:checked + .toggle-slider::after {
+    left: 18px;
+    background: white;
+}
+
+.thinking-toggle input:checked ~ .toggle-label {
+    color: #a78bfa;
+}

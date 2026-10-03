@@ -32,6 +32,11 @@
                     <option value="openai/gpt-oss-20b">GPT-OSS 20B (Fastest)</option>
                     <option value="qwen/qwen3.6-27b">Qwen 3.6 27B (Preview)</option>
                 </select>
+                <label class="thinking-toggle" title="Show the AI's reasoning process">
+                    <input type="checkbox" id="thinkingToggle">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Show thinking</span>
+                </label>
                 <button id="clearChatBtn" class="exit-btn">Clear Chat</button>
             </div>
         </div>
@@ -39,7 +44,9 @@
         <div class="chat-container" id="chatContainer">
             <div class="chat-message assistant-message">
                 <div class="message-role">Assistant</div>
-                <div class="message-content">Hello! I'm your CodeWix AI Assistant powered by Groq. Ask me to explain code, debug an error, or help you build a project.</div>
+                <div class="message-content">
+                    <div class="text-part">Hello! I'm your CodeWix AI Assistant powered by Groq. Ask me to explain code, debug an error, or help you build a project.</div>
+                </div>
             </div>
         </div>
 
@@ -62,10 +69,8 @@
         </div>
     </footer>
 
-    <!-- Firebase compat SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-    <!-- App logic -->
     <script src="script.js"></script>
 </body>
 </html>

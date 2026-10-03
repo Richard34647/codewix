@@ -1,7 +1,5 @@
 // ==========================================================================
 // CodeWix — app logic (classic script, no ES modules)
-// Handles: Firebase auth, session guard, logout, register, login,
-//          sandbox IDE, Groq AI assistant (via /api/chat on server.js)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -47,6 +45,15 @@ window.addEventListener('DOMContentLoaded', function () {
   }
   function hideError(el) { if (el) el.style.display = 'none'; }
 
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // ======================================================================
   // 3. Auth guard — only protects dashboard.html
   // ======================================================================
@@ -79,7 +86,6 @@ window.addEventListener('DOMContentLoaded', function () {
     console.log('[CodeWix] register form detected');
     $('registerForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      console.log('[CodeWix] register submit');
       var email = $('email').value.trim();
       var password = $('password').value;
       var errBox = $('errorBox');
@@ -104,7 +110,6 @@ window.addEventListener('DOMContentLoaded', function () {
     console.log('[CodeWix] login form detected');
     $('loginForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      console.log('[CodeWix] login submit');
       var email = $('email').value.trim();
       var password = $('password').value;
       var errBox = $('errorBox');
@@ -162,7 +167,6 @@ window.addEventListener('DOMContentLoaded', function () {
         '<script>' + (files['script.js'] || '') + '<\/script>' +
         '</body></html>';
       livePreviewFrame.srcdoc = html;
-      console.log('[CodeWix] preview rendered');
     }
 
     if (codeEditor) {
@@ -172,10 +176,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     if (runCodeBtn) {
-      runCodeBtn.addEventListener('click', function () {
-        console.log('[CodeWix] Build & Run clicked');
-        renderPreview();
-      });
+      runCodeBtn.addEventListener('click', renderPreview);
     }
 
     renderPreview();
@@ -197,7 +198,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (newFileBtn && fileTreeList) {
       newFileBtn.addEventListener('click', function () {
-        console.log('[CodeWix] New File clicked');
         var name = prompt('New filename (e.g. app.js):');
         if (!name) return;
         var clean = name.trim().toLowerCase();
@@ -218,7 +218,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // 8. AI Assistant (ai-assistant.html) — talks to /api/chat on server.js
+  // 8. AI Assistant (ai-assistant.html)
   // ======================================================================
   var chatContainer  = $('chatContainer');
   var chatInput      = $('chatInput');
@@ -227,31 +227,88 @@ window.addEventListener('DOMContentLoaded', function () {
   var modelSelect    = $('modelSelect');
   var chatStatus     = $('chatStatus');
   var modelIndicator = $('modelIndicator');
+  var thinkingToggle = $('thinkingToggle');
 
   if (chatContainer && chatInput && sendBtn) {
     console.log('[CodeWix] AI Assistant detected');
 
-    // Same-origin API. Works both on localhost and on Render.
-    // If your front-end is served by server.js (recommended), this just works.
     var API_URL = '/api/chat';
 
     var conversation = [
       {
         role: 'system',
-        content: 'You are the CodeWix AI Assistant. You help users learn to code, debug errors, and build projects. Keep answers concise and practical. When showing code, use fenced code blocks with the language name.'
+        content: 'You are the CodeWix AI Assistant. You help users learn to code, debug errors, and build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name, like ```javascript ... ```. Never paste code inline without a fence.'
       }
     ];
 
-    function appendMessage(role, content) {
+    // ---------- Markdown-ish renderer: turns ``` fences into code boxes -----
+    function renderContent(text) {
+      var parts = String(text).split(/```/);
+      var html = '';
+      for (var i = 0; i < parts.length; i++) {
+        if (i % 2 === 0) {
+          // regular text
+          var chunk = parts[i];
+          if (!chunk) continue;
+          // inline code `foo`
+          var escaped = escapeHtml(chunk).replace(/`([^`\n]+)`/g, '<code>$1</code>');
+          html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>';
+        } else {
+          // code block: first line may be language
+          var body = parts[i];
+          var lang = 'code';
+          var nl = body.indexOf('\n');
+          if (nl !== -1) {
+            var firstLine = body.substring(0, nl).trim();
+            if (firstLine && !firstLine.match(/\s/) && firstLine.length < 20) {
+              lang = firstLine;
+              body = body.substring(nl + 1);
+            }
+          }
+          body = body.replace(/\n$/, '');
+          html +=
+            '<div class="code-block">' +
+              '<div class="code-header">' +
+                '<span class="code-lang">' + escapeHtml(lang) + '</span>' +
+                '<button type="button" class="copy-btn">Copy</button>' +
+              '</div>' +
+              '<pre><code>' + escapeHtml(body) + '</code></pre>' +
+            '</div>';
+        }
+      }
+      return html;
+    }
+
+    // ---------- Message rendering ------------------------------------------
+    function appendMessage(role) {
       var div = document.createElement('div');
       div.className = 'chat-message ' + (role === 'user' ? 'user-message' : 'assistant-message');
       div.innerHTML =
         '<div class="message-role">' + (role === 'user' ? 'You' : 'Assistant') + '</div>' +
         '<div class="message-content"></div>';
-      div.querySelector('.message-content').textContent = content;
       chatContainer.appendChild(div);
       chatContainer.scrollTop = chatContainer.scrollHeight;
       return div;
+    }
+
+    function setUserMessage(div, text) {
+      div.querySelector('.message-content').innerHTML =
+        '<div class="text-part">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
+    }
+
+    function setAssistantMessage(div, content, reasoning) {
+      var container = div.querySelector('.message-content');
+      var html = '';
+
+      if (reasoning) {
+        html +=
+          '<details class="reasoning-section">' +
+            '<summary>Thinking process</summary>' +
+            '<div class="reasoning-content">' + escapeHtml(reasoning) + '</div>' +
+          '</details>';
+      }
+      html += renderContent(content);
+      container.innerHTML = html;
     }
 
     function setStatus(msg) { if (chatStatus) chatStatus.textContent = msg; }
@@ -262,30 +319,79 @@ window.addEventListener('DOMContentLoaded', function () {
       sendBtn.textContent = loading ? 'Thinking…' : 'Send';
     }
 
+    // ---------- Copy button handling (event delegation) -------------------
+    chatContainer.addEventListener('click', function (e) {
+      var btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      var block = btn.closest('.code-block');
+      if (!block) return;
+      var codeEl = block.querySelector('code');
+      if (!codeEl) return;
+
+      var text = codeEl.textContent;
+
+      function flash() {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1500);
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flash).catch(function () {
+          // fallback
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); flash(); } catch (err) { alert('Copy failed.'); }
+          document.body.removeChild(ta);
+        });
+      } else {
+        var ta2 = document.createElement('textarea');
+        ta2.value = text;
+        document.body.appendChild(ta2);
+        ta2.select();
+        try { document.execCommand('copy'); flash(); } catch (err) { alert('Copy failed.'); }
+        document.body.removeChild(ta2);
+      }
+    });
+
+    // ---------- Send to Groq ----------------------------------------------
     async function sendToGroq(userText) {
-      var model = modelSelect ? modelSelect.value : 'llama-3.3-70b-versatile';
+      var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
       if (modelIndicator) modelIndicator.textContent = model;
 
-      conversation.push({ role: 'user', content: userText });
-      appendMessage('user', userText);
+      var showThinking = thinkingToggle ? thinkingToggle.checked : false;
 
-      var typingBubble = appendMessage('assistant', '');
-      typingBubble.querySelector('.message-content').innerHTML =
-        '<span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span>';
+      conversation.push({ role: 'user', content: userText });
+
+      var userDiv = appendMessage('user');
+      setUserMessage(userDiv, userText);
+
+      var assistantDiv = appendMessage('assistant');
+      assistantDiv.querySelector('.message-content').innerHTML =
+        '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span></div>';
 
       setLoading(true);
-      setStatus('Thinking…');
+      setStatus(showThinking ? 'Thinking…' : 'Generating…');
 
       try {
+        var payload = {
+          model: model,
+          messages: conversation,
+          temperature: 0.7,
+          max_completion_tokens: 2048
+        };
+        // Only request reasoning when the toggle is on
+        if (showThinking) payload.reasoning_effort = 'medium';
+
         var response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: model,
-            messages: conversation,
-            temperature: 0.7,
-            max_completion_tokens: 2048
-          })
+          body: JSON.stringify(payload)
         });
 
         var data = await response.json();
@@ -297,21 +403,21 @@ window.addEventListener('DOMContentLoaded', function () {
           throw new Error(msg);
         }
 
-        var reply = data.choices &&
-                    data.choices[0] &&
-                    data.choices[0].message &&
-                    data.choices[0].message.content;
+        var message = data.choices && data.choices[0] && data.choices[0].message;
+        if (!message) throw new Error('Empty response from server.');
 
-        if (!reply) throw new Error('Empty response from server.');
+        var reply = message.content || '';
+        var reasoning = message.reasoning || '';
 
-        typingBubble.querySelector('.message-content').textContent = reply;
+        setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
         conversation.push({ role: 'assistant', content: reply });
         setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
 
       } catch (err) {
         console.error('[CodeWix] chat error:', err);
-        typingBubble.querySelector('.message-content').textContent =
-          'Error: ' + err.message + '\n\nMake sure server.js is running and the page is loaded from the same origin.';
+        assistantDiv.querySelector('.message-content').innerHTML =
+          '<div class="text-part">Error: ' + escapeHtml(err.message) +
+          '<br><br>Make sure server.js is running and the page is loaded from the same origin.</div>';
         conversation.pop();
         setStatus('Request failed');
       } finally {
@@ -321,6 +427,7 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     }
 
+    // ---------- Input handling --------------------------------------------
     function handleSend() {
       var text = chatInput.value.trim();
       if (!text) return;
@@ -346,8 +453,11 @@ window.addEventListener('DOMContentLoaded', function () {
     if (clearChatBtn) {
       clearChatBtn.addEventListener('click', function () {
         conversation = [conversation[0]];
-        chatContainer.innerHTML = '';
-        appendMessage('assistant', 'Chat cleared. What would you like to build?');
+        chatContainer.innerHTML =
+          '<div class="chat-message assistant-message">' +
+            '<div class="message-role">Assistant</div>' +
+            '<div class="message-content"><div class="text-part">Chat cleared. What would you like to build?</div></div>' +
+          '</div>';
         setStatus('Ready');
       });
     }
