@@ -16,7 +16,7 @@
         <nav class="studio-nav">
             <a href="dashboard.html">Workspace</a>
             <a href="learn.html" class="active">Learn</a>
-            <a href="ai-assistance.html">AI Assistant</a>
+            <a href="ai-assistant.html">AI Assistant</a>
         </nav>
         <div class="user-session">
             <span id="dashUser">Developer</span>
@@ -25,6 +25,17 @@
     </header>
 
     <main class="learn-workspace">
+
+        <div class="progress-banner">
+            <div class="progress-info">
+                <span id="progressLabel">0 of 20 lessons complete</span>
+                <span id="streakLabel" class="streak-badge">🔥 1-day streak</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
         <div class="learn-header">
             <h1>Today's <span>Lesson</span></h1>
             <p id="lessonDayLabel" class="learn-day">Day 1</p>
@@ -37,7 +48,7 @@
 
         <section class="browse-section">
             <h2>Browse All Lessons</h2>
-            <p class="browse-subtitle">Click any lesson to jump to it. Today's is highlighted.</p>
+            <p class="browse-subtitle">Click any lesson to jump to it. Completed lessons are marked with a checkmark.</p>
             <div id="lessonList" class="lesson-list"></div>
         </section>
     </main>

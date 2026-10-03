@@ -1908,3 +1908,173 @@ a.studio-btn {
         font-size: 10px;
     }
 }
+
+/* ==========================================================================
+   Send to Editor button
+   ========================================================================== */
+.send-to-editor-btn {
+    background: #1e293b;
+    color: #38bdf8;
+    border: 1px solid #38bdf8;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.send-to-editor-btn:hover { background: #38bdf8; color: #020617; }
+
+/* ==========================================================================
+   Progress + Streak banner
+   ========================================================================== */
+.progress-banner {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+}
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: #cbd5e1;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.streak-badge {
+    background: #7c2d12;
+    color: #fed7aa;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 12px;
+}
+.progress-track {
+    height: 8px;
+    background: #0b1324;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #38bdf8, #34d399);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+/* ==========================================================================
+   Complete button
+   ========================================================================== */
+.complete-btn {
+    background: #1e293b;
+    color: #cbd5e1;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 12px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: all 0.15s ease;
+}
+.complete-btn:hover { border-color: #34d399; color: #34d399; }
+.complete-btn.done {
+    background: #064e3b;
+    color: #6ee7b7;
+    border-color: #34d399;
+}
+.lesson-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Completed lesson card */
+.lesson-card.completed .lesson-card-num {
+    background: #064e3b;
+    color: #6ee7b7;
+}
+.lesson-card.completed .lesson-card-info h4 {
+    color: #6ee7b7;
+}
+
+/* ==========================================================================
+   Shared project viewer (view.html)
+   ========================================================================== */
+.view-workspace {
+    flex: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    width: 100%;
+}
+.view-header { text-align: center; margin-bottom: 20px; }
+.view-header h1 { font-size: 28px; color: #38bdf8; margin-bottom: 4px; }
+.view-subtitle { color: #64748b; font-size: 14px; }
+
+.view-tabs {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+.view-tab {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+.view-tab.active, .view-tab:hover {
+    background: #1e293b; color: #38bdf8; border-color: #38bdf8;
+}
+
+.view-panel { margin-bottom: 20px; }
+
+.view-preview {
+    margin: 0;
+    height: 60vh;
+    min-height: 400px;
+}
+
+.view-file-list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.view-file-item {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 12px;
+}
+.view-file-item.active, .view-file-item:hover {
+    background: #0b1324; color: #38bdf8; border-color: #38bdf8;
+}
+
+.view-actions { text-align: center; margin-top: 24px; }
+
+@media (max-width: 768px) {
+    .view-header h1 { font-size: 22px; }
+    .view-preview { height: 50vh; min-height: 300px; }
+    .complete-btn { margin-left: 0; }
+    .lesson-actions { justify-content: center; }
+    .lesson-actions .button,
+    .lesson-actions .complete-btn { width: 100%; text-align: center; }
+}
