@@ -1,5 +1,15 @@
 // ==========================================================================
 // CodeWix — app logic (classic script, no ES modules)
+// Sections:
+//   1. Firebase boot
+//   2. Helpers
+//   3. Auth guard
+//   4. Logout
+//   5. Register
+//   6. Login
+//   7. Sandbox IDE (dashboard.html)
+//   8. AI Assistant (ai-assistant.html) — multi-chat history
+//   9. Daily Lessons (learn.html)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -93,7 +103,7 @@ window.addEventListener('DOMContentLoaded', function () {
     return map[String(lang).toLowerCase()] || 'txt';
   }
 
-  // ---- Auto-inject "Learn" link into navs (fallback) --------------------
+  // Auto-inject "Learn" link into any nav that lacks it
   document.querySelectorAll('nav').forEach(function (nav) {
     if (!nav.querySelector('a[href="learn.html"]')) {
       var a = document.createElement('a');
@@ -209,6 +219,7 @@ window.addEventListener('DOMContentLoaded', function () {
     var lastSavedSnapshot = null;
 
     function snapshot() { return JSON.stringify(files); }
+
     function markUnsaved() {
       if (!unsavedIndicator) return;
       unsavedIndicator.style.display = (lastSavedSnapshot !== snapshot()) ? 'inline' : 'none';
@@ -482,7 +493,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // 8. AI Assistant — multiple chat sessions + history
+  // 8. AI Assistant — multi-chat history
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -515,7 +526,6 @@ window.addEventListener('DOMContentLoaded', function () {
     var saveTimer = null;
     var authUser = null;
 
-    // ---- Firestore refs -------------------------------------------------
     function chatsCollection() {
       if (!db || !authUser) return null;
       return db.collection('users').doc(authUser.uid).collection('chats');
@@ -531,7 +541,6 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     }
 
-    // ---- Save (debounced 700 ms) ----------------------------------------
     function scheduleSave() {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(function () { saveChatNow(); }, 700);
@@ -545,7 +554,6 @@ window.addEventListener('DOMContentLoaded', function () {
       var col = chatsCollection();
       if (!col) return;
 
-      // Derive a title from the first user message
       var firstUser = messagesToSave.find(function (m) { return m.role === 'user'; });
       var title = currentChatTitle;
       if (!title && firstUser) {
@@ -575,7 +583,6 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     }
 
-    // ---- Load a chat into the UI ----------------------------------------
     function renderConversation() {
       chatContainer.innerHTML = '';
       conversation.forEach(function (m) {
@@ -596,11 +603,8 @@ window.addEventListener('DOMContentLoaded', function () {
       var saved = (data && data.messages) || [];
       conversation = [SYSTEM_PROMPT].concat(saved);
       updateTitleBar();
-      if (saved.length) {
-        renderConversation();
-      } else {
-        showWelcome();
-      }
+      if (saved.length) renderConversation();
+      else showWelcome();
     }
 
     function startNewChat() {
@@ -622,7 +626,6 @@ window.addEventListener('DOMContentLoaded', function () {
         '</div>';
     }
 
-    // ---- On sign-in: load most recent chat ------------------------------
     function onUserReady(user) {
       authUser = user;
       var col = chatsCollection();
@@ -651,7 +654,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // ---- Render content with code blocks --------------------------------
     function renderContent(text) {
       var parts = String(text).split(/```/);
       var html = '';
@@ -727,7 +729,6 @@ window.addEventListener('DOMContentLoaded', function () {
       sendBtn.textContent = loading ? 'Thinking…' : 'Send';
     }
 
-    // ---- Copy + download on code blocks ---------------------------------
     chatContainer.addEventListener('click', function (e) {
       var dlBtn = e.target.closest('.download-code-btn');
       if (dlBtn) {
@@ -774,13 +775,11 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // ---- Send to Groq ---------------------------------------------------
     async function sendToGroq(userText) {
       var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
       if (modelIndicator) modelIndicator.textContent = model;
       var showThinking = thinkingToggle ? thinkingToggle.checked : false;
 
-      // If the chat container still has the welcome bubble, clear it
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) {
         chatContainer.innerHTML = '';
       }
@@ -860,10 +859,8 @@ window.addEventListener('DOMContentLoaded', function () {
       chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px';
     });
 
-    // ---- New Chat button ------------------------------------------------
     if (newChatBtn) {
       newChatBtn.addEventListener('click', async function () {
-        // Save the current chat before starting fresh
         clearTimeout(saveTimer);
         await saveChatNow();
         startNewChat();
@@ -872,7 +869,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // ---- History modal --------------------------------------------------
     function openHistoryModal() {
       if (!historyModal) return;
       historyModal.style.display = 'flex';
@@ -933,17 +929,13 @@ window.addEventListener('DOMContentLoaded', function () {
           if (!confirm('Delete this chat permanently?')) return;
           try {
             await chatsCollection().doc(idToDelete).delete();
-            // If deleting the active chat, start a new one
-            if (idToDelete === currentChatId) {
-              startNewChat();
-            }
+            if (idToDelete === currentChatId) startNewChat();
             showToast('Chat deleted', 'success');
-            openHistoryModal(); // refresh
+            openHistoryModal();
           } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
           return;
         }
 
-        // Click anywhere else on the row = open that chat
         var row = e.target.closest('.history-row');
         if (!row) return;
         var id = row.getAttribute('data-id');
@@ -959,10 +951,228 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // ---- Model selector indicator ---------------------------------------
     if (modelSelect && modelIndicator) {
       modelSelect.addEventListener('change', function () {
         modelIndicator.textContent = modelSelect.value;
+      });
+    }
+  }
+
+  // ======================================================================
+  // 9. Daily Lessons (learn.html)
+  // ======================================================================
+  var lessonTitle   = $('lessonTitle');
+  var lessonBody    = $('lessonBody');
+  var lessonDayLbl  = $('lessonDayLabel');
+
+  if (lessonTitle && lessonBody) {
+    console.log('[CodeWix] Learn page detected');
+
+    var LESSONS = [
+      { title: 'Your First Variable', level: 'Beginner', lang: 'javascript',
+        concept: 'A variable is a labeled box where you store a value. In JavaScript, you use <code>let</code> when the value can change, and <code>const</code> when it cannot.',
+        code: 'let name = "Alice";\nconst age = 25;\n\nconsole.log("Hi, " + name);\nconsole.log("You are " + age + " years old");',
+        exercise: 'Create a variable called <code>favoriteColor</code> set to your favorite color, then log it to the console.',
+        hint: 'Use <code>let favoriteColor = "blue";</code> then <code>console.log(favoriteColor);</code>' },
+
+      { title: 'Understanding Data Types', level: 'Beginner', lang: 'javascript',
+        concept: 'JavaScript has several primitive types: <code>string</code> (text), <code>number</code>, <code>boolean</code> (true/false), <code>null</code>, and <code>undefined</code>.',
+        code: 'let greeting = "hello";    // string\nlet score = 42;           // number\nlet isReady = true;       // boolean\n\nconsole.log(typeof greeting);\nconsole.log(typeof score);',
+        exercise: 'Create one variable of each type and log its <code>typeof</code> result.',
+        hint: 'Use <code>console.log(typeof myVar);</code> for each one.' },
+
+      { title: 'Making Decisions with if/else', level: 'Beginner', lang: 'javascript',
+        concept: '<code>if</code> statements run code only when a condition is true. Use <code>else</code> for the other case, and <code>else if</code> for extra branches.',
+        code: 'let temperature = 18;\n\nif (temperature > 25) {\n  console.log("It\'s hot!");\n} else if (temperature > 15) {\n  console.log("Nice and mild");\n} else {\n  console.log("Bring a jacket");\n}',
+        exercise: 'Write an if/else chain that logs "pass" if a score is 60 or above and "fail" otherwise.',
+        hint: 'Start with <code>let score = 75;</code> then <code>if (score >= 60) { console.log("pass"); } else { console.log("fail"); }</code>' },
+
+      { title: 'Repeating Things with Loops', level: 'Beginner', lang: 'javascript',
+        concept: 'A <code>for</code> loop repeats code a set number of times. The syntax is <code>for (let i = 0; i &lt; limit; i++)</code>.',
+        code: 'for (let i = 1; i <= 5; i++) {\n  console.log("Number " + i);\n}\n\n// Countdown\nfor (let i = 3; i >= 1; i--) {\n  console.log(i);\n}\nconsole.log("Go!");',
+        exercise: 'Print the even numbers from 2 to 20 using a for loop.',
+        hint: 'Start at 2 and add 2 each time: <code>for (let i = 2; i &lt;= 20; i += 2)</code>' },
+
+      { title: 'Writing Functions', level: 'Beginner', lang: 'javascript',
+        concept: 'A function is reusable code that takes inputs and returns an output. Define it with <code>function name(params) { ... }</code>.',
+        code: 'function add(a, b) {\n  return a + b;\n}\n\nfunction greet(name) {\n  return "Hello, " + name + "!";\n}\n\nconsole.log(add(2, 3));         // 5\nconsole.log(greet("World"));    // Hello, World!',
+        exercise: 'Write a function <code>square(n)</code> that returns n multiplied by itself.',
+        hint: '<code>function square(n) { return n * n; }</code>' },
+
+      { title: 'Working with Arrays', level: 'Beginner', lang: 'javascript',
+        concept: 'An array holds a list of values. Access items by index (starting at 0), and use methods like <code>push</code>, <code>pop</code>, and <code>length</code>.',
+        code: 'let fruits = ["apple", "banana", "cherry"];\n\nconsole.log(fruits[0]);        // apple\nconsole.log(fruits.length);    // 3\n\nfruits.push("date");\nconsole.log(fruits);           // 4 items now',
+        exercise: 'Create an array of 5 numbers and log the sum of the first and last.',
+        hint: '<code>let nums = [10, 20, 30, 40, 50]; console.log(nums[0] + nums[nums.length - 1]);</code>' },
+
+      { title: 'Objects: Grouping Data', level: 'Beginner', lang: 'javascript',
+        concept: 'An object stores related data under named keys. You read values with dot notation: <code>obj.key</code>.',
+        code: 'let user = {\n  name: "Alice",\n  age: 25,\n  isAdmin: false\n};\n\nconsole.log(user.name);       // Alice\nuser.age = 26;                 // update\nuser.email = "a@example.com";  // add new key',
+        exercise: 'Create an object <code>book</code> with title, author, and year. Log the title.',
+        hint: '<code>let book = { title: "1984", author: "Orwell", year: 1949 }; console.log(book.title);</code>' },
+
+      { title: 'HTML Structure', level: 'Beginner', lang: 'html',
+        concept: 'Every web page is built from HTML tags. The essential skeleton is <code>doctype</code>, <code>html</code>, <code>head</code>, and <code>body</code>.',
+        code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My Page</title>\n  </head>\n  <body>\n    <h1>Hello!</h1>\n    <p>This is a paragraph.</p>\n  </body>\n</html>',
+        exercise: 'Create an HTML page with an <code>h1</code> heading and two paragraphs.',
+        hint: 'Copy the skeleton and add <code>&lt;p&gt;First&lt;/p&gt;&lt;p&gt;Second&lt;/p&gt;</code> inside the body.' },
+
+      { title: 'CSS Selectors', level: 'Beginner', lang: 'css',
+        concept: 'CSS styles HTML. You target elements with selectors: <code>tag</code>, <code>.class</code>, and <code>#id</code>.',
+        code: 'body {\n  background: #0f172a;\n  color: white;\n}\n\n.title {\n  font-size: 32px;\n}\n\n#main-heading {\n  color: #38bdf8;\n}',
+        exercise: 'Write a CSS rule that makes all <code>button</code> elements have green text.',
+        hint: '<code>button { color: green; }</code>' },
+
+      { title: 'Layout with Flexbox', level: 'Intermediate', lang: 'css',
+        concept: 'Flexbox aligns items in a row or column. Apply <code>display: flex</code> to a parent and control children with <code>justify-content</code> and <code>align-items</code>.',
+        code: '.container {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 20px;\n}',
+        exercise: 'Center a single div both horizontally and vertically inside a full-page container.',
+        hint: 'Use <code>display: flex; justify-content: center; align-items: center; height: 100vh;</code> on the parent.' },
+
+      { title: 'CSS Grid Basics', level: 'Intermediate', lang: 'css',
+        concept: 'Grid is for two-dimensional layouts. Define columns with <code>grid-template-columns</code>.',
+        code: '.grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr 1fr;\n  gap: 16px;\n}\n\n/* Responsive: as many columns as fit, each at least 200px */\n.grid-auto {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n  gap: 16px;\n}',
+        exercise: 'Create a 2-column grid where each column is 1fr wide and there is a 12px gap.',
+        hint: '<code>display: grid; grid-template-columns: 1fr 1fr; gap: 12px;</code>' },
+
+      { title: 'Changing the Page with JavaScript', level: 'Intermediate', lang: 'javascript',
+        concept: 'The DOM is your page as JavaScript sees it. Use <code>document.getElementById</code> to find elements and change them.',
+        code: 'let heading = document.getElementById("title");\nheading.textContent = "Updated!";\nheading.style.color = "#38bdf8";\n\n// Or create new elements\nlet p = document.createElement("p");\np.textContent = "A new paragraph";\ndocument.body.appendChild(p);',
+        exercise: 'Change the text of an element with id <code>demo</code> to say "Hello, DOM!".',
+        hint: '<code>document.getElementById("demo").textContent = "Hello, DOM!";</code>' },
+
+      { title: 'Listening for Events', level: 'Intermediate', lang: 'javascript',
+        concept: 'Events let you react to what users do. Attach a listener with <code>addEventListener</code>.',
+        code: 'let btn = document.getElementById("myButton");\n\nbtn.addEventListener("click", function () {\n  alert("Clicked!");\n});\n\n// Or with arrow syntax\nbtn.addEventListener("click", () => console.log("Clicked again"));',
+        exercise: 'Add a click listener to a button that changes its own text to "Clicked".',
+        hint: '<code>btn.addEventListener("click", () => btn.textContent = "Clicked");</code>' },
+
+      { title: 'Async and Await', level: 'Advanced', lang: 'javascript',
+        concept: '<code>async</code> functions let you use <code>await</code> to pause until a promise resolves. Perfect for fetching data.',
+        code: 'async function loadData() {\n  try {\n    let res = await fetch("https://api.example.com/data");\n    let json = await res.json();\n    console.log(json);\n  } catch (err) {\n    console.error("Failed:", err);\n  }\n}',
+        exercise: 'Write an async function that fetches a URL and returns the parsed JSON.',
+        hint: '<code>async function get(url) { let r = await fetch(url); return r.json(); }</code>' },
+
+      { title: 'The Fetch API', level: 'Advanced', lang: 'javascript',
+        concept: 'Fetch makes HTTP requests. Always check <code>response.ok</code> before parsing.',
+        code: 'async function getTodo() {\n  let res = await fetch("https://jsonplaceholder.typicode.com/todos/1");\n  if (!res.ok) throw new Error("HTTP " + res.status);\n  let todo = await res.json();\n  return todo;\n}',
+        exercise: 'Fetch a list of users from <code>https://jsonplaceholder.typicode.com/users</code> and log the first one.',
+        hint: 'Use fetch, then res.json(), then log result[0].' },
+
+      { title: 'Try/Catch for Errors', level: 'Intermediate', lang: 'javascript',
+        concept: 'Wrap risky code in <code>try</code> and handle failures in <code>catch</code>. Use <code>finally</code> for cleanup.',
+        code: 'try {\n  JSON.parse("{ invalid json }");\n} catch (err) {\n  console.error("Something went wrong:", err.message);\n} finally {\n  console.log("This always runs");\n}',
+        exercise: 'Write a try/catch that divides 10 by 0 and logs "cannot divide by zero" if the result is Infinity.',
+        hint: 'Check <code>if (!isFinite(result)) throw new Error("cannot divide by zero");</code>' },
+
+      { title: 'Classes and Objects', level: 'Advanced', lang: 'javascript',
+        concept: 'A class is a blueprint for creating objects with shared methods and properties.',
+        code: 'class Dog {\n  constructor(name, breed) {\n    this.name = name;\n    this.breed = breed;\n  }\n\n  bark() {\n    return this.name + " says Woof!";\n  }\n}\n\nlet rex = new Dog("Rex", "Labrador");\nconsole.log(rex.bark());',
+        exercise: 'Write a <code>Rectangle</code> class with width and height and a method <code>area()</code>.',
+        hint: 'Inside the class: <code>area() { return this.width * this.height; }</code>' },
+
+      { title: 'Local Storage', level: 'Intermediate', lang: 'javascript',
+        concept: 'localStorage keeps data on the user\'s browser even after closing the tab. Values must be strings — use JSON for objects.',
+        code: 'localStorage.setItem("theme", "dark");\nlet theme = localStorage.getItem("theme");\nconsole.log(theme);   // "dark"\n\n// Objects\nlocalStorage.setItem("user", JSON.stringify({ name: "Alice" }));\nlet user = JSON.parse(localStorage.getItem("user"));',
+        exercise: 'Save a counter to localStorage and increment it each time the page loads.',
+        hint: 'Read, parse, increment, save: <code>let n = +localStorage.getItem("n") || 0; localStorage.setItem("n", n + 1);</code>' },
+
+      { title: 'Working with JSON', level: 'Intermediate', lang: 'javascript',
+        concept: 'JSON is a text format for structured data. Convert between objects and JSON strings with <code>JSON.stringify</code> and <code>JSON.parse</code>.',
+        code: 'let obj = { name: "Alice", age: 25 };\nlet text = JSON.stringify(obj);\nconsole.log(text);           // \'{"name":"Alice","age":25}\'\n\nlet parsed = JSON.parse(text);\nconsole.log(parsed.name);    // "Alice"',
+        exercise: 'Convert an array of your favorite movies to JSON and back.',
+        hint: '<code>let json = JSON.stringify(movies); let back = JSON.parse(json);</code>' }
+    ];
+
+    function getTodayLessonIndex() {
+      var now = new Date();
+      var start = new Date(now.getFullYear(), 0, 0);
+      var dayOfYear = Math.floor((now - start) / 86400000);
+      return dayOfYear % LESSONS.length;
+    }
+
+    function renderLesson(index) {
+      var lesson = LESSONS[index];
+      if (!lesson) return;
+
+      lessonTitle.textContent = lesson.title;
+      if (lessonDayLbl) lessonDayLbl.textContent = 'Day ' + (index + 1) + ' of ' + LESSONS.length;
+
+      var codeEscaped = escapeHtml(lesson.code);
+
+      lessonBody.innerHTML =
+        '<div class="lesson-meta">' +
+          '<span class="lesson-level level-' + lesson.level.toLowerCase() + '">' + lesson.level + '</span>' +
+          '<span class="lesson-lang">' + lesson.lang + '</span>' +
+        '</div>' +
+        '<div class="lesson-section">' +
+          '<h3>Concept</h3>' +
+          '<p>' + lesson.concept + '</p>' +
+        '</div>' +
+        '<div class="lesson-section">' +
+          '<h3>Example</h3>' +
+          '<div class="code-block" data-lang="' + escapeHtml(lesson.lang) + '">' +
+            '<div class="code-header">' +
+              '<span class="code-lang">' + escapeHtml(lesson.lang) + '</span>' +
+              '<button type="button" class="copy-btn" data-code="' + escapeHtml(lesson.code) + '">Copy</button>' +
+            '</div>' +
+            '<pre><code>' + codeEscaped + '</code></pre>' +
+          '</div>' +
+        '</div>' +
+        '<div class="lesson-section">' +
+          '<h3>Your Turn</h3>' +
+          '<p>' + lesson.exercise + '</p>' +
+          '<details class="hint-reveal"><summary>Show hint</summary><p>' + lesson.hint + '</p></details>' +
+        '</div>' +
+        '<div class="lesson-actions">' +
+          '<a href="dashboard.html" class="button">Try in Workspace →</a>' +
+        '</div>';
+    }
+
+    lessonBody.addEventListener('click', function (e) {
+      var btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      var text = btn.getAttribute('data-code') || '';
+      function flash() {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flash).catch(function () {});
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); flash(); } catch (err) {}
+        document.body.removeChild(ta);
+      }
+    });
+
+    // Render today's lesson
+    var todayIndex = getTodayLessonIndex();
+    renderLesson(todayIndex);
+
+    // Build the "browse all" list
+    var lessonListEl = $('lessonList');
+    if (lessonListEl) {
+      LESSONS.forEach(function (lesson, i) {
+        var card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'lesson-card' + (i === todayIndex ? ' today' : '');
+        card.innerHTML =
+          '<div class="lesson-card-num">' + (i + 1) + '</div>' +
+          '<div class="lesson-card-info">' +
+            '<h4>' + escapeHtml(lesson.title) + '</h4>' +
+            '<p>' + lesson.level + ' · ' + lesson.lang + '</p>' +
+          '</div>' +
+          (i === todayIndex ? '<span class="today-badge">Today</span>' : '');
+        card.addEventListener('click', function () {
+          renderLesson(i);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        lessonListEl.appendChild(card);
       });
     }
   }
