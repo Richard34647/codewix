@@ -1,15 +1,5 @@
 // ==========================================================================
-// CodeWix — app logic
-// Sections:
-//   1. Firebase boot
-//   2. Helpers
-//   3. Auth guard
-//   4. Logout
-//   5. Register
-//   6. Login
-//   7. Sandbox IDE (dashboard)
-//   8. AI Assistant (multi-chat history + send to editor)
-//   9. Daily Lessons (progress + streak)
+// CodeWix — app logic (classic script, no ES modules)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -111,6 +101,15 @@ window.addEventListener('DOMContentLoaded', function () {
     auth.onAuthStateChanged(function (user) {
       console.log('[CodeWix] auth state:', user ? user.email : 'signed out');
       if (!user) { location.replace('login.html'); return; }
+
+      // Optional: enforce email verification for protected pages.
+      // Uncomment the block below to require verification.
+      // if (!user.emailVerified) {
+      //   alert('Please verify your email address to access this page. Check your inbox for the verification link.');
+      //   auth.signOut().then(function () { location.replace('login.html'); });
+      //   return;
+      // }
+
       if ($('dashUser'))  $('dashUser').textContent  = user.email.split('@')[0];
       if ($('userEmail')) $('userEmail').textContent = user.email;
     });
@@ -125,19 +124,76 @@ window.addEventListener('DOMContentLoaded', function () {
   if ($('logoutBtn'))  $('logoutBtn').addEventListener('click', logout);
   if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
 
-  // ---- Register --------------------------------------------------------
+  // ======================================================================
+  // 5. Register — with EmailJS verification
+  // ======================================================================
   if ($('registerForm')) {
+    console.log('[CodeWix] register form detected');
     $('registerForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      var email = $('email').value.trim(), password = $('password').value;
-      var errBox = $('errorBox'); hideError(errBox);
+
+      var email    = $('email').value.trim();
+      var password = $('password').value;
+      var username = $('username') ? $('username').value.trim() : '';
+      var errBox   = $('errorBox');
+      hideError(errBox);
+
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+
+      var submitBtn = $('registerForm').querySelector('button[type="submit"]');
+      var originalBtnText = submitBtn ? submitBtn.textContent : 'Sign Up';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating account…'; }
+
+      // Step 1: Create the Firebase account
       auth.createUserWithEmailAndPassword(email, password)
-        .then(function () {
-          alert('Registration successful! Taking you to your dashboard…');
-          location.href = 'dashboard.html';
+        .then(function (userCredential) {
+          var user = userCredential.user;
+
+          // Step 2: Set the display name if we have one
+          if (username && user.updateProfile) {
+            return user.updateProfile({ displayName: username }).then(function () { return user; });
+          }
+          return user;
         })
-        .catch(function (err) { showError(errBox, err.message); });
+        .then(function (user) {
+          // Step 3: Ask our server to send the verification email via EmailJS
+          if (submitBtn) submitBtn.textContent = 'Sending email…';
+
+          return fetch('/api/send-verification-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userEmail: user.email,
+              userName: username || user.email.split('@')[0],
+              redirectUrl: window.location.origin + '/verify.html'
+            })
+          }).then(function (res) {
+            return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+          });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            // Email send failed — but account was created. Warn the user.
+            console.warn('[CodeWix] verification email failed:', result.data);
+            showError(errBox,
+              'Your account was created, but we could not send the verification email. ' +
+              'You can still log in. Error: ' + (result.data && result.data.error ? result.data.error : 'unknown'));
+          } else {
+            alert('Registration successful! We sent a verification link to ' + email + '. Please check your inbox (and spam folder).');
+          }
+          window.location.href = 'login.html';
+        })
+        .catch(function (err) {
+          console.error('[CodeWix] register error:', err);
+          var msg = err.message || 'Registration failed.';
+          if (err.code === 'auth/email-already-in-use') msg = 'That email is already registered. Try logging in instead.';
+          else if (err.code === 'auth/weak-password') msg = 'Password is too weak — use at least 6 characters.';
+          else if (err.code === 'auth/invalid-email') msg = 'That email address does not look valid.';
+          showError(errBox, msg);
+        })
+        .finally(function () {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+        });
     });
   }
 
@@ -319,7 +375,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // ---- Firestore refs ------------------------------------------------
     function projectsCollection() {
       if (!db || !auth || !auth.currentUser) return null;
       return db.collection('users').doc(auth.currentUser.uid).collection('projects');
@@ -332,26 +387,22 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!name) {
         name = prompt('Name this project:', 'My Project');
         if (!name) return;
-        name = name.trim();
-        if (!name) return;
+        name = name.trim(); if (!name) return;
       }
-      saveProjectBtn.disabled = true;
-      saveProjectBtn.textContent = 'Saving…';
+      saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…';
       var payload = {
         name: name, files: files, activeFile: activeFile,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       var col = projectsCollection();
       var promise;
-      if (currentProjectId) {
-        promise = col.doc(currentProjectId).update(payload);
-      } else {
+      if (currentProjectId) promise = col.doc(currentProjectId).update(payload);
+      else {
         payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
         promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; });
       }
       promise.then(function () {
-        currentProjectName = name;
-        lastSavedSnapshot = snapshot();
+        currentProjectName = name; lastSavedSnapshot = snapshot();
         if (unsavedIndicator) unsavedIndicator.style.display = 'none';
         if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name;
         showToast('Project saved ✔', 'success');
@@ -359,24 +410,16 @@ window.addEventListener('DOMContentLoaded', function () {
         .finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; });
     }
 
-    // ---- Feature 3: Share a project ----------------------------------
     async function shareProject() {
       if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready to share.', 'error'); return; }
       files[activeFile] = codeEditor.value;
-
-      // Save first if unsaved
       if (lastSavedSnapshot !== snapshot() || !currentProjectId) {
-        await new Promise(function (resolve) { saveProject(); setTimeout(resolve, 400); });
+        await new Promise(function (r) { saveProject(); setTimeout(r, 400); });
         if (!currentProjectId) return;
       }
-
-      // Reuse or create share ID
       var shareId = currentShareId || currentProjectId;
       currentShareId = shareId;
-
-      shareProjectBtn.disabled = true;
-      shareProjectBtn.textContent = 'Sharing…';
-
+      shareProjectBtn.disabled = true; shareProjectBtn.textContent = 'Sharing…';
       try {
         await db.collection('public').doc(shareId).set({
           name: currentProjectName || 'Untitled',
@@ -384,42 +427,24 @@ window.addEventListener('DOMContentLoaded', function () {
           sharedBy: auth.currentUser.uid,
           sharedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-
-        // Update the owner's project doc with the share ID
         await projectsCollection().doc(currentProjectId).update({ shareId: shareId });
-
         var url = location.origin + '/view.html?id=' + encodeURIComponent(shareId);
-        try {
-          await navigator.clipboard.writeText(url);
-          showToast('Share link copied! 🔗', 'success');
-        } catch (e) {
-          prompt('Copy this share link:', url);
-        }
-      } catch (err) {
-        console.error('[CodeWix] share failed:', err);
-        showToast('Share failed: ' + err.message, 'error');
-      } finally {
-        shareProjectBtn.disabled = false;
-        shareProjectBtn.textContent = '🔗 Share';
-      }
+        try { await navigator.clipboard.writeText(url); showToast('Share link copied! 🔗', 'success'); }
+        catch (e) { prompt('Copy this share link:', url); }
+      } catch (err) { showToast('Share failed: ' + err.message, 'error'); }
+      finally { shareProjectBtn.disabled = false; shareProjectBtn.textContent = '🔗 Share'; }
     }
-
     if (shareProjectBtn) shareProjectBtn.addEventListener('click', shareProject);
 
-    // ---- Projects modal ------------------------------------------------
     function openProjectsModal() {
       if (!projectsModal) return;
       projectsModal.style.display = 'flex';
       projectsListBox.innerHTML = '<p class="modal-empty">Loading…</p>';
-      if (!db || !auth || !auth.currentUser) {
-        projectsListBox.innerHTML = '<p class="modal-empty">Sign in to view your projects.</p>'; return;
-      }
+      if (!db || !auth || !auth.currentUser) { projectsListBox.innerHTML = '<p class="modal-empty">Sign in to view your projects.</p>'; return; }
       projectsCollection().orderBy('updatedAt', 'desc').get()
         .then(function (snapshot) {
           projectsListBox.innerHTML = '';
-          if (snapshot.empty) {
-            projectsListBox.innerHTML = '<p class="modal-empty">You haven\u2019t saved any projects yet.</p>'; return;
-          }
+          if (snapshot.empty) { projectsListBox.innerHTML = '<p class="modal-empty">You haven\u2019t saved any projects yet.</p>'; return; }
           snapshot.forEach(function (doc) {
             var data = doc.data() || {};
             var shareBtn = data.shareId ? '<button data-action="share" data-share="' + data.shareId + '">🔗 Link</button>' : '';
@@ -429,17 +454,14 @@ window.addEventListener('DOMContentLoaded', function () {
               '<div class="project-info"><h3>' + escapeHtml(data.name || 'Untitled') + '</h3>' +
               '<p>Last saved: ' + formatDate(data.updatedAt) + '</p></div>' +
               '<div class="project-actions">' +
-                '<button data-action="open" data-id="' + doc.id + '">Open</button>' +
-                shareBtn +
+                '<button data-action="open" data-id="' + doc.id + '">Open</button>' + shareBtn +
                 '<button data-action="download" data-id="' + doc.id + '">⬇ ZIP</button>' +
                 '<button data-action="delete" data-id="' + doc.id + '" class="danger">Delete</button>' +
               '</div>';
             projectsListBox.appendChild(row);
           });
         })
-        .catch(function (err) {
-          projectsListBox.innerHTML = '<p class="modal-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
-        });
+        .catch(function (err) { projectsListBox.innerHTML = '<p class="modal-empty">Failed: ' + escapeHtml(err.message) + '</p>'; });
     }
 
     function closeProjectsModal() { if (projectsModal) projectsModal.style.display = 'none'; }
@@ -451,11 +473,9 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (projectsListBox) {
       projectsListBox.addEventListener('click', async function (e) {
-        var btn = e.target.closest('button[data-action]');
-        if (!btn) return;
+        var btn = e.target.closest('button[data-action]'); if (!btn) return;
         var action = btn.getAttribute('data-action');
         var id = btn.getAttribute('data-id');
-
         if (action === 'open') {
           btn.disabled = true; btn.textContent = 'Opening…';
           try {
@@ -463,17 +483,14 @@ window.addEventListener('DOMContentLoaded', function () {
             if (!doc.exists) { showToast('Not found.', 'error'); return; }
             var data = doc.data();
             loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled', data.shareId || null);
-            closeProjectsModal();
-            showToast('Project loaded ✔', 'success');
+            closeProjectsModal(); showToast('Project loaded ✔', 'success');
           } catch (err) { showToast('Open failed: ' + err.message, 'error'); }
           finally { btn.disabled = false; btn.textContent = 'Open'; }
-
         } else if (action === 'share') {
           var shareId = btn.getAttribute('data-share');
           var url = location.origin + '/view.html?id=' + encodeURIComponent(shareId);
           try { await navigator.clipboard.writeText(url); showToast('Share link copied! 🔗', 'success'); }
           catch (err) { prompt('Copy this link:', url); }
-
         } else if (action === 'download') {
           if (typeof JSZip === 'undefined') { showToast('ZIP missing.', 'error'); return; }
           btn.disabled = true; btn.textContent = 'Zipping…';
@@ -485,11 +502,9 @@ window.addEventListener('DOMContentLoaded', function () {
             Object.keys(dd.files || {}).forEach(function (name) { zip.file(name, dd.files[name] || ''); });
             var blob = await zip.generateAsync({ type: 'blob' });
             var safe = (dd.name || 'codewix-project').replace(/[^a-z0-9-_]/gi, '_');
-            downloadBlob(blob, safe + '.zip');
-            showToast('Downloaded ' + safe + '.zip', 'success');
+            downloadBlob(blob, safe + '.zip'); showToast('Downloaded ' + safe + '.zip', 'success');
           } catch (err) { showToast('ZIP failed: ' + err.message, 'error'); }
           finally { btn.disabled = false; btn.textContent = '⬇ ZIP'; }
-
         } else if (action === 'delete') {
           if (!confirm('Delete this project permanently?')) return;
           projectsCollection().doc(id).delete()
@@ -517,7 +532,7 @@ window.addEventListener('DOMContentLoaded', function () {
       if (lastSavedSnapshot !== null && lastSavedSnapshot !== snapshot()) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    // ---- Feature 1: Receive snippet from AI ---------------------------
+    // Receive snippet from AI
     var pending = null;
     try { pending = JSON.parse(localStorage.getItem('codewix_pending_snippet') || 'null'); } catch (e) {}
     if (pending && pending.code) {
@@ -527,23 +542,16 @@ window.addEventListener('DOMContentLoaded', function () {
       else if (pending.lang === 'css' && files['style.css'] !== undefined) targetFile = 'style.css';
       else if ((pending.lang === 'javascript' || pending.lang === 'js') && files['script.js'] !== undefined) targetFile = 'script.js';
       else {
-        // Unknown lang — create new file
         targetFile = 'snippet.' + extensionForLang(pending.lang);
         files[targetFile] = '';
         rebuildFileTree();
       }
-
       var existing = files[targetFile] || '';
       var sep = existing.trim() ? '\n\n' : '';
       files[targetFile] = existing + sep + pending.code;
-
-      // Focus the file
       activeFile = targetFile;
       if (codeEditor) codeEditor.value = files[activeFile];
-      rebuildFileTree();
-      updateGutter();
-      markUnsaved();
-      renderPreview();
+      rebuildFileTree(); updateGutter(); markUnsaved(); renderPreview();
       showToast('AI snippet added to ' + targetFile, 'success');
     }
   }
@@ -599,7 +607,6 @@ window.addEventListener('DOMContentLoaded', function () {
       var msgs = conversation.filter(function (m) { return m.role !== 'system'; });
       if (!msgs.length) return;
       var col = chatsCollection(); if (!col) return;
-
       var firstUser = msgs.find(function (m) { return m.role === 'user'; });
       var title = currentChatTitle;
       if (!title && firstUser) {
@@ -607,13 +614,11 @@ window.addEventListener('DOMContentLoaded', function () {
         if (firstUser.content.length > 48) title += '…';
       }
       if (!title) title = 'New Chat';
-
       var payload = { title: title, messages: msgs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
       try {
         if (currentChatId) await col.doc(currentChatId).update(payload);
         else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); var ref = await col.add(payload); currentChatId = ref.id; }
-        currentChatTitle = title;
-        updateTitleBar();
+        currentChatTitle = title; updateTitleBar();
       } catch (err) { console.warn('[CodeWix] chat save failed:', err); }
     }
 
@@ -730,30 +735,20 @@ window.addEventListener('DOMContentLoaded', function () {
       sendBtn.textContent = loading ? 'Thinking…' : 'Send';
     }
 
-    // ---- Chat code block actions ---------------------------------------
     chatContainer.addEventListener('click', function (e) {
-      // Send to Editor
       var sendBtn2 = e.target.closest('.send-to-editor-btn');
       if (sendBtn2) {
-        var block = sendBtn2.closest('.code-block');
-        if (!block) return;
-        var codeEl = block.querySelector('code');
-        if (!codeEl) return;
+        var block = sendBtn2.closest('.code-block'); if (!block) return;
+        var codeEl = block.querySelector('code'); if (!codeEl) return;
         var lang = block.getAttribute('data-lang') || 'code';
-        var code = codeEl.textContent;
-
         try {
-          localStorage.setItem('codewix_pending_snippet', JSON.stringify({ lang: lang, code: code }));
+          localStorage.setItem('codewix_pending_snippet', JSON.stringify({ lang: lang, code: codeEl.textContent }));
           sendBtn2.textContent = '✓ Sent';
           showToast('Navigating to editor…', 'success');
           setTimeout(function () { location.href = 'dashboard.html'; }, 600);
-        } catch (err) {
-          showToast('Could not send: ' + err.message, 'error');
-        }
+        } catch (err) { showToast('Could not send: ' + err.message, 'error'); }
         return;
       }
-
-      // Download
       var dlBtn = e.target.closest('.download-code-btn');
       if (dlBtn) {
         var blk = dlBtn.closest('.code-block'); if (!blk) return;
@@ -762,19 +757,15 @@ window.addEventListener('DOMContentLoaded', function () {
         var ext = extensionForLang(l);
         downloadBlob(new Blob([cEl.textContent], { type: 'text/plain;charset=utf-8' }),
                      'codewix-snippet-' + Date.now() + '.' + ext);
-        dlBtn.textContent = '✓';
-        setTimeout(function () { dlBtn.textContent = '⬇'; }, 1500);
+        dlBtn.textContent = '✓'; setTimeout(function () { dlBtn.textContent = '⬇'; }, 1500);
         return;
       }
-
-      // Copy
       var btn = e.target.closest('.copy-btn'); if (!btn) return;
       var blk2 = btn.closest('.code-block'); if (!blk2) return;
       var cEl2 = blk2.querySelector('code'); if (!cEl2) return;
       var txt = cEl2.textContent;
       function flash() {
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
+        btn.textContent = 'Copied!'; btn.classList.add('copied');
         setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
       }
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(flash).catch(fb);
@@ -806,7 +797,6 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         var payload = { model: model, messages: conversation, temperature: 0.7, max_completion_tokens: 2048 };
         if (showThinking) payload.reasoning_effort = 'medium';
-
         var response = await fetch(API_URL, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
@@ -819,8 +809,7 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!message) throw new Error('Empty response from server.');
         var reply = message.content || '', reasoning = message.reasoning || '';
         setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
-        conversation.push({ role: 'assistant', content: reply });
-        scheduleSave();
+        conversation.push({ role: 'assistant', content: reply }); scheduleSave();
         setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
       } catch (err) {
         console.error('[CodeWix] chat error:', err);
@@ -875,9 +864,7 @@ window.addEventListener('DOMContentLoaded', function () {
             historyListBox.appendChild(row);
           });
         })
-        .catch(function (err) {
-          historyListBox.innerHTML = '<p class="modal-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
-        });
+        .catch(function (err) { historyListBox.innerHTML = '<p class="modal-empty">Failed: ' + escapeHtml(err.message) + '</p>'; });
     }
 
     function closeHistoryModal() { if (historyModal) historyModal.style.display = 'none'; }
@@ -895,8 +882,7 @@ window.addEventListener('DOMContentLoaded', function () {
           try {
             await chatsCollection().doc(idToDelete).delete();
             if (idToDelete === currentChatId) startNewChat();
-            showToast('Chat deleted', 'success');
-            openHistoryModal();
+            showToast('Chat deleted', 'success'); openHistoryModal();
           } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
           return;
         }
@@ -918,7 +904,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // 9. Daily Lessons with progress + streak
+  // 9. Daily Lessons
   // ======================================================================
   var lessonTitle   = $('lessonTitle');
   var lessonBody    = $('lessonBody');
@@ -938,17 +924,17 @@ window.addEventListener('DOMContentLoaded', function () {
         hint: 'Use <code>let favoriteColor = "blue";</code> then <code>console.log(favoriteColor);</code>' },
       { title: 'Understanding Data Types', level: 'Beginner', lang: 'javascript',
         concept: 'JavaScript has several primitive types: <code>string</code> (text), <code>number</code>, <code>boolean</code> (true/false), <code>null</code>, and <code>undefined</code>.',
-        code: 'let greeting = "hello";    // string\nlet score = 42;           // number\nlet isReady = true;       // boolean\n\nconsole.log(typeof greeting);\nconsole.log(typeof score);',
+        code: 'let greeting = "hello";\nlet score = 42;\nlet isReady = true;\n\nconsole.log(typeof greeting);\nconsole.log(typeof score);',
         exercise: 'Create one variable of each type and log its <code>typeof</code> result.',
         hint: 'Use <code>console.log(typeof myVar);</code> for each one.' },
       { title: 'Making Decisions with if/else', level: 'Beginner', lang: 'javascript',
         concept: '<code>if</code> statements run code only when a condition is true. Use <code>else</code> for the other case, and <code>else if</code> for extra branches.',
-        code: 'let temperature = 18;\n\nif (temperature > 25) {\n  console.log("It\'s hot!");\n} else if (temperature > 15) {\n  console.log("Nice and mild");\n} else {\n  console.log("Bring a jacket");\n}',
+        code: 'let temperature = 18;\n\nif (temperature > 25) {\n  console.log("Hot!");\n} else if (temperature > 15) {\n  console.log("Mild");\n} else {\n  console.log("Jacket");\n}',
         exercise: 'Write an if/else chain that logs "pass" if a score is 60 or above and "fail" otherwise.',
         hint: 'Start with <code>let score = 75;</code> then <code>if (score >= 60) { console.log("pass"); } else { console.log("fail"); }</code>' },
       { title: 'Repeating Things with Loops', level: 'Beginner', lang: 'javascript',
         concept: 'A <code>for</code> loop repeats code a set number of times. The syntax is <code>for (let i = 0; i &lt; limit; i++)</code>.',
-        code: 'for (let i = 1; i <= 5; i++) {\n  console.log("Number " + i);\n}\n\nfor (let i = 3; i >= 1; i--) {\n  console.log(i);\n}\nconsole.log("Go!");',
+        code: 'for (let i = 1; i <= 5; i++) {\n  console.log("Number " + i);\n}\n\nfor (let i = 3; i >= 1; i--) {\n  console.log(i);\n}',
         exercise: 'Print the even numbers from 2 to 20 using a for loop.',
         hint: 'Start at 2 and add 2 each time: <code>for (let i = 2; i &lt;= 20; i += 2)</code>' },
       { title: 'Writing Functions', level: 'Beginner', lang: 'javascript',
@@ -1041,7 +1027,6 @@ window.addEventListener('DOMContentLoaded', function () {
       var d = new Date(); d.setDate(d.getDate() - 1);
       return d.toISOString().slice(0, 10);
     }
-
     function computeStreak(lastVisitISO, currentStreak) {
       var today = todayISO(), yesterday = yesterdayISO();
       if (lastVisitISO === today) return currentStreak || 1;
@@ -1063,7 +1048,6 @@ window.addEventListener('DOMContentLoaded', function () {
         } else {
           progressData = { completed: {}, streak: 1, lastVisit: todayISO() };
         }
-        // Save back the updated streak/visit
         await ref.set({
           completed: progressData.completed,
           streak: progressData.streak,
@@ -1077,10 +1061,8 @@ window.addEventListener('DOMContentLoaded', function () {
       progressData.completed[index] = true;
       renderProgressUI();
       var ref = progressDocRef(); if (!ref) return;
-      try {
-        await ref.set({ completed: progressData.completed }, { merge: true });
-        showToast('Lesson marked complete ✔', 'success');
-      } catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+      try { await ref.set({ completed: progressData.completed }, { merge: true }); showToast('Lesson marked complete ✔', 'success'); }
+      catch (err) { showToast('Save failed: ' + err.message, 'error'); }
     }
 
     async function markLessonIncomplete(index) {
@@ -1095,7 +1077,6 @@ window.addEventListener('DOMContentLoaded', function () {
       var count = Object.keys(progressData.completed).length;
       var total = LESSONS.length;
       var pct = Math.round((count / total) * 100);
-
       if (progressFill) progressFill.style.width = pct + '%';
       if (progressLabel) progressLabel.textContent = count + ' of ' + total + ' lessons complete';
       if (streakLabel) {
@@ -1114,10 +1095,7 @@ window.addEventListener('DOMContentLoaded', function () {
       var lesson = LESSONS[index]; if (!lesson) return;
       lessonTitle.textContent = lesson.title;
       if (lessonDayLbl) lessonDayLbl.textContent = 'Day ' + (index + 1) + ' of ' + LESSONS.length;
-
       var isDone = !!progressData.completed[index];
-      var codeEscaped = escapeHtml(lesson.code);
-
       lessonBody.innerHTML =
         '<div class="lesson-meta">' +
           '<span class="lesson-level level-' + lesson.level.toLowerCase() + '">' + lesson.level + '</span>' +
@@ -1130,7 +1108,7 @@ window.addEventListener('DOMContentLoaded', function () {
               '<span class="code-lang">' + escapeHtml(lesson.lang) + '</span>' +
               '<button type="button" class="copy-btn" data-code="' + escapeHtml(lesson.code) + '">Copy</button>' +
             '</div>' +
-            '<pre><code>' + codeEscaped + '</code></pre>' +
+            '<pre><code>' + escapeHtml(lesson.code) + '</code></pre>' +
           '</div>' +
         '</div>' +
         '<div class="lesson-section"><h3>Your Turn</h3><p>' + lesson.exercise + '</p>' +
@@ -1148,33 +1126,26 @@ window.addEventListener('DOMContentLoaded', function () {
       var copyBtn = e.target.closest('.copy-btn');
       if (copyBtn) {
         var text = copyBtn.getAttribute('data-code') || '';
-        function flash() {
-          copyBtn.textContent = 'Copied!'; copyBtn.classList.add('copied');
-          setTimeout(function () { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500);
-        }
+        function flash() { copyBtn.textContent = 'Copied!'; copyBtn.classList.add('copied');
+          setTimeout(function () { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500); }
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(flash).catch(function () {});
-        else {
-          var ta = document.createElement('textarea'); ta.value = text;
+        else { var ta = document.createElement('textarea'); ta.value = text;
           document.body.appendChild(ta); ta.select();
           try { document.execCommand('copy'); flash(); } catch (err) {}
-          document.body.removeChild(ta);
-        }
+          document.body.removeChild(ta); }
         return;
       }
       var compBtn = e.target.closest('#completeBtn');
       if (compBtn) {
         var idx = parseInt(compBtn.getAttribute('data-index'), 10);
-        if (progressData.completed[idx]) markLessonIncomplete(idx);
-        else markLessonComplete(idx);
+        if (progressData.completed[idx]) markLessonIncomplete(idx); else markLessonComplete(idx);
         renderLesson(idx);
-        // refresh lesson list highlight
         document.querySelectorAll('.lesson-card').forEach(function (cardEl, i) {
           cardEl.classList.toggle('completed', !!progressData.completed[i]);
         });
       }
     });
 
-    // Initial render
     var todayIndex = getTodayLessonIndex();
     renderLesson(todayIndex);
 
@@ -1190,22 +1161,18 @@ window.addEventListener('DOMContentLoaded', function () {
           '<p>' + lesson.level + ' · ' + lesson.lang + '</p></div>' +
           (i === todayIndex ? '<span class="today-badge">Today</span>' : '');
         card.addEventListener('click', function () {
-          renderLesson(i);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          renderLesson(i); window.scrollTo({ top: 0, behavior: 'smooth' });
         });
         lessonListEl.appendChild(card);
       });
     }
 
-    // Load progress after auth
     if (auth) {
       auth.onAuthStateChanged(function (user) {
         if (!user) return;
         authUserL = user;
         loadProgress().then(function () {
-          // Re-render today's lesson now that progress is known
           renderLesson(todayIndex);
-          // Update lesson cards
           document.querySelectorAll('.lesson-card').forEach(function (cardEl, i) {
             cardEl.classList.toggle('completed', !!progressData.completed[i]);
             var numEl = cardEl.querySelector('.lesson-card-num');

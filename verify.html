@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email | CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="studio-header">
+        <div class="header-brand">
+            <span class="studio-logo">CodeWix</span>
+            <span class="env-badge">Email Verification</span>
+        </div>
+        <nav class="studio-nav">
+            <a href="index.html">Home</a>
+            <a href="login.html">Login</a>
+        </nav>
+        <div class="user-session">
+            <span>Almost there…</span>
+        </div>
+    </header>
+
+    <main class="verify-workspace">
+        <div class="verify-card" id="verifyCard">
+            <div class="verify-icon" id="verifyIcon">⏳</div>
+            <h1 id="verifyTitle">Verifying your email…</h1>
+            <p id="verifyMessage">Just a moment while we confirm your CodeWix account.</p>
+            <div class="verify-actions" id="verifyActions" style="display:none;">
+                <a href="login.html" class="button">Go to Login</a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="studio-status-bar">
+        <div class="status-left-node">
+            <span class="status-indicator-dot online"></span>
+            <span>Email verification</span>
+        </div>
+        <div class="status-right-node">
+            <span>CodeWix</span>
+        </div>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script>
+        // ---- Firebase init (standalone) ----------------------------------
+        var firebaseConfig = {
+            apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
+            authDomain: "codewix-16971.firebaseapp.com",
+            projectId: "codewix-16971",
+            storageBucket: "codewix-16971.firebasestorage.app",
+            messagingSenderId: "1060917593178",
+            appId: "1:1060917593178:web:8ce61640aa476bf135c463"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        var auth = firebase.auth();
+
+        // ---- UI helpers --------------------------------------------------
+        var iconEl    = document.getElementById('verifyIcon');
+        var titleEl   = document.getElementById('verifyTitle');
+        var msgEl     = document.getElementById('verifyMessage');
+        var actionsEl = document.getElementById('verifyActions');
+
+        function showSuccess() {
+            iconEl.textContent = '✅';
+            titleEl.textContent = 'Email verified!';
+            msgEl.textContent = 'Your CodeWix account is active. You can now log in and start coding.';
+            actionsEl.style.display = 'block';
+        }
+
+        function showError(message) {
+            iconEl.textContent = '⚠️';
+            titleEl.textContent = 'Verification failed';
+            msgEl.textContent = message || 'This link is invalid or has already been used.';
+            actionsEl.style.display = 'block';
+        }
+
+        // ---- Read oobCode from URL --------------------------------------
+        var params = new URLSearchParams(window.location.search);
+        var oobCode = params.get('oobCode');
+        var mode    = params.get('mode');
+
+        if (!oobCode) {
+            showError('No verification code found in the URL. Please click the link from your email again.');
+        } else {
+            // Apply the action code — this completes the verification
+            auth.applyActionCode(oobCode)
+                .then(function () {
+                    // Optionally confirm the user object is now verified
+                    return auth.checkActionCode(oobCode).catch(function () { return null; });
+                })
+                .then(function () {
+                    showSuccess();
+                    // Auto-redirect after 3 seconds
+                    setTimeout(function () {
+                        window.location.href = 'login.html';
+                    }, 3000);
+                })
+                .catch(function (err) {
+                    console.error('[CodeWix] verify error:', err);
+                    var friendly = 'This link is invalid or has already been used.';
+                    if (err.code === 'auth/expired-action-code') {
+                        friendly = 'This verification link has expired. Please register again or request a new link.';
+                    } else if (err.code === 'auth/invalid-action-code') {
+                        friendly = 'This verification link is invalid. It may have already been used.';
+                    } else if (err.code === 'auth/user-disabled') {
+                        friendly = 'This account has been disabled.';
+                    } else if (err.code === 'auth/user-not-found') {
+                        friendly = 'We could not find an account matching this verification link.';
+                    }
+                    showError(friendly);
+                });
+        }
+    </script>
+</body>
+</html>
