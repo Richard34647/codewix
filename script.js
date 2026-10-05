@@ -1,5 +1,15 @@
 // ==========================================================================
 // CodeWix — app logic (classic script, no ES modules)
+// Sections:
+//   1. Firebase boot
+//   2. Helpers
+//   3. Auth guard (with email verification enforcement)
+//   4. Logout
+//   5. Register (with EmailJS verification + error display)
+//   6. Login (with email verification enforcement)
+//   7. Sandbox IDE (dashboard.html)
+//   8. AI Assistant (ai-assistant.html)
+//   9. Daily Lessons (learn.html)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -7,7 +17,9 @@ console.log('[CodeWix] script.js file evaluated');
 window.addEventListener('DOMContentLoaded', function () {
   console.log('[CodeWix] DOMContentLoaded fired');
 
-  // ---- Firebase --------------------------------------------------------
+  // ======================================================================
+  // 1. Firebase boot
+  // ======================================================================
   var auth = null;
   var db = null;
 
@@ -32,7 +44,9 @@ window.addEventListener('DOMContentLoaded', function () {
     } catch (err) { console.error('[CodeWix] Firebase init failed:', err); }
   }
 
-  // ---- Helpers ---------------------------------------------------------
+  // ======================================================================
+  // 2. Helpers
+  // ======================================================================
   function $(id) { return document.getElementById(id); }
   function showError(el, msg) { if (el) { el.textContent = msg; el.style.display = 'block'; } else alert(msg); }
   function hideError(el) { if (el) el.style.display = 'none'; }
@@ -81,7 +95,7 @@ window.addEventListener('DOMContentLoaded', function () {
     return map[String(lang).toLowerCase()] || 'txt';
   }
 
-  // Auto-inject Learn link
+  // Auto-inject "Learn" link into any nav that lacks it
   document.querySelectorAll('nav').forEach(function (nav) {
     if (!nav.querySelector('a[href="learn.html"]')) {
       var a = document.createElement('a');
@@ -92,7 +106,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // ---- Auth guard ------------------------------------------------------
+  // ======================================================================
+  // 3. Auth guard (with email verification enforcement)
+  // ======================================================================
   var path = location.pathname.toLowerCase();
   var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
@@ -102,20 +118,21 @@ window.addEventListener('DOMContentLoaded', function () {
       console.log('[CodeWix] auth state:', user ? user.email : 'signed out');
       if (!user) { location.replace('login.html'); return; }
 
-      // Optional: enforce email verification for protected pages.
-      // Uncomment the block below to require verification.
-      // if (!user.emailVerified) {
-      //   alert('Please verify your email address to access this page. Check your inbox for the verification link.');
-      //   auth.signOut().then(function () { location.replace('login.html'); });
-      //   return;
-      // }
+      // Enforce email verification on protected pages
+      if (!user.emailVerified) {
+        alert('Please verify your email address to access this page. Check your inbox for the verification link.');
+        auth.signOut().then(function () { location.replace('login.html'); });
+        return;
+      }
 
       if ($('dashUser'))  $('dashUser').textContent  = user.email.split('@')[0];
       if ($('userEmail')) $('userEmail').textContent = user.email;
     });
   }
 
-  // ---- Logout ----------------------------------------------------------
+  // ======================================================================
+  // 4. Logout
+  // ======================================================================
   function logout(e) {
     if (e) e.preventDefault();
     if (!auth) { location.href = 'login.html'; return; }
@@ -125,7 +142,7 @@ window.addEventListener('DOMContentLoaded', function () {
   if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
 
   // ======================================================================
-  // 5. Register — with EmailJS verification
+  // 5. Register — with EmailJS verification and error display
   // ======================================================================
   if ($('registerForm')) {
     console.log('[CodeWix] register form detected');
@@ -144,20 +161,22 @@ window.addEventListener('DOMContentLoaded', function () {
       var originalBtnText = submitBtn ? submitBtn.textContent : 'Sign Up';
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating account…'; }
 
+      console.log('[CodeWix] starting registration for:', email);
+
       // Step 1: Create the Firebase account
       auth.createUserWithEmailAndPassword(email, password)
         .then(function (userCredential) {
           var user = userCredential.user;
+          console.log('[CodeWix] Firebase account created:', user.uid);
 
-          // Step 2: Set the display name if we have one
           if (username && user.updateProfile) {
             return user.updateProfile({ displayName: username }).then(function () { return user; });
           }
           return user;
         })
         .then(function (user) {
-          // Step 3: Ask our server to send the verification email via EmailJS
-          if (submitBtn) submitBtn.textContent = 'Sending email…';
+          console.log('[CodeWix] calling /api/send-verification-email…');
+          if (submitBtn) submitBtn.textContent = 'Sending verification email…';
 
           return fetch('/api/send-verification-email', {
             method: 'POST',
@@ -168,19 +187,24 @@ window.addEventListener('DOMContentLoaded', function () {
               redirectUrl: window.location.origin + '/verify.html'
             })
           }).then(function (res) {
-            return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+            return res.json().then(function (data) {
+              return { ok: res.ok, status: res.status, data: data };
+            });
           });
         })
         .then(function (result) {
+          console.log('[CodeWix] /api/send-verification-email response:', result);
+
           if (!result.ok) {
-            // Email send failed — but account was created. Warn the user.
-            console.warn('[CodeWix] verification email failed:', result.data);
+            var reason = (result.data && (result.data.error || result.data.message)) || 'unknown error';
             showError(errBox,
-              'Your account was created, but we could not send the verification email. ' +
-              'You can still log in. Error: ' + (result.data && result.data.error ? result.data.error : 'unknown'));
-          } else {
-            alert('Registration successful! We sent a verification link to ' + email + '. Please check your inbox (and spam folder).');
+              'Your account was created, but the verification email failed to send. ' +
+              'Reason: ' + reason + '. You can try logging in, but please contact support if you do not receive an email.');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+            return; // don't redirect on failure
           }
+
+          alert('Registration successful! We sent a verification link to ' + email + '. Check your inbox and spam folder.');
           window.location.href = 'login.html';
         })
         .catch(function (err) {
@@ -190,26 +214,56 @@ window.addEventListener('DOMContentLoaded', function () {
           else if (err.code === 'auth/weak-password') msg = 'Password is too weak — use at least 6 characters.';
           else if (err.code === 'auth/invalid-email') msg = 'That email address does not look valid.';
           showError(errBox, msg);
-        })
-        .finally(function () {
           if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
         });
     });
   }
 
-  // ---- Login -----------------------------------------------------------
+  // ======================================================================
+  // 6. Login — with email verification enforcement
+  // ======================================================================
   if ($('loginForm')) {
     $('loginForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var email = $('email').value.trim(), password = $('password').value;
       var errBox = $('errorBox'); hideError(errBox);
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+
+      var submitBtn = $('loginForm').querySelector('button[type="submit"]');
+      var originalBtnText = submitBtn ? submitBtn.textContent : 'Log In';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Logging in…'; }
+
       auth.signInWithEmailAndPassword(email, password)
-        .then(function () {
+        .then(function (userCredential) {
+          var user = userCredential.user;
+
+          if (!user.emailVerified) {
+            console.log('[CodeWix] login blocked — email not verified:', user.email);
+            return auth.signOut().then(function () {
+              throw new Error('EMAIL_NOT_VERIFIED');
+            });
+          }
+
           alert('Login successful! Loading your workspace…');
-          location.href = 'dashboard.html';
+          window.location.href = 'dashboard.html';
         })
-        .catch(function (err) { showError(errBox, 'Authentication failed: ' + err.message); });
+        .catch(function (err) {
+          console.error('[CodeWix] login error:', err);
+          var msg = err.message || 'Login failed.';
+          if (err.message === 'EMAIL_NOT_VERIFIED') {
+            msg = 'Please verify your email address before logging in. Check your inbox (and spam folder) for the verification link.';
+          } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+            msg = 'Incorrect email or password.';
+          } else if (err.code === 'auth/user-not-found') {
+            msg = 'No account found with that email.';
+          } else if (err.code === 'auth/too-many-requests') {
+            msg = 'Too many attempts. Please wait a few minutes and try again.';
+          }
+          showError(errBox, msg);
+        })
+        .finally(function () {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+        });
     });
   }
 
