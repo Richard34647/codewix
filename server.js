@@ -215,7 +215,16 @@ app.use('/api', (req, res) => {
 });
 
 // ---- Static files ---------------------------------------------------------
+// ---- Static files ---------------------------------------------------------
 app.use(express.static(path.join(__dirname)));
+
+// ---- 404 fallback (must come AFTER static) --------------------------------
+app.use(function (req, res) {
+  res.status(404).sendFile(path.join(__dirname, '404.html'));
+});
+
+// ---- Start ----------------------------------------------------------------
+app.listen(PORT, '0.0.0.0', function () { ... });
 
 // ---- Start ----------------------------------------------------------------
 app.listen(PORT, '0.0.0.0', function () {
