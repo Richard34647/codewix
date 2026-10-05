@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | CodeWix</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="studio-header">
+        <div class="header-brand">
+            <span class="studio-logo">CodeWix</span>
+            <span class="env-badge">Profile</span>
+        </div>
+        <nav class="studio-nav">
+            <a href="index.html">Home</a>
+            <a href="explore.html">Explore</a>
+            <a href="dashboard.html">Workspace</a>
+            <a href="learn.html">Learn</a>
+            <a href="ai-assistance.html">AI Assistant</a>
+        </nav>
+        <div class="user-session">
+            <span id="dashUser">Guest</span>
+            <button class="exit-btn" id="logoutBtn">Exit</button>
+        </div>
+    </header>
+
+    <main class="profile-workspace">
+        <div class="profile-header">
+            <div class="profile-avatar" id="profileAvatar">?</div>
+            <div class="profile-info">
+                <h1 id="profileUsername">Loading…</h1>
+                <p id="profileStats" class="profile-stats"></p>
+            </div>
+        </div>
+
+        <h2 class="profile-section-title">Published Projects</h2>
+
+        <div id="profileGrid" class="explore-grid">
+            <p class="explore-empty">Loading…</p>
+        </div>
+    </main>
+
+    <footer class="studio-status-bar">
+        <div class="status-left-node">
+            <span class="status-indicator-dot online"></span>
+            <span id="userEmail">Profile</span>
+        </div>
+        <div class="status-right-node">
+            <span>CodeWix</span>
+        </div>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

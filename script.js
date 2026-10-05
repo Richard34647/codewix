@@ -1,16 +1,5 @@
 // ==========================================================================
-// CodeWix — app logic (classic script, no ES modules)
-// Sections:
-//   1. Firebase boot
-//   2. Helpers
-//   3. Auth guard (email verification enforced)
-//   4. Logout
-//   5. Register (EmailJS verification)
-//   6. Login (verification enforced + resend option)
-//   6b. Forgot Password (Firebase native)
-//   7. Sandbox IDE (dashboard.html)
-//   8. AI Assistant (ai-assistant.html)
-//   9. Daily Lessons (learn.html)
+// CodeWix — script.js
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -18,14 +7,11 @@ console.log('[CodeWix] script.js file evaluated');
 window.addEventListener('DOMContentLoaded', function () {
   console.log('[CodeWix] DOMContentLoaded fired');
 
-  // ======================================================================
-  // 1. Firebase boot
-  // ======================================================================
   var auth = null;
   var db = null;
 
   if (typeof firebase === 'undefined') {
-    console.error('[CodeWix] firebase global is undefined.');
+    console.error('[CodeWix] firebase missing.');
   } else {
     try {
       if (!firebase.apps.length) {
@@ -42,22 +28,16 @@ window.addEventListener('DOMContentLoaded', function () {
       auth = firebase.auth();
       if (firebase.firestore) db = firebase.firestore();
       console.log('[CodeWix] Firebase ready ✔ (firestore:', !!db, ')');
-    } catch (err) { console.error('[CodeWix] Firebase init failed:', err); }
+    } catch (err) { console.error('[CodeWix] init failed:', err); }
   }
 
-  // ======================================================================
-  // 2. Helpers
-  // ======================================================================
   function $(id) { return document.getElementById(id); }
   function showError(el, msg) { if (el) { el.textContent = msg; el.style.display = 'block'; } else alert(msg); }
   function hideError(el) { if (el) el.style.display = 'none'; }
-
   function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-
   function showToast(msg, type) {
     var t = document.createElement('div');
     t.className = 'toast ' + (type || '');
@@ -69,13 +49,11 @@ window.addEventListener('DOMContentLoaded', function () {
       setTimeout(function () { document.body.removeChild(t); }, 300);
     }, 2400);
   }
-
   function formatDate(ts) {
     if (!ts) return '';
     var d = ts.toDate ? ts.toDate() : new Date(ts);
-    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString();
   }
-
   function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -83,12 +61,11 @@ window.addEventListener('DOMContentLoaded', function () {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
-
   function extensionForLang(lang) {
     var map = {
       'javascript':'js','js':'js','jsx':'jsx','typescript':'ts','ts':'ts','tsx':'tsx',
-      'python':'py','py':'py','html':'html','xml':'html','css':'css','scss':'scss','sass':'sass',
-      'json':'json','yaml':'yml','yml':'yml','bash':'sh','sh':'sh','shell':'sh','zsh':'sh',
+      'python':'py','py':'py','html':'html','xml':'html','css':'css','scss':'scss',
+      'json':'json','yaml':'yml','yml':'yml','bash':'sh','sh':'sh','shell':'sh',
       'sql':'sql','java':'java','c':'c','cpp':'cpp','csharp':'cs','cs':'cs','go':'go',
       'rust':'rs','php':'php','ruby':'rb','swift':'swift','kotlin':'kt',
       'markdown':'md','md':'md','text':'txt','plaintext':'txt'
@@ -96,9 +73,8 @@ window.addEventListener('DOMContentLoaded', function () {
     return map[String(lang).toLowerCase()] || 'txt';
   }
 
-  // Auto-inject Learn link into any nav that lacks it
   document.querySelectorAll('nav').forEach(function (nav) {
-    if (!nav.querySelector('a[href="learn.html"]')) {
+    if (!nav.querySelector('a[href="learn.html"]') && !nav.classList.contains('studio-nav')) {
       var a = document.createElement('a');
       a.href = 'learn.html'; a.textContent = 'Learn';
       var home = nav.querySelector('a[href="index.html"]');
@@ -107,32 +83,23 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // ======================================================================
-  // 3. Auth guard (with email verification enforcement)
-  // ======================================================================
   var path = location.pathname.toLowerCase();
   var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
 
   if (auth && onProtectedPage) {
     auth.onAuthStateChanged(function (user) {
-      console.log('[CodeWix] auth state:', user ? user.email : 'signed out');
       if (!user) { location.replace('login.html'); return; }
-
       if (!user.emailVerified) {
-        alert('Please verify your email address to access this page. Check your inbox for the verification link.');
+        alert('Please verify your email to access this page.');
         auth.signOut().then(function () { location.replace('login.html'); });
         return;
       }
-
       if ($('dashUser'))  $('dashUser').textContent  = user.email.split('@')[0];
       if ($('userEmail')) $('userEmail').textContent = user.email;
     });
   }
 
-  // ======================================================================
-  // 4. Logout
-  // ======================================================================
   function logout(e) {
     if (e) e.preventDefault();
     if (!auth) { location.href = 'login.html'; return; }
@@ -141,250 +108,136 @@ window.addEventListener('DOMContentLoaded', function () {
   if ($('logoutBtn'))  $('logoutBtn').addEventListener('click', logout);
   if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
 
-  // ======================================================================
-  // 5. Register — with EmailJS verification
-  // ======================================================================
+  // Register
   if ($('registerForm')) {
-    console.log('[CodeWix] register form detected');
     $('registerForm').addEventListener('submit', function (e) {
       e.preventDefault();
-
-      var email    = $('email').value.trim();
-      var password = $('password').value;
+      var email = $('email').value.trim(), password = $('password').value;
       var username = $('username') ? $('username').value.trim() : '';
-      var errBox   = $('errorBox');
-      hideError(errBox);
-
+      var errBox = $('errorBox'); hideError(errBox);
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
-
       var submitBtn = $('registerForm').querySelector('button[type="submit"]');
-      var originalBtnText = submitBtn ? submitBtn.textContent : 'Sign Up';
+      var orig = submitBtn ? submitBtn.textContent : 'Sign Up';
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating account…'; }
 
-      console.log('[CodeWix] starting registration for:', email);
-
       auth.createUserWithEmailAndPassword(email, password)
-        .then(function (userCredential) {
-          var user = userCredential.user;
-          console.log('[CodeWix] Firebase account created:', user.uid);
-
-          if (username && user.updateProfile) {
-            return user.updateProfile({ displayName: username }).then(function () { return user; });
-          }
+        .then(function (uc) {
+          var user = uc.user;
+          if (username && user.updateProfile) return user.updateProfile({ displayName: username }).then(function () { return user; });
           return user;
         })
         .then(function (user) {
-          console.log('[CodeWix] calling /api/send-verification-email…');
-          if (submitBtn) submitBtn.textContent = 'Sending verification email…';
-
           return fetch('/api/send-verification-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userEmail: user.email,
-              userName: username || user.email.split('@')[0],
-              redirectUrl: window.location.origin + '/verify.html'
-            })
-          }).then(function (res) {
-            return res.json().then(function (data) {
-              return { ok: res.ok, status: res.status, data: data };
-            });
-          });
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userEmail: user.email, userName: username || user.email.split('@')[0], redirectUrl: window.location.origin + '/verify.html' })
+          }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
         })
         .then(function (result) {
-          console.log('[CodeWix] /api/send-verification-email response:', result);
-
           if (!result.ok) {
-            var reason = (result.data && (result.data.error || result.data.message)) || 'unknown error';
-            showError(errBox,
-              'Your account was created, but the verification email failed to send. ' +
-              'Reason: ' + reason + '. You can try logging in, but please contact support if you do not receive an email.');
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+            showError(errBox, 'Account created but verification email failed: ' + (result.data.error || 'unknown'));
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; }
             return;
           }
-
-          alert('Registration successful! We sent a verification link to ' + email + '. Check your inbox and spam folder.');
+          alert('Registration successful! We sent a verification link to ' + email + '. Check your inbox.');
           window.location.href = 'login.html';
         })
         .catch(function (err) {
-          console.error('[CodeWix] register error:', err);
-          var msg = err.message || 'Registration failed.';
-          if (err.code === 'auth/email-already-in-use') msg = 'That email is already registered. Try logging in instead.';
-          else if (err.code === 'auth/weak-password') msg = 'Password is too weak — use at least 6 characters.';
-          else if (err.code === 'auth/invalid-email') msg = 'That email address does not look valid.';
+          var msg = err.message;
+          if (err.code === 'auth/email-already-in-use') msg = 'That email is already registered.';
+          else if (err.code === 'auth/weak-password') msg = 'Password must be at least 6 characters.';
           showError(errBox, msg);
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; }
         });
     });
   }
 
-  // ======================================================================
-  // 6. Login — with verification enforcement + resend option
-  // ======================================================================
+  // Login
   if ($('loginForm')) {
     var pendingVerificationEmail = null;
-
     $('loginForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      var email = $('email').value.trim();
-      var password = $('password').value;
+      var email = $('email').value.trim(), password = $('password').value;
       var errBox = $('errorBox');
-
-      if (errBox) {
-        errBox.className = 'error-box';
-        errBox.innerHTML = '';
-        errBox.style.display = 'none';
-      }
-
+      if (errBox) { errBox.className = 'error-box'; errBox.innerHTML = ''; errBox.style.display = 'none'; }
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
-
       var submitBtn = $('loginForm').querySelector('button[type="submit"]');
-      var originalBtnText = submitBtn ? submitBtn.textContent : 'Log In';
+      var orig = submitBtn ? submitBtn.textContent : 'Log In';
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Logging in…'; }
 
       auth.signInWithEmailAndPassword(email, password)
-        .then(function (userCredential) {
-          var user = userCredential.user;
-
+        .then(function (uc) {
+          var user = uc.user;
           if (!user.emailVerified) {
             pendingVerificationEmail = user.email;
-            console.log('[CodeWix] login blocked — email not verified:', user.email);
-
             return auth.signOut().then(function () {
               if (errBox) {
-                errBox.innerHTML =
-                  '<div style="margin-bottom:10px;">Please verify your email address before logging in. Check your inbox (and spam folder) for the verification link.</div>' +
+                errBox.innerHTML = '<div style="margin-bottom:10px;">Please verify your email before logging in.</div>' +
                   '<button type="button" class="resend-verify-btn">Resend verification email</button>';
                 errBox.style.display = 'block';
               }
             });
           }
-
-          alert('Login successful! Loading your workspace…');
+          alert('Login successful!');
           window.location.href = 'dashboard.html';
         })
         .catch(function (err) {
-          console.error('[CodeWix] login error:', err);
-          var msg = err.message || 'Login failed.';
-          if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-            msg = 'Incorrect email or password.';
-          } else if (err.code === 'auth/user-not-found') {
-            msg = 'No account found with that email.';
-          } else if (err.code === 'auth/too-many-requests') {
-            msg = 'Too many attempts. Please wait a few minutes and try again.';
-          }
+          var msg = err.message;
+          if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Incorrect email or password.';
+          else if (err.code === 'auth/user-not-found') msg = 'No account found with that email.';
           showError(errBox, msg);
         })
-        .finally(function () {
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
-        });
+        .finally(function () { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } });
     });
 
-    // Handle resend-verification button clicks (delegated)
     var errBoxEl = $('errorBox');
     if (errBoxEl) {
       errBoxEl.addEventListener('click', function (e) {
         var btn = e.target.closest('.resend-verify-btn');
-        if (!btn) return;
-
-        if (!pendingVerificationEmail) {
-          errBoxEl.className = 'error-box';
-          errBoxEl.textContent = 'Please submit the login form again first.';
-          return;
-        }
-
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-
+        if (!btn || !pendingVerificationEmail) return;
+        btn.disabled = true; btn.textContent = 'Sending…';
         fetch('/api/send-verification-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userEmail: pendingVerificationEmail,
-            userName: pendingVerificationEmail.split('@')[0],
-            redirectUrl: window.location.origin + '/verify.html'
-          })
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userEmail: pendingVerificationEmail, redirectUrl: window.location.origin + '/verify.html' })
         })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
         .then(function (res) {
-          return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-        })
-        .then(function (result) {
-          if (!result.ok) {
-            var reason = (result.data && result.data.error) || 'unknown error';
-            errBoxEl.className = 'error-box';
-            errBoxEl.textContent = 'Could not resend: ' + reason;
-            return;
-          }
+          if (!res.ok) { errBoxEl.className = 'error-box'; errBoxEl.textContent = 'Could not resend: ' + (res.data.error || 'unknown'); return; }
           errBoxEl.className = 'success-box';
-          errBoxEl.textContent = '✅ New verification email sent to ' + pendingVerificationEmail + '. Check your inbox and spam folder.';
-          console.log('[CodeWix] verification email resent to', pendingVerificationEmail);
+          errBoxEl.textContent = '✅ New verification email sent.';
         })
-        .catch(function (err) {
-          console.error('[CodeWix] resend error:', err);
-          errBoxEl.className = 'error-box';
-          errBoxEl.textContent = 'Could not reach the server. Please try again.';
-        });
+        .catch(function () { errBoxEl.className = 'error-box'; errBoxEl.textContent = 'Could not reach server.'; });
       });
     }
   }
 
-  // ======================================================================
-  // 6b. Forgot Password form (Firebase native email)
-  // ======================================================================
+  // Forgot password
   if ($('forgotForm')) {
-    console.log('[CodeWix] forgot password form detected');
     $('forgotForm').addEventListener('submit', function (e) {
       e.preventDefault();
-
       var email = $('email').value.trim();
-      var errBox = $('errorBox');
-      var okBox  = $('successBox');
-      hideError(errBox);
-      if (okBox) okBox.style.display = 'none';
-
-      if (!email) { showError(errBox, 'Please enter your email address.'); return; }
+      var errBox = $('errorBox'), okBox = $('successBox');
+      hideError(errBox); if (okBox) okBox.style.display = 'none';
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
-
       var submitBtn = $('forgotForm').querySelector('button[type="submit"]');
-      var originalText = submitBtn ? submitBtn.textContent : 'Send Reset Link';
+      var orig = submitBtn ? submitBtn.textContent : 'Send Reset Link';
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
 
-      var actionCodeSettings = {
-        url: window.location.origin + '/login.html?reset=success',
-        handleCodeInApp: false
-      };
-
-      auth.sendPasswordResetEmail(email, actionCodeSettings)
+      auth.sendPasswordResetEmail(email, { url: window.location.origin + '/login.html?reset=success', handleCodeInApp: false })
         .then(function () {
-          if (okBox) {
-            okBox.textContent = 'If an account exists for ' + email + ', we\u2019ve sent a reset link. Check your inbox and spam folder.';
-            okBox.style.display = 'block';
-          }
-          console.log('[CodeWix] reset email sent to', email);
+          if (okBox) { okBox.textContent = 'If an account exists for ' + email + ', we sent a reset link.'; okBox.style.display = 'block'; }
         })
         .catch(function (err) {
-          console.error('[CodeWix] forgot password error:', err);
           if (err.code === 'auth/user-not-found') {
-            if (okBox) {
-              okBox.textContent = 'If an account exists for ' + email + ', we\u2019ve sent a reset link. Check your inbox and spam folder.';
-              okBox.style.display = 'block';
-            }
+            if (okBox) { okBox.textContent = 'If an account exists for ' + email + ', we sent a reset link.'; okBox.style.display = 'block'; }
             return;
           }
-          var msg = 'Could not send reset link.';
-          if (err.code === 'auth/invalid-email') msg = 'That email address does not look valid.';
-          else if (err.code === 'auth/too-many-requests') msg = 'Too many attempts. Please wait a few minutes and try again.';
-          showError(errBox, msg);
+          showError(errBox, err.message);
         })
-        .finally(function () {
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
-        });
+        .finally(function () { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } });
     });
   }
 
-  // ======================================================================
-  // 7. Sandbox IDE (dashboard.html)
-  // ======================================================================
+  // IDE
   var codeEditor       = $('codeEditor');
   var runCodeBtn       = $('runCodeBtn');
   var livePreviewFrame = $('livePreviewFrame');
@@ -399,6 +252,7 @@ window.addEventListener('DOMContentLoaded', function () {
   var downloadFileBtn  = $('downloadFileBtn');
   var downloadZipBtn   = $('downloadZipBtn');
   var shareProjectBtn  = $('shareProjectBtn');
+  var publishBtn       = $('publishBtn');
   var projectsModal    = $('projectsModal');
   var projectsListBox  = $('projectsListContainer');
   var closeModalBtn    = $('closeProjectsModalBtn');
@@ -419,6 +273,7 @@ window.addEventListener('DOMContentLoaded', function () {
     var currentProjectName = null;
     var currentShareId = null;
     var lastSavedSnapshot = null;
+    var currentSlug = null;
 
     function snapshot() { return JSON.stringify(files); }
     function markUnsaved() {
@@ -467,6 +322,7 @@ window.addEventListener('DOMContentLoaded', function () {
       currentProjectId = projectId || null;
       currentProjectName = projectName || null;
       currentShareId = shareId || null;
+      currentSlug = null;
       lastSavedSnapshot = snapshot();
       if (codeEditor) codeEditor.value = files[activeFile];
       rebuildFileTree();
@@ -529,10 +385,9 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (downloadZipBtn) {
       downloadZipBtn.addEventListener('click', async function () {
-        if (typeof JSZip === 'undefined') { alert('ZIP library not loaded.'); return; }
+        if (typeof JSZip === 'undefined') { alert('ZIP not loaded.'); return; }
         if (codeEditor) files[activeFile] = codeEditor.value;
-        downloadZipBtn.disabled = true;
-        downloadZipBtn.textContent = 'Zipping…';
+        downloadZipBtn.disabled = true; downloadZipBtn.textContent = 'Zipping…';
         try {
           var zip = new JSZip();
           Object.keys(files).forEach(function (name) { zip.file(name, files[name] || ''); });
@@ -550,7 +405,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function saveProject() {
-      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready to save.', 'error'); return; }
+      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
       files[activeFile] = codeEditor.value;
       var name = currentProjectName;
       if (!name) {
@@ -559,17 +414,11 @@ window.addEventListener('DOMContentLoaded', function () {
         name = name.trim(); if (!name) return;
       }
       saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…';
-      var payload = {
-        name: name, files: files, activeFile: activeFile,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
+      var payload = { name: name, files: files, activeFile: activeFile, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
       var col = projectsCollection();
       var promise;
       if (currentProjectId) promise = col.doc(currentProjectId).update(payload);
-      else {
-        payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-        promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; });
-      }
+      else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; }); }
       promise.then(function () {
         currentProjectName = name; lastSavedSnapshot = snapshot();
         if (unsavedIndicator) unsavedIndicator.style.display = 'none';
@@ -579,8 +428,10 @@ window.addEventListener('DOMContentLoaded', function () {
         .finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; });
     }
 
+    if (saveProjectBtn) saveProjectBtn.addEventListener('click', saveProject);
+
     async function shareProject() {
-      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready to share.', 'error'); return; }
+      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
       files[activeFile] = codeEditor.value;
       if (lastSavedSnapshot !== snapshot() || !currentProjectId) {
         await new Promise(function (r) { saveProject(); setTimeout(r, 400); });
@@ -591,29 +442,130 @@ window.addEventListener('DOMContentLoaded', function () {
       shareProjectBtn.disabled = true; shareProjectBtn.textContent = 'Sharing…';
       try {
         await db.collection('public').doc(shareId).set({
-          name: currentProjectName || 'Untitled',
-          files: files,
-          sharedBy: auth.currentUser.uid,
-          sharedAt: firebase.firestore.FieldValue.serverTimestamp()
+          name: currentProjectName || 'Untitled', files: files,
+          sharedBy: auth.currentUser.uid, sharedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await projectsCollection().doc(currentProjectId).update({ shareId: shareId });
         var url = location.origin + '/view.html?id=' + encodeURIComponent(shareId);
         try { await navigator.clipboard.writeText(url); showToast('Share link copied! 🔗', 'success'); }
-        catch (e) { prompt('Copy this share link:', url); }
+        catch (e) { prompt('Copy this link:', url); }
       } catch (err) { showToast('Share failed: ' + err.message, 'error'); }
       finally { shareProjectBtn.disabled = false; shareProjectBtn.textContent = '🔗 Share'; }
     }
     if (shareProjectBtn) shareProjectBtn.addEventListener('click', shareProject);
 
+    // Publish flow
+    var publishModal     = $('publishModal');
+    var publishModalTitle= $('publishModalTitle');
+    var publishModalFoot = $('publishModalFooter');
+    var publishSlug      = $('publishSlug');
+    var publishName      = $('publishName');
+    var publishDesc      = $('publishDesc');
+    var publishError     = $('publishError');
+    var publishSuccess   = $('publishSuccess');
+    var publishUrlOut    = $('publishUrlOutput');
+    var publishViewBtn   = $('publishViewBtn');
+    var publishCopyBtn   = $('publishCopyBtn');
+    var publishDoneBtn   = $('publishDoneBtn');
+    var publishCancelBtn = $('publishCancelBtn');
+    var publishConfirmBtn= $('publishConfirmBtn');
+    var closePublishBtn  = $('closePublishModalBtn');
+
+    function openPublishModal() {
+      if (!publishModal) return;
+      files[activeFile] = codeEditor.value;
+      document.querySelector('.publish-form').style.display = 'block';
+      publishSuccess.style.display = 'none';
+      publishModalFoot.style.display = 'flex';
+      publishModalTitle.textContent = 'Publish Your Site';
+      hideError(publishError);
+      if (publishName && currentProjectName) publishName.value = currentProjectName;
+      if (publishSlug && !publishSlug.value) {
+        var suggested = (currentProjectName || 'my-project').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 30);
+        if (suggested.length < 3) suggested = 'my-project';
+        publishSlug.value = suggested;
+      }
+      publishModal.style.display = 'flex';
+      if (publishSlug) publishSlug.focus();
+    }
+
+    function closePublishModal() {
+      if (publishModal) publishModal.style.display = 'none';
+    }
+
+    if (publishBtn) publishBtn.addEventListener('click', openPublishModal);
+    if (closePublishBtn) closePublishBtn.addEventListener('click', closePublishModal);
+    if (publishCancelBtn) publishCancelBtn.addEventListener('click', closePublishModal);
+    if (publishModal) publishModal.addEventListener('click', function (e) { if (e.target === publishModal) closePublishModal(); });
+
+    if (publishConfirmBtn) {
+      publishConfirmBtn.addEventListener('click', async function () {
+        hideError(publishError);
+        var slug = (publishSlug.value || '').trim().toLowerCase();
+        var name = (publishName.value || '').trim() || currentProjectName || 'Untitled';
+        var desc = (publishDesc.value || '').trim();
+
+        if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) {
+          showError(publishError, 'Slug must be 3-32 characters, lowercase letters, numbers, and hyphens.');
+          return;
+        }
+        if (!auth || !auth.currentUser) { showError(publishError, 'You must be signed in.'); return; }
+
+        publishConfirmBtn.disabled = true;
+        publishConfirmBtn.textContent = 'Publishing…';
+
+        try {
+          files[activeFile] = codeEditor.value;
+          var idToken = await auth.currentUser.getIdToken();
+          var res = await fetch('/api/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+            body: JSON.stringify({ slug: slug, projectName: name, description: desc, files: files })
+          });
+          var data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Publish failed.');
+
+          currentSlug = slug;
+          currentProjectName = name;
+          document.querySelector('.publish-form').style.display = 'none';
+          publishSuccess.style.display = 'block';
+          publishModalFoot.style.display = 'none';
+          publishModalTitle.textContent = 'Published!';
+          publishUrlOut.value = data.fullUrl;
+          publishViewBtn.href = data.url;
+          if (projectStatusLbl) projectStatusLbl.textContent = 'Published: /s/' + slug;
+          showToast('Site published ✔', 'success');
+        } catch (err) {
+          showError(publishError, err.message);
+        } finally {
+          publishConfirmBtn.disabled = false;
+          publishConfirmBtn.textContent = 'Publish →';
+        }
+      });
+    }
+
+    if (publishCopyBtn) {
+      publishCopyBtn.addEventListener('click', function () {
+        var btn = this;
+        var text = publishUrlOut.value;
+        function flash() { btn.textContent = 'Copied!'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(flash).catch(fallback);
+        else fallback();
+        function fallback() { publishUrlOut.select(); document.execCommand('copy'); flash(); }
+      });
+    }
+
+    if (publishDoneBtn) publishDoneBtn.addEventListener('click', closePublishModal);
+
     function openProjectsModal() {
       if (!projectsModal) return;
       projectsModal.style.display = 'flex';
       projectsListBox.innerHTML = '<p class="modal-empty">Loading…</p>';
-      if (!db || !auth || !auth.currentUser) { projectsListBox.innerHTML = '<p class="modal-empty">Sign in to view your projects.</p>'; return; }
+      if (!db || !auth || !auth.currentUser) { projectsListBox.innerHTML = '<p class="modal-empty">Sign in first.</p>'; return; }
       projectsCollection().orderBy('updatedAt', 'desc').get()
         .then(function (snapshot) {
           projectsListBox.innerHTML = '';
-          if (snapshot.empty) { projectsListBox.innerHTML = '<p class="modal-empty">You haven\u2019t saved any projects yet.</p>'; return; }
+          if (snapshot.empty) { projectsListBox.innerHTML = '<p class="modal-empty">No saved projects yet.</p>'; return; }
           snapshot.forEach(function (doc) {
             var data = doc.data() || {};
             var shareBtn = data.shareId ? '<button data-action="share" data-share="' + data.shareId + '">🔗 Link</button>' : '';
@@ -635,16 +587,14 @@ window.addEventListener('DOMContentLoaded', function () {
 
     function closeProjectsModal() { if (projectsModal) projectsModal.style.display = 'none'; }
 
-    if (saveProjectBtn) saveProjectBtn.addEventListener('click', saveProject);
-    if (myProjectsBtn)  myProjectsBtn.addEventListener('click', openProjectsModal);
-    if (closeModalBtn)  closeModalBtn.addEventListener('click', closeProjectsModal);
-    if (projectsModal)  projectsModal.addEventListener('click', function (e) { if (e.target === projectsModal) closeProjectsModal(); });
+    if (myProjectsBtn) myProjectsBtn.addEventListener('click', openProjectsModal);
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeProjectsModal);
+    if (projectsModal) projectsModal.addEventListener('click', function (e) { if (e.target === projectsModal) closeProjectsModal(); });
 
     if (projectsListBox) {
       projectsListBox.addEventListener('click', async function (e) {
         var btn = e.target.closest('button[data-action]'); if (!btn) return;
-        var action = btn.getAttribute('data-action');
-        var id = btn.getAttribute('data-id');
+        var action = btn.getAttribute('data-action'), id = btn.getAttribute('data-id');
         if (action === 'open') {
           btn.disabled = true; btn.textContent = 'Opening…';
           try {
@@ -652,13 +602,13 @@ window.addEventListener('DOMContentLoaded', function () {
             if (!doc.exists) { showToast('Not found.', 'error'); return; }
             var data = doc.data();
             loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled', data.shareId || null);
-            closeProjectsModal(); showToast('Project loaded ✔', 'success');
+            closeProjectsModal(); showToast('Loaded ✔', 'success');
           } catch (err) { showToast('Open failed: ' + err.message, 'error'); }
           finally { btn.disabled = false; btn.textContent = 'Open'; }
         } else if (action === 'share') {
           var shareId = btn.getAttribute('data-share');
           var url = location.origin + '/view.html?id=' + encodeURIComponent(shareId);
-          try { await navigator.clipboard.writeText(url); showToast('Share link copied! 🔗', 'success'); }
+          try { await navigator.clipboard.writeText(url); showToast('Link copied! 🔗', 'success'); }
           catch (err) { prompt('Copy this link:', url); }
         } else if (action === 'download') {
           if (typeof JSZip === 'undefined') { showToast('ZIP missing.', 'error'); return; }
@@ -670,12 +620,12 @@ window.addEventListener('DOMContentLoaded', function () {
             var zip = new JSZip();
             Object.keys(dd.files || {}).forEach(function (name) { zip.file(name, dd.files[name] || ''); });
             var blob = await zip.generateAsync({ type: 'blob' });
-            var safe = (dd.name || 'codewix-project').replace(/[^a-z0-9-_]/gi, '_');
-            downloadBlob(blob, safe + '.zip'); showToast('Downloaded ' + safe + '.zip', 'success');
+            var safe = (dd.name || 'project').replace(/[^a-z0-9-_]/gi, '_');
+            downloadBlob(blob, safe + '.zip');
           } catch (err) { showToast('ZIP failed: ' + err.message, 'error'); }
           finally { btn.disabled = false; btn.textContent = '⬇ ZIP'; }
         } else if (action === 'delete') {
-          if (!confirm('Delete this project permanently?')) return;
+          if (!confirm('Delete this project?')) return;
           projectsCollection().doc(id).delete()
             .then(function () { showToast('Deleted', 'success'); openProjectsModal(); })
             .catch(function (err) { showToast('Delete failed: ' + err.message, 'error'); });
@@ -686,10 +636,10 @@ window.addEventListener('DOMContentLoaded', function () {
     if (newProjectBtn) {
       newProjectBtn.addEventListener('click', function () {
         if (lastSavedSnapshot !== snapshot()) {
-          if (!confirm('You have unsaved changes. Start a new project anyway?')) return;
+          if (!confirm('Unsaved changes. Continue?')) return;
         }
         loadFilesIntoEditor(DEFAULT_FILES, null, null, null);
-        showToast('Started a new project');
+        showToast('New project');
       });
     }
 
@@ -701,7 +651,6 @@ window.addEventListener('DOMContentLoaded', function () {
       if (lastSavedSnapshot !== null && lastSavedSnapshot !== snapshot()) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    // Receive snippet from AI
     var pending = null;
     try { pending = JSON.parse(localStorage.getItem('codewix_pending_snippet') || 'null'); } catch (e) {}
     if (pending && pending.code) {
@@ -710,14 +659,9 @@ window.addEventListener('DOMContentLoaded', function () {
       if (pending.lang === 'html' && files['index.html'] !== undefined) targetFile = 'index.html';
       else if (pending.lang === 'css' && files['style.css'] !== undefined) targetFile = 'style.css';
       else if ((pending.lang === 'javascript' || pending.lang === 'js') && files['script.js'] !== undefined) targetFile = 'script.js';
-      else {
-        targetFile = 'snippet.' + extensionForLang(pending.lang);
-        files[targetFile] = '';
-        rebuildFileTree();
-      }
+      else { targetFile = 'snippet.' + extensionForLang(pending.lang); files[targetFile] = ''; rebuildFileTree(); }
       var existing = files[targetFile] || '';
-      var sep = existing.trim() ? '\n\n' : '';
-      files[targetFile] = existing + sep + pending.code;
+      files[targetFile] = existing + (existing.trim() ? '\n\n' : '') + pending.code;
       activeFile = targetFile;
       if (codeEditor) codeEditor.value = files[activeFile];
       rebuildFileTree(); updateGutter(); markUnsaved(); renderPreview();
@@ -725,9 +669,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // ======================================================================
-  // 8. AI Assistant
-  // ======================================================================
+  // AI Assistant
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
   var sendBtn            = $('sendBtn');
@@ -749,7 +691,7 @@ window.addEventListener('DOMContentLoaded', function () {
     var API_URL = '/api/chat';
     var SYSTEM_PROMPT = {
       role: 'system',
-      content: 'You are the CodeWix AI Assistant. You help users learn to code, debug errors, and build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name, like ```javascript ... ```. Never paste code inline without a fence.'
+      content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name.'
     };
 
     var conversation = [SYSTEM_PROMPT];
@@ -819,9 +761,7 @@ window.addEventListener('DOMContentLoaded', function () {
       chatContainer.innerHTML =
         '<div class="chat-message assistant-message">' +
           '<div class="message-role">Assistant</div>' +
-          '<div class="message-content">' +
-            '<div class="text-part">Hello! I\'m your CodeWix AI Assistant. Ask me to explain code, debug an error, or help you build a project.</div>' +
-          '</div>' +
+          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. Ask me to explain code, debug an error, or help you build a project.</div></div>' +
         '</div>';
     }
 
@@ -833,7 +773,7 @@ window.addEventListener('DOMContentLoaded', function () {
           if (snap.empty) startNewChat();
           else { var doc = snap.docs[0]; loadChat(doc.id, doc.data()); setStatus('Loaded previous conversation'); }
         })
-        .catch(function (err) { console.warn('[CodeWix] chat load failed:', err); startNewChat(); });
+        .catch(function () { startNewChat(); });
     }
 
     if (auth) auth.onAuthStateChanged(function (user) { if (user) onUserReady(user); });
@@ -881,28 +821,21 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function setUserMessage(div, text) {
-      div.querySelector('.message-content').innerHTML =
-        '<div class="text-part">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
+      div.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
     }
 
     function setAssistantMessage(div, content, reasoning) {
       var container = div.querySelector('.message-content');
       var html = '';
       if (reasoning) {
-        html += '<details class="reasoning-section">' +
-                  '<summary>Thinking process</summary>' +
-                  '<div class="reasoning-content">' + escapeHtml(reasoning) + '</div>' +
-                '</details>';
+        html += '<details class="reasoning-section"><summary>Thinking process</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>';
       }
       html += renderContent(content);
       container.innerHTML = html;
     }
 
     function setStatus(msg) { if (chatStatus) chatStatus.textContent = msg; }
-    function setLoading(loading) {
-      sendBtn.disabled = loading; chatInput.disabled = loading;
-      sendBtn.textContent = loading ? 'Thinking…' : 'Send';
-    }
+    function setLoading(l) { sendBtn.disabled = l; chatInput.disabled = l; sendBtn.textContent = l ? 'Thinking…' : 'Send'; }
 
     chatContainer.addEventListener('click', function (e) {
       var sendBtn2 = e.target.closest('.send-to-editor-btn');
@@ -915,7 +848,7 @@ window.addEventListener('DOMContentLoaded', function () {
           sendBtn2.textContent = '✓ Sent';
           showToast('Navigating to editor…', 'success');
           setTimeout(function () { location.href = 'dashboard.html'; }, 600);
-        } catch (err) { showToast('Could not send: ' + err.message, 'error'); }
+        } catch (err) { showToast('Failed: ' + err.message, 'error'); }
         return;
       }
       var dlBtn = e.target.closest('.download-code-btn');
@@ -924,8 +857,7 @@ window.addEventListener('DOMContentLoaded', function () {
         var cEl = blk.querySelector('code'); if (!cEl) return;
         var l = blk.getAttribute('data-lang') || 'code';
         var ext = extensionForLang(l);
-        downloadBlob(new Blob([cEl.textContent], { type: 'text/plain;charset=utf-8' }),
-                     'codewix-snippet-' + Date.now() + '.' + ext);
+        downloadBlob(new Blob([cEl.textContent], { type: 'text/plain;charset=utf-8' }), 'codewix-snippet-' + Date.now() + '.' + ext);
         dlBtn.textContent = '✓'; setTimeout(function () { dlBtn.textContent = '⬇'; }, 1500);
         return;
       }
@@ -933,32 +865,19 @@ window.addEventListener('DOMContentLoaded', function () {
       var blk2 = btn.closest('.code-block'); if (!blk2) return;
       var cEl2 = blk2.querySelector('code'); if (!cEl2) return;
       var txt = cEl2.textContent;
-      function flash() {
-        btn.textContent = 'Copied!'; btn.classList.add('copied');
-        setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
-      }
+      function flash() { btn.textContent = 'Copied!'; btn.classList.add('copied'); setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500); }
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(flash).catch(fb);
       else fb();
-      function fb() {
-        var ta = document.createElement('textarea'); ta.value = txt;
-        document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); flash(); } catch (e) { alert('Copy failed.'); }
-        document.body.removeChild(ta);
-      }
+      function fb() { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); flash(); } catch (e) {} document.body.removeChild(ta); }
     });
 
     async function sendToGroq(userText) {
       var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
       if (modelIndicator) modelIndicator.textContent = model;
       var showThinking = thinkingToggle ? thinkingToggle.checked : false;
-
-      if (!authUser) {
-        showToast('Please sign in to use the AI assistant.', 'error');
-        return;
-      }
+      if (!authUser) { showToast('Sign in first.', 'error'); return; }
 
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
-
       conversation.push({ role: 'user', content: userText });
       var userDiv = appendMessage('user'); setUserMessage(userDiv, userText); scheduleSave();
 
@@ -970,58 +889,35 @@ window.addEventListener('DOMContentLoaded', function () {
 
       try {
         var idToken = await authUser.getIdToken();
-
         var payload = { model: model, messages: conversation, temperature: 0.7, max_completion_tokens: 2048 };
         if (showThinking) payload.reasoning_effort = 'medium';
 
         var response = await fetch(API_URL, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + idToken
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
           body: JSON.stringify(payload)
         });
-
         var data = await response.json();
 
         if (response.status === 429) {
-          assistantDiv.querySelector('.message-content').innerHTML =
-            '<div class="text-part" style="color:#fbbf24;">⚠️ ' + escapeHtml(data.error || 'Daily limit reached.') + '</div>';
-          conversation.pop();
-          setStatus('Daily limit reached');
-          return;
+          assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#fbbf24;">⚠️ ' + escapeHtml(data.error || 'Daily limit reached.') + '</div>';
+          conversation.pop(); setStatus('Limit reached'); return;
         }
-
         if (response.status === 401) {
-          assistantDiv.querySelector('.message-content').innerHTML =
-            '<div class="text-part" style="color:#f87171;">Your session expired. Please refresh the page and sign in again.</div>';
-          conversation.pop();
-          setStatus('Session expired');
-          return;
+          assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please refresh.</div>';
+          conversation.pop(); setStatus('Session expired'); return;
         }
-
-        if (!response.ok) {
-          var msg = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + response.status);
-          throw new Error(msg);
-        }
+        if (!response.ok) throw new Error((data && data.error) || 'HTTP ' + response.status);
 
         var message = data.choices && data.choices[0] && data.choices[0].message;
-        if (!message) throw new Error('Empty response from server.');
+        if (!message) throw new Error('Empty response.');
         var reply = message.content || '', reasoning = message.reasoning || '';
         setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
         conversation.push({ role: 'assistant', content: reply }); scheduleSave();
-
-        var statusMsg = 'Ready';
-        if (data.usage) statusMsg += ' — ' + data.usage.total_tokens + ' tokens';
-        setStatus(statusMsg);
-
+        setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
       } catch (err) {
-        console.error('[CodeWix] chat error:', err);
-        assistantDiv.querySelector('.message-content').innerHTML =
-          '<div class="text-part">Error: ' + escapeHtml(err.message) +
-          '<br><br>Make sure server.js is running and the page is loaded from the same origin.</div>';
-        conversation.pop(); setStatus('Request failed');
+        assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part">Error: ' + escapeHtml(err.message) + '</div>';
+        conversation.pop(); setStatus('Failed');
       } finally {
         setLoading(false); chatContainer.scrollTop = chatContainer.scrollHeight; chatInput.focus();
       }
@@ -1033,17 +929,12 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     sendBtn.addEventListener('click', handleSend);
-    chatInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-    });
-    chatInput.addEventListener('input', function () {
-      chatInput.style.height = 'auto';
-      chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px';
-    });
+    chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+    chatInput.addEventListener('input', function () { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px'; });
 
     if (newChatBtn) newChatBtn.addEventListener('click', async function () {
       clearTimeout(saveTimer); await saveChatNow(); startNewChat();
-      setStatus('New chat started'); showToast('New chat', 'success');
+      setStatus('New chat'); showToast('New chat');
     });
 
     function openHistoryModal() {
@@ -1051,27 +942,25 @@ window.addEventListener('DOMContentLoaded', function () {
       historyModal.style.display = 'flex';
       historyListBox.innerHTML = '<p class="modal-empty">Loading…</p>';
       var col = chatsCollection();
-      if (!col) { historyListBox.innerHTML = '<p class="modal-empty">Sign in to view history.</p>'; return; }
+      if (!col) { historyListBox.innerHTML = '<p class="modal-empty">Sign in first.</p>'; return; }
       col.orderBy('updatedAt', 'desc').limit(50).get()
         .then(function (snap) {
           historyListBox.innerHTML = '';
-          if (snap.empty) { historyListBox.innerHTML = '<p class="modal-empty">No chat history yet.</p>'; return; }
+          if (snap.empty) { historyListBox.innerHTML = '<p class="modal-empty">No history yet.</p>'; return; }
           snap.forEach(function (doc) {
             var data = doc.data() || {};
             var msgCount = (data.messages || []).length;
             var row = document.createElement('div');
             row.className = 'history-row' + (doc.id === currentChatId ? ' active' : '');
             row.setAttribute('data-id', doc.id);
-            row.innerHTML =
-              '<div class="history-info"><h3>' + escapeHtml(data.title || 'Untitled') + '</h3>' +
-              '<p>' + formatDate(data.updatedAt) + ' · ' + msgCount + ' message' + (msgCount === 1 ? '' : 's') + '</p></div>' +
+            row.innerHTML = '<div class="history-info"><h3>' + escapeHtml(data.title || 'Untitled') + '</h3>' +
+              '<p>' + formatDate(data.updatedAt) + ' · ' + msgCount + ' messages</p></div>' +
               '<div class="history-actions"><button data-action="delete" data-id="' + doc.id + '" class="danger">Delete</button></div>';
             historyListBox.appendChild(row);
           });
         })
         .catch(function (err) { historyListBox.innerHTML = '<p class="modal-empty">Failed: ' + escapeHtml(err.message) + '</p>'; });
     }
-
     function closeHistoryModal() { if (historyModal) historyModal.style.display = 'none'; }
     if (historyBtn) historyBtn.addEventListener('click', openHistoryModal);
     if (closeHistoryBtn) closeHistoryBtn.addEventListener('click', closeHistoryModal);
@@ -1082,24 +971,20 @@ window.addEventListener('DOMContentLoaded', function () {
         var delBtn = e.target.closest('button[data-action="delete"]');
         if (delBtn) {
           e.stopPropagation();
-          var idToDelete = delBtn.getAttribute('data-id');
-          if (!confirm('Delete this chat permanently?')) return;
-          try {
-            await chatsCollection().doc(idToDelete).delete();
-            if (idToDelete === currentChatId) startNewChat();
-            showToast('Chat deleted', 'success'); openHistoryModal();
-          } catch (err) { showToast('Delete failed: ' + err.message, 'error'); }
+          var id = delBtn.getAttribute('data-id');
+          if (!confirm('Delete this chat?')) return;
+          try { await chatsCollection().doc(id).delete(); if (id === currentChatId) startNewChat(); showToast('Deleted'); openHistoryModal(); }
+          catch (err) { showToast('Failed: ' + err.message, 'error'); }
           return;
         }
         var row = e.target.closest('.history-row'); if (!row) return;
-        var id = row.getAttribute('data-id');
-        if (id === currentChatId) { closeHistoryModal(); return; }
+        var id2 = row.getAttribute('data-id');
+        if (id2 === currentChatId) { closeHistoryModal(); return; }
         try {
-          var doc = await chatsCollection().doc(id).get();
-          if (!doc.exists) { showToast('Chat not found.', 'error'); return; }
-          loadChat(doc.id, doc.data()); closeHistoryModal();
-          setStatus('Loaded previous conversation'); showToast('Chat loaded', 'success');
-        } catch (err) { showToast('Load failed: ' + err.message, 'error'); }
+          var doc = await chatsCollection().doc(id2).get();
+          if (!doc.exists) { showToast('Not found.', 'error'); return; }
+          loadChat(doc.id, doc.data()); closeHistoryModal(); setStatus('Loaded'); showToast('Chat loaded');
+        } catch (err) { showToast('Failed: ' + err.message, 'error'); }
       });
     }
 
@@ -1108,9 +993,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // ======================================================================
-  // 9. Daily Lessons
-  // ======================================================================
+  // Learn page
   var lessonTitle   = $('lessonTitle');
   var lessonBody    = $('lessonBody');
   var lessonDayLbl  = $('lessonDayLabel');
@@ -1123,99 +1006,99 @@ window.addEventListener('DOMContentLoaded', function () {
 
     var LESSONS = [
       { title: 'Your First Variable', level: 'Beginner', lang: 'javascript',
-        concept: 'A variable is a labeled box where you store a value. In JavaScript, you use <code>let</code> when the value can change, and <code>const</code> when it cannot.',
+        concept: 'A variable is a labeled box where you store a value. Use <code>let</code> for values that change, <code>const</code> for values that don\'t.',
         code: 'let name = "Alice";\nconst age = 25;\n\nconsole.log("Hi, " + name);\nconsole.log("You are " + age + " years old");',
-        exercise: 'Create a variable called <code>favoriteColor</code> set to your favorite color, then log it to the console.',
-        hint: 'Use <code>let favoriteColor = "blue";</code> then <code>console.log(favoriteColor);</code>' },
+        exercise: 'Create a variable called <code>favoriteColor</code> set to your favorite color, then log it.',
+        hint: 'Use <code>let favoriteColor = "blue"; console.log(favoriteColor);</code>' },
       { title: 'Understanding Data Types', level: 'Beginner', lang: 'javascript',
-        concept: 'JavaScript has several primitive types: <code>string</code> (text), <code>number</code>, <code>boolean</code> (true/false), <code>null</code>, and <code>undefined</code>.',
+        concept: 'JavaScript has: <code>string</code> (text), <code>number</code>, <code>boolean</code>, <code>null</code>, and <code>undefined</code>.',
         code: 'let greeting = "hello";\nlet score = 42;\nlet isReady = true;\n\nconsole.log(typeof greeting);\nconsole.log(typeof score);',
-        exercise: 'Create one variable of each type and log its <code>typeof</code> result.',
-        hint: 'Use <code>console.log(typeof myVar);</code> for each one.' },
+        exercise: 'Create one variable of each type and log its <code>typeof</code>.',
+        hint: 'Use <code>console.log(typeof myVar);</code>' },
       { title: 'Making Decisions with if/else', level: 'Beginner', lang: 'javascript',
-        concept: '<code>if</code> statements run code only when a condition is true. Use <code>else</code> for the other case, and <code>else if</code> for extra branches.',
-        code: 'let temperature = 18;\n\nif (temperature > 25) {\n  console.log("Hot!");\n} else if (temperature > 15) {\n  console.log("Mild");\n} else {\n  console.log("Jacket");\n}',
-        exercise: 'Write an if/else chain that logs "pass" if a score is 60 or above and "fail" otherwise.',
-        hint: 'Start with <code>let score = 75;</code> then <code>if (score >= 60) { console.log("pass"); } else { console.log("fail"); }</code>' },
+        concept: '<code>if</code> runs code when a condition is true. Use <code>else</code> and <code>else if</code> for other cases.',
+        code: 'let temp = 18;\n\nif (temp > 25) {\n  console.log("Hot!");\n} else if (temp > 15) {\n  console.log("Mild");\n} else {\n  console.log("Jacket");\n}',
+        exercise: 'Write an if/else that logs "pass" if a score is 60+, "fail" otherwise.',
+        hint: '<code>let score = 75; if (score >= 60) { console.log("pass"); } else { console.log("fail"); }</code>' },
       { title: 'Repeating Things with Loops', level: 'Beginner', lang: 'javascript',
-        concept: 'A <code>for</code> loop repeats code a set number of times. The syntax is <code>for (let i = 0; i &lt; limit; i++)</code>.',
-        code: 'for (let i = 1; i <= 5; i++) {\n  console.log("Number " + i);\n}\n\nfor (let i = 3; i >= 1; i--) {\n  console.log(i);\n}',
-        exercise: 'Print the even numbers from 2 to 20 using a for loop.',
-        hint: 'Start at 2 and add 2 each time: <code>for (let i = 2; i &lt;= 20; i += 2)</code>' },
+        concept: 'A <code>for</code> loop repeats code. Syntax: <code>for (let i = 0; i &lt; limit; i++)</code>.',
+        code: 'for (let i = 1; i <= 5; i++) {\n  console.log("Number " + i);\n}',
+        exercise: 'Print even numbers from 2 to 20.',
+        hint: '<code>for (let i = 2; i &lt;= 20; i += 2)</code>' },
       { title: 'Writing Functions', level: 'Beginner', lang: 'javascript',
-        concept: 'A function is reusable code that takes inputs and returns an output. Define it with <code>function name(params) { ... }</code>.',
-        code: 'function add(a, b) {\n  return a + b;\n}\n\nfunction greet(name) {\n  return "Hello, " + name + "!";\n}\n\nconsole.log(add(2, 3));\nconsole.log(greet("World"));',
-        exercise: 'Write a function <code>square(n)</code> that returns n multiplied by itself.',
+        concept: 'A function is reusable code. Define with <code>function name(params) { ... }</code>.',
+        code: 'function add(a, b) {\n  return a + b;\n}\n\nconsole.log(add(2, 3));',
+        exercise: 'Write <code>square(n)</code> that returns n*n.',
         hint: '<code>function square(n) { return n * n; }</code>' },
       { title: 'Working with Arrays', level: 'Beginner', lang: 'javascript',
-        concept: 'An array holds a list of values. Access items by index (starting at 0), and use methods like <code>push</code>, <code>pop</code>, and <code>length</code>.',
-        code: 'let fruits = ["apple", "banana", "cherry"];\n\nconsole.log(fruits[0]);\nconsole.log(fruits.length);\n\nfruits.push("date");\nconsole.log(fruits);',
-        exercise: 'Create an array of 5 numbers and log the sum of the first and last.',
+        concept: 'An array holds a list. Access by index (0-based). Use <code>push</code>, <code>pop</code>, <code>length</code>.',
+        code: 'let fruits = ["apple", "banana", "cherry"];\n\nconsole.log(fruits[0]);\nconsole.log(fruits.length);\nfruits.push("date");',
+        exercise: 'Create an array of 5 numbers, log the sum of first + last.',
         hint: '<code>let nums = [10, 20, 30, 40, 50]; console.log(nums[0] + nums[nums.length - 1]);</code>' },
       { title: 'Objects: Grouping Data', level: 'Beginner', lang: 'javascript',
-        concept: 'An object stores related data under named keys. You read values with dot notation: <code>obj.key</code>.',
-        code: 'let user = {\n  name: "Alice",\n  age: 25,\n  isAdmin: false\n};\n\nconsole.log(user.name);\nuser.age = 26;\nuser.email = "a@example.com";',
-        exercise: 'Create an object <code>book</code> with title, author, and year. Log the title.',
+        concept: 'Objects store data by name. Access with dot notation: <code>obj.key</code>.',
+        code: 'let user = {\n  name: "Alice",\n  age: 25\n};\n\nconsole.log(user.name);\nuser.age = 26;',
+        exercise: 'Create a <code>book</code> with title, author, year. Log the title.',
         hint: '<code>let book = { title: "1984", author: "Orwell", year: 1949 }; console.log(book.title);</code>' },
       { title: 'HTML Structure', level: 'Beginner', lang: 'html',
-        concept: 'Every web page is built from HTML tags. The essential skeleton is <code>doctype</code>, <code>html</code>, <code>head</code>, and <code>body</code>.',
-        code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My Page</title>\n  </head>\n  <body>\n    <h1>Hello!</h1>\n    <p>This is a paragraph.</p>\n  </body>\n</html>',
-        exercise: 'Create an HTML page with an <code>h1</code> heading and two paragraphs.',
-        hint: 'Add <code>&lt;p&gt;First&lt;/p&gt;&lt;p&gt;Second&lt;/p&gt;</code> inside the body.' },
+        concept: 'Every page has <code>doctype</code>, <code>html</code>, <code>head</code>, <code>body</code>.',
+        code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My Page</title>\n  </head>\n  <body>\n    <h1>Hello!</h1>\n    <p>Text here.</p>\n  </body>\n</html>',
+        exercise: 'Make a page with an h1 and two paragraphs.',
+        hint: 'Add <code>&lt;p&gt;First&lt;/p&gt;&lt;p&gt;Second&lt;/p&gt;</code> in body.' },
       { title: 'CSS Selectors', level: 'Beginner', lang: 'css',
-        concept: 'CSS styles HTML. You target elements with selectors: <code>tag</code>, <code>.class</code>, and <code>#id</code>.',
-        code: 'body {\n  background: #0f172a;\n  color: white;\n}\n\n.title {\n  font-size: 32px;\n}\n\n#main-heading {\n  color: #38bdf8;\n}',
-        exercise: 'Write a CSS rule that makes all <code>button</code> elements have green text.',
+        concept: 'CSS targets elements with selectors: <code>tag</code>, <code>.class</code>, <code>#id</code>.',
+        code: 'body {\n  background: #0f172a;\n  color: white;\n}\n\n.title {\n  font-size: 32px;\n}',
+        exercise: 'Write CSS to make all buttons green.',
         hint: '<code>button { color: green; }</code>' },
       { title: 'Layout with Flexbox', level: 'Intermediate', lang: 'css',
-        concept: 'Flexbox aligns items in a row or column. Apply <code>display: flex</code> to a parent and control children with <code>justify-content</code> and <code>align-items</code>.',
+        concept: 'Apply <code>display: flex</code> to a parent, then control with <code>justify-content</code> and <code>align-items</code>.',
         code: '.container {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 20px;\n}',
-        exercise: 'Center a single div both horizontally and vertically inside a full-page container.',
-        hint: 'Use <code>display: flex; justify-content: center; align-items: center; height: 100vh;</code> on the parent.' },
+        exercise: 'Center a div both ways in a full-page container.',
+        hint: 'Use <code>display: flex; justify-content: center; align-items: center; height: 100vh;</code>' },
       { title: 'CSS Grid Basics', level: 'Intermediate', lang: 'css',
-        concept: 'Grid is for two-dimensional layouts. Define columns with <code>grid-template-columns</code>.',
-        code: '.grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr 1fr;\n  gap: 16px;\n}\n\n.grid-auto {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n  gap: 16px;\n}',
-        exercise: 'Create a 2-column grid where each column is 1fr wide and there is a 12px gap.',
+        concept: 'Grid for 2D layouts. Define columns with <code>grid-template-columns</code>.',
+        code: '.grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr 1fr;\n  gap: 16px;\n}',
+        exercise: 'Make a 2-column grid with 1fr each and 12px gap.',
         hint: '<code>display: grid; grid-template-columns: 1fr 1fr; gap: 12px;</code>' },
       { title: 'Changing the Page with JavaScript', level: 'Intermediate', lang: 'javascript',
-        concept: 'The DOM is your page as JavaScript sees it. Use <code>document.getElementById</code> to find elements and change them.',
-        code: 'let heading = document.getElementById("title");\nheading.textContent = "Updated!";\nheading.style.color = "#38bdf8";\n\nlet p = document.createElement("p");\np.textContent = "A new paragraph";\ndocument.body.appendChild(p);',
-        exercise: 'Change the text of an element with id <code>demo</code> to say "Hello, DOM!".',
+        concept: 'The DOM is your page from JS. Use <code>document.getElementById</code> to find elements.',
+        code: 'let h = document.getElementById("title");\nh.textContent = "Updated!";\nh.style.color = "#38bdf8";',
+        exercise: 'Change element with id "demo" to say "Hello, DOM!".',
         hint: '<code>document.getElementById("demo").textContent = "Hello, DOM!";</code>' },
       { title: 'Listening for Events', level: 'Intermediate', lang: 'javascript',
-        concept: 'Events let you react to what users do. Attach a listener with <code>addEventListener</code>.',
-        code: 'let btn = document.getElementById("myButton");\n\nbtn.addEventListener("click", function () {\n  alert("Clicked!");\n});',
-        exercise: 'Add a click listener to a button that changes its own text to "Clicked".',
+        concept: 'Attach listeners with <code>addEventListener</code>.',
+        code: 'let btn = document.getElementById("myButton");\nbtn.addEventListener("click", function () {\n  alert("Clicked!");\n});',
+        exercise: 'Make a button change its own text to "Clicked".',
         hint: '<code>btn.addEventListener("click", () => btn.textContent = "Clicked");</code>' },
       { title: 'Async and Await', level: 'Advanced', lang: 'javascript',
-        concept: '<code>async</code> functions let you use <code>await</code> to pause until a promise resolves. Perfect for fetching data.',
-        code: 'async function loadData() {\n  try {\n    let res = await fetch("https://api.example.com/data");\n    let json = await res.json();\n    console.log(json);\n  } catch (err) {\n    console.error("Failed:", err);\n  }\n}',
-        exercise: 'Write an async function that fetches a URL and returns the parsed JSON.',
+        concept: '<code>async</code> lets you use <code>await</code> to wait for promises.',
+        code: 'async function load() {\n  try {\n    let res = await fetch("https://api.example.com/data");\n    let json = await res.json();\n    console.log(json);\n  } catch (err) {\n    console.error(err);\n  }\n}',
+        exercise: 'Write an async function that fetches a URL and returns JSON.',
         hint: '<code>async function get(url) { let r = await fetch(url); return r.json(); }</code>' },
       { title: 'The Fetch API', level: 'Advanced', lang: 'javascript',
-        concept: 'Fetch makes HTTP requests. Always check <code>response.ok</code> before parsing.',
-        code: 'async function getTodo() {\n  let res = await fetch("https://jsonplaceholder.typicode.com/todos/1");\n  if (!res.ok) throw new Error("HTTP " + res.status);\n  let todo = await res.json();\n  return todo;\n}',
-        exercise: 'Fetch a list of users from <code>https://jsonplaceholder.typicode.com/users</code> and log the first one.',
-        hint: 'Use fetch, then res.json(), then log result[0].' },
+        concept: 'Fetch makes HTTP requests. Always check <code>response.ok</code>.',
+        code: 'async function getTodo() {\n  let res = await fetch("https://jsonplaceholder.typicode.com/todos/1");\n  if (!res.ok) throw new Error("HTTP " + res.status);\n  return await res.json();\n}',
+        exercise: 'Fetch users from jsonplaceholder and log the first one.',
+        hint: 'Use fetch + res.json() then log result[0].' },
       { title: 'Try/Catch for Errors', level: 'Intermediate', lang: 'javascript',
-        concept: 'Wrap risky code in <code>try</code> and handle failures in <code>catch</code>. Use <code>finally</code> for cleanup.',
-        code: 'try {\n  JSON.parse("{ invalid json }");\n} catch (err) {\n  console.error("Something went wrong:", err.message);\n} finally {\n  console.log("This always runs");\n}',
-        exercise: 'Write a try/catch that divides 10 by 0 and logs "cannot divide by zero" if the result is Infinity.',
+        concept: 'Wrap risky code in <code>try</code> and handle with <code>catch</code>.',
+        code: 'try {\n  JSON.parse("{ invalid }");\n} catch (err) {\n  console.error("Failed:", err.message);\n}',
+        exercise: 'Try/catch dividing 10 by 0, log "cannot divide by zero" if Infinity.',
         hint: 'Check <code>if (!isFinite(result)) throw new Error("cannot divide by zero");</code>' },
       { title: 'Classes and Objects', level: 'Advanced', lang: 'javascript',
-        concept: 'A class is a blueprint for creating objects with shared methods and properties.',
-        code: 'class Dog {\n  constructor(name, breed) {\n    this.name = name;\n    this.breed = breed;\n  }\n\n  bark() {\n    return this.name + " says Woof!";\n  }\n}\n\nlet rex = new Dog("Rex", "Labrador");\nconsole.log(rex.bark());',
-        exercise: 'Write a <code>Rectangle</code> class with width and height and a method <code>area()</code>.',
-        hint: 'Inside the class: <code>area() { return this.width * this.height; }</code>' },
+        concept: 'A class is a blueprint for objects with methods.',
+        code: 'class Dog {\n  constructor(name) {\n    this.name = name;\n  }\n  bark() {\n    return this.name + " says Woof!";\n  }\n}\n\nlet rex = new Dog("Rex");\nconsole.log(rex.bark());',
+        exercise: 'Write a <code>Rectangle</code> class with width, height, and <code>area()</code>.',
+        hint: '<code>area() { return this.width * this.height; }</code>' },
       { title: 'Local Storage', level: 'Intermediate', lang: 'javascript',
-        concept: 'localStorage keeps data on the user\'s browser even after closing the tab. Values must be strings — use JSON for objects.',
-        code: 'localStorage.setItem("theme", "dark");\nlet theme = localStorage.getItem("theme");\nconsole.log(theme);\n\nlocalStorage.setItem("user", JSON.stringify({ name: "Alice" }));\nlet user = JSON.parse(localStorage.getItem("user"));',
-        exercise: 'Save a counter to localStorage and increment it each time the page loads.',
-        hint: 'Read, parse, increment, save: <code>let n = +localStorage.getItem("n") || 0; localStorage.setItem("n", n + 1);</code>' },
+        concept: 'localStorage persists data on the user\'s browser. Values must be strings.',
+        code: 'localStorage.setItem("theme", "dark");\nlet theme = localStorage.getItem("theme");\nconsole.log(theme);',
+        exercise: 'Save a counter that increments each page load.',
+        hint: '<code>let n = +localStorage.getItem("n") || 0; localStorage.setItem("n", n + 1);</code>' },
       { title: 'Working with JSON', level: 'Intermediate', lang: 'javascript',
-        concept: 'JSON is a text format for structured data. Convert between objects and JSON strings with <code>JSON.stringify</code> and <code>JSON.parse</code>.',
-        code: 'let obj = { name: "Alice", age: 25 };\nlet text = JSON.stringify(obj);\nconsole.log(text);\n\nlet parsed = JSON.parse(text);\nconsole.log(parsed.name);',
-        exercise: 'Convert an array of your favorite movies to JSON and back.',
+        concept: 'Convert between objects and JSON with <code>JSON.stringify</code> and <code>JSON.parse</code>.',
+        code: 'let obj = { name: "Alice", age: 25 };\nlet text = JSON.stringify(obj);\nconsole.log(text);\nlet parsed = JSON.parse(text);\nconsole.log(parsed.name);',
+        exercise: 'Convert an array of movies to JSON and back.',
         hint: '<code>let json = JSON.stringify(movies); let back = JSON.parse(json);</code>' }
     ];
 
@@ -1226,16 +1109,12 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!db || !authUserL) return null;
       return db.collection('users').doc(authUserL.uid).collection('progress').doc('state');
     }
-
     function todayISO() { return new Date().toISOString().slice(0, 10); }
-    function yesterdayISO() {
-      var d = new Date(); d.setDate(d.getDate() - 1);
-      return d.toISOString().slice(0, 10);
-    }
-    function computeStreak(lastVisitISO, currentStreak) {
-      var today = todayISO(), yesterday = yesterdayISO();
-      if (lastVisitISO === today) return currentStreak || 1;
-      if (lastVisitISO === yesterday) return (currentStreak || 1) + 1;
+    function yesterdayISO() { var d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+    function computeStreak(last, cur) {
+      var t = todayISO(), y = yesterdayISO();
+      if (last === t) return cur || 1;
+      if (last === y) return (cur || 1) + 1;
       return 1;
     }
 
@@ -1245,37 +1124,28 @@ window.addEventListener('DOMContentLoaded', function () {
         var doc = await ref.get();
         if (doc.exists) {
           var d = doc.data() || {};
-          progressData = {
-            completed: d.completed || {},
-            streak: computeStreak(d.lastVisit || '', d.streak || 1),
-            lastVisit: todayISO()
-          };
+          progressData = { completed: d.completed || {}, streak: computeStreak(d.lastVisit || '', d.streak || 1), lastVisit: todayISO() };
         } else {
           progressData = { completed: {}, streak: 1, lastVisit: todayISO() };
         }
-        await ref.set({
-          completed: progressData.completed,
-          streak: progressData.streak,
-          lastVisit: progressData.lastVisit
-        }, { merge: true });
+        await ref.set({ completed: progressData.completed, streak: progressData.streak, lastVisit: progressData.lastVisit }, { merge: true });
         renderProgressUI();
       } catch (err) { console.warn('[CodeWix] progress load failed:', err); }
     }
 
-    async function markLessonComplete(index) {
-      progressData.completed[index] = true;
+    async function markComplete(idx) {
+      progressData.completed[idx] = true;
       renderProgressUI();
       var ref = progressDocRef(); if (!ref) return;
-      try { await ref.set({ completed: progressData.completed }, { merge: true }); showToast('Lesson marked complete ✔', 'success'); }
-      catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+      try { await ref.set({ completed: progressData.completed }, { merge: true }); showToast('Completed ✔', 'success'); }
+      catch (err) { showToast('Save failed', 'error'); }
     }
-
-    async function markLessonIncomplete(index) {
-      delete progressData.completed[index];
+    async function markIncomplete(idx) {
+      delete progressData.completed[idx];
       renderProgressUI();
       var ref = progressDocRef(); if (!ref) return;
       try { await ref.set({ completed: progressData.completed }, { merge: true }); showToast('Unmarked'); }
-      catch (err) { showToast('Save failed: ' + err.message, 'error'); }
+      catch (err) { showToast('Failed', 'error'); }
     }
 
     function renderProgressUI() {
@@ -1284,10 +1154,7 @@ window.addEventListener('DOMContentLoaded', function () {
       var pct = Math.round((count / total) * 100);
       if (progressFill) progressFill.style.width = pct + '%';
       if (progressLabel) progressLabel.textContent = count + ' of ' + total + ' lessons complete';
-      if (streakLabel) {
-        streakLabel.textContent = '🔥 ' + progressData.streak + '-day streak';
-        streakLabel.style.display = 'inline-block';
-      }
+      if (streakLabel) { streakLabel.textContent = '🔥 ' + progressData.streak + '-day streak'; streakLabel.style.display = 'inline-block'; }
     }
 
     function getTodayLessonIndex() {
@@ -1296,11 +1163,11 @@ window.addEventListener('DOMContentLoaded', function () {
       return Math.floor((now - start) / 86400000) % LESSONS.length;
     }
 
-    function renderLesson(index) {
-      var lesson = LESSONS[index]; if (!lesson) return;
+    function renderLesson(idx) {
+      var lesson = LESSONS[idx]; if (!lesson) return;
       lessonTitle.textContent = lesson.title;
-      if (lessonDayLbl) lessonDayLbl.textContent = 'Day ' + (index + 1) + ' of ' + LESSONS.length;
-      var isDone = !!progressData.completed[index];
+      if (lessonDayLbl) lessonDayLbl.textContent = 'Day ' + (idx + 1) + ' of ' + LESSONS.length;
+      var isDone = !!progressData.completed[idx];
       lessonBody.innerHTML =
         '<div class="lesson-meta">' +
           '<span class="lesson-level level-' + lesson.level.toLowerCase() + '">' + lesson.level + '</span>' +
@@ -1309,10 +1176,8 @@ window.addEventListener('DOMContentLoaded', function () {
         '<div class="lesson-section"><h3>Concept</h3><p>' + lesson.concept + '</p></div>' +
         '<div class="lesson-section"><h3>Example</h3>' +
           '<div class="code-block" data-lang="' + escapeHtml(lesson.lang) + '">' +
-            '<div class="code-header">' +
-              '<span class="code-lang">' + escapeHtml(lesson.lang) + '</span>' +
-              '<button type="button" class="copy-btn" data-code="' + escapeHtml(lesson.code) + '">Copy</button>' +
-            '</div>' +
+            '<div class="code-header"><span class="code-lang">' + escapeHtml(lesson.lang) + '</span>' +
+              '<button type="button" class="copy-btn" data-code="' + escapeHtml(lesson.code) + '">Copy</button></div>' +
             '<pre><code>' + escapeHtml(lesson.code) + '</code></pre>' +
           '</div>' +
         '</div>' +
@@ -1321,9 +1186,8 @@ window.addEventListener('DOMContentLoaded', function () {
         '</div>' +
         '<div class="lesson-actions">' +
           '<a href="dashboard.html" class="button">Try in Workspace →</a>' +
-          '<button type="button" class="complete-btn' + (isDone ? ' done' : '') + '" id="completeBtn" data-index="' + index + '">' +
-            (isDone ? '✓ Completed' : 'Mark Complete') +
-          '</button>' +
+          '<button type="button" class="complete-btn' + (isDone ? ' done' : '') + '" id="completeBtn" data-index="' + idx + '">' +
+            (isDone ? '✓ Completed' : 'Mark Complete') + '</button>' +
         '</div>';
     }
 
@@ -1331,23 +1195,17 @@ window.addEventListener('DOMContentLoaded', function () {
       var copyBtn = e.target.closest('.copy-btn');
       if (copyBtn) {
         var text = copyBtn.getAttribute('data-code') || '';
-        function flash() { copyBtn.textContent = 'Copied!'; copyBtn.classList.add('copied');
-          setTimeout(function () { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500); }
+        function flash() { copyBtn.textContent = 'Copied!'; copyBtn.classList.add('copied'); setTimeout(function () { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1500); }
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(flash).catch(function () {});
-        else { var ta = document.createElement('textarea'); ta.value = text;
-          document.body.appendChild(ta); ta.select();
-          try { document.execCommand('copy'); flash(); } catch (err) {}
-          document.body.removeChild(ta); }
+        else { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); flash(); } catch (e) {} document.body.removeChild(ta); }
         return;
       }
       var compBtn = e.target.closest('#completeBtn');
       if (compBtn) {
         var idx = parseInt(compBtn.getAttribute('data-index'), 10);
-        if (progressData.completed[idx]) markLessonIncomplete(idx); else markLessonComplete(idx);
+        if (progressData.completed[idx]) markIncomplete(idx); else markComplete(idx);
         renderLesson(idx);
-        document.querySelectorAll('.lesson-card').forEach(function (cardEl, i) {
-          cardEl.classList.toggle('completed', !!progressData.completed[i]);
-        });
+        document.querySelectorAll('.lesson-card').forEach(function (c, i) { c.classList.toggle('completed', !!progressData.completed[i]); });
       }
     });
 
@@ -1360,14 +1218,11 @@ window.addEventListener('DOMContentLoaded', function () {
         var card = document.createElement('button');
         card.type = 'button';
         card.className = 'lesson-card' + (i === todayIndex ? ' today' : '') + (progressData.completed[i] ? ' completed' : '');
-        card.innerHTML =
-          '<div class="lesson-card-num">' + (progressData.completed[i] ? '✓' : (i + 1)) + '</div>' +
+        card.innerHTML = '<div class="lesson-card-num">' + (progressData.completed[i] ? '✓' : (i + 1)) + '</div>' +
           '<div class="lesson-card-info"><h4>' + escapeHtml(lesson.title) + '</h4>' +
           '<p>' + lesson.level + ' · ' + lesson.lang + '</p></div>' +
           (i === todayIndex ? '<span class="today-badge">Today</span>' : '');
-        card.addEventListener('click', function () {
-          renderLesson(i); window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
+        card.addEventListener('click', function () { renderLesson(i); window.scrollTo({ top: 0, behavior: 'smooth' }); });
         lessonListEl.appendChild(card);
       });
     }
@@ -1378,12 +1233,128 @@ window.addEventListener('DOMContentLoaded', function () {
         authUserL = user;
         loadProgress().then(function () {
           renderLesson(todayIndex);
-          document.querySelectorAll('.lesson-card').forEach(function (cardEl, i) {
-            cardEl.classList.toggle('completed', !!progressData.completed[i]);
-            var numEl = cardEl.querySelector('.lesson-card-num');
-            if (numEl) numEl.textContent = progressData.completed[i] ? '✓' : (i + 1);
+          document.querySelectorAll('.lesson-card').forEach(function (c, i) {
+            c.classList.toggle('completed', !!progressData.completed[i]);
+            var n = c.querySelector('.lesson-card-num');
+            if (n) n.textContent = progressData.completed[i] ? '✓' : (i + 1);
           });
         });
+      });
+    }
+  }
+
+  // Explore
+  var exploreGrid = $('exploreGrid');
+  if (exploreGrid) {
+    console.log('[CodeWix] Explore page detected');
+    var exploreCount = $('exploreCount');
+
+    function buildSiteCard(site) {
+      var card = document.createElement('a');
+      card.href = '/s/' + encodeURIComponent(site.slug);
+      card.target = '_blank';
+      card.className = 'site-card';
+      var previewUrl = '/s/' + encodeURIComponent(site.slug);
+      card.innerHTML =
+        '<div class="site-preview">' +
+          '<iframe src="' + previewUrl + '" loading="lazy" sandbox="allow-scripts allow-modals" tabindex="-1"></iframe>' +
+        '</div>' +
+        '<div class="site-info">' +
+          '<h3>' + escapeHtml(site.projectName || 'Untitled') + '</h3>' +
+          '<p class="site-desc">' + escapeHtml(site.description || 'A project built on CodeWix.') + '</p>' +
+          '<div class="site-meta">' +
+            '<a href="/u/' + encodeURIComponent(site.username) + '" class="site-author" onclick="event.stopPropagation();">@' + escapeHtml(site.username) + '</a>' +
+            '<span>👁 ' + (site.views || 0) + '</span>' +
+            '<span>' + (site.updatedAt ? formatDate(site.updatedAt) : '') + '</span>' +
+          '</div>' +
+        '</div>';
+      return card;
+    }
+
+    fetch('/api/explore')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        exploreGrid.innerHTML = '';
+        var sites = data.sites || [];
+        if (exploreCount) exploreCount.textContent = sites.length + ' project' + (sites.length === 1 ? '' : 's');
+        if (!sites.length) {
+          exploreGrid.innerHTML = '<p class="explore-empty">No published sites yet. Be the first — build something in the workspace and hit Publish!</p>';
+          return;
+        }
+        sites.forEach(function (s) { exploreGrid.appendChild(buildSiteCard(s)); });
+      })
+      .catch(function (err) {
+        exploreGrid.innerHTML = '<p class="explore-empty">Could not load projects: ' + escapeHtml(err.message) + '</p>';
+      });
+
+    if (auth) {
+      auth.onAuthStateChanged(function (user) {
+        if (user && $('dashUser')) $('dashUser').textContent = user.email.split('@')[0];
+      });
+    }
+  }
+
+  // Profile
+  var profileGrid = $('profileGrid');
+  if (profileGrid) {
+    console.log('[CodeWix] Profile page detected');
+    var profileUsername = $('profileUsername');
+    var profileStats    = $('profileStats');
+    var profileAvatar   = $('profileAvatar');
+
+    var username = null;
+    var pathMatch = location.pathname.match(/^\/u\/([^\/]+)$/);
+    if (pathMatch) username = decodeURIComponent(pathMatch[1]);
+    else username = new URLSearchParams(location.search).get('u');
+
+    if (!username) {
+      profileGrid.innerHTML = '<p class="explore-empty">No user specified.</p>';
+      if (profileUsername) profileUsername.textContent = 'Profile not found';
+    } else {
+      document.title = '@' + username + ' | CodeWix';
+      if (profileAvatar) profileAvatar.textContent = username.charAt(0).toUpperCase();
+
+      fetch('/api/user/' + encodeURIComponent(username))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (profileUsername) profileUsername.textContent = '@' + data.username;
+          if (profileStats) {
+            var totalViews = (data.sites || []).reduce(function (sum, s) { return sum + (s.views || 0); }, 0);
+            profileStats.textContent = data.count + ' published project' + (data.count === 1 ? '' : 's') + ' · ' + totalViews + ' total views';
+          }
+          profileGrid.innerHTML = '';
+          if (!data.sites || !data.sites.length) {
+            profileGrid.innerHTML = '<p class="explore-empty">@' + escapeHtml(username) + ' hasn\u2019t published anything yet.</p>';
+            return;
+          }
+          data.sites.forEach(function (site) {
+            var card = document.createElement('a');
+            card.href = '/s/' + encodeURIComponent(site.slug);
+            card.target = '_blank';
+            card.className = 'site-card';
+            card.innerHTML =
+              '<div class="site-preview">' +
+                '<iframe src="/s/' + encodeURIComponent(site.slug) + '" loading="lazy" sandbox="allow-scripts allow-modals" tabindex="-1"></iframe>' +
+              '</div>' +
+              '<div class="site-info">' +
+                '<h3>' + escapeHtml(site.projectName || 'Untitled') + '</h3>' +
+                '<p class="site-desc">' + escapeHtml(site.description || 'A project built on CodeWix.') + '</p>' +
+                '<div class="site-meta">' +
+                  '<span>👁 ' + (site.views || 0) + '</span>' +
+                  '<span>' + (site.updatedAt ? formatDate(site.updatedAt) : '') + '</span>' +
+                '</div>' +
+              '</div>';
+            profileGrid.appendChild(card);
+          });
+        })
+        .catch(function (err) {
+          profileGrid.innerHTML = '<p class="explore-empty">Failed to load profile: ' + escapeHtml(err.message) + '</p>';
+        });
+    }
+
+    if (auth) {
+      auth.onAuthStateChanged(function (user) {
+        if (user && $('dashUser')) $('dashUser').textContent = user.email.split('@')[0];
       });
     }
   }

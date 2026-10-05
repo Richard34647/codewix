@@ -4,17 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Studio Workspace | CodeWix</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
-<link rel="icon" type="image/x-icon" href="/favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- ===================== Top Header ===================== -->
     <header class="studio-header">
         <div class="header-brand">
             <span class="studio-logo">CodeWix</span>
@@ -22,7 +20,9 @@
         </div>
         <nav class="studio-nav">
             <a href="dashboard.html" class="active">Workspace</a>
+            <a href="learn.html">Learn</a>
             <a href="ai-assistance.html">AI Assistant</a>
+            <a href="explore.html">Explore</a>
         </nav>
         <div class="user-session">
             <span id="dashUser">Developer</span>
@@ -30,10 +30,8 @@
         </div>
     </header>
 
-    <!-- ===================== Workspace ===================== -->
     <main class="studio-workspace">
 
-        <!-- File Explorer -->
         <aside class="file-explorer">
             <div class="panel-header">
                 <h3>Files</h3>
@@ -46,7 +44,6 @@
             </ul>
         </aside>
 
-        <!-- Editor -->
         <section class="editor-area">
             <div class="panel-header">
                 <div class="active-tab-indicator">
@@ -54,11 +51,13 @@
                     <span id="unsavedIndicator" class="unsaved-indicator" style="display:none;">● unsaved</span>
                 </div>
                 <div class="editor-controls">
-                    <button class="studio-btn ghost-btn" id="newProjectBtn" title="Start a new empty project">New</button>
-                    <button class="studio-btn ghost-btn" id="myProjectsBtn" title="Open a saved project">My Projects</button>
-                    <button class="studio-btn ghost-btn" id="saveProjectBtn" title="Save current project">Save</button>
-                    <button class="studio-btn" id="downloadFileBtn" title="Download current file">⬇ Download File</button>
-                    <button class="studio-btn" id="downloadZipBtn" title="Download all files as ZIP">📦 Download All</button>
+                    <button class="studio-btn ghost-btn" id="newProjectBtn">New</button>
+                    <button class="studio-btn ghost-btn" id="myProjectsBtn">My Projects</button>
+                    <button class="studio-btn ghost-btn" id="saveProjectBtn">Save</button>
+                    <button class="studio-btn" id="downloadFileBtn">⬇ Download File</button>
+                    <button class="studio-btn" id="downloadZipBtn">📦 Download All</button>
+                    <button class="studio-btn" id="shareProjectBtn">🔗 Share</button>
+                    <button class="studio-btn" id="publishBtn" title="Publish as a live site">🚀 Publish</button>
                     <button class="studio-btn primary-btn" id="runCodeBtn">Build &amp; Run</button>
                 </div>
             </div>
@@ -68,7 +67,6 @@
             </div>
         </section>
 
-        <!-- Live Preview -->
         <section class="preview-area">
             <div class="panel-header">
                 <h3>Live Preview Output</h3>
@@ -80,7 +78,6 @@
 
     </main>
 
-    <!-- ===================== Status Bar ===================== -->
     <footer class="studio-status-bar">
         <div class="status-left-node">
             <span class="status-indicator-dot online"></span>
@@ -93,7 +90,7 @@
         </div>
     </footer>
 
-    <!-- ===================== Projects Modal ===================== -->
+    <!-- Projects Modal -->
     <div class="modal-backdrop" id="projectsModal" style="display:none;">
         <div class="modal">
             <div class="modal-header">
@@ -106,14 +103,58 @@
         </div>
     </div>
 
-    <!-- ===================== Scripts ===================== -->
-    <!-- JSZip for "Download All" -->
+    <!-- Publish Modal -->
+    <div class="modal-backdrop" id="publishModal" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="publishModalTitle">Publish Your Site</h2>
+                <button class="modal-close" id="closePublishModalBtn">×</button>
+            </div>
+            <div class="modal-body" id="publishModalBody">
+                <div class="publish-form">
+                    <div class="input-group">
+                        <label for="publishSlug">Site URL</label>
+                        <div class="publish-slug-input">
+                            <span class="publish-domain">codewix.com/s/</span>
+                            <input type="text" id="publishSlug" placeholder="my-project" maxlength="32" autocomplete="off">
+                        </div>
+                        <p class="publish-help">Lowercase letters, numbers, hyphens. 3–32 characters.</p>
+                    </div>
+                    <div class="input-group">
+                        <label for="publishName">Project Name</label>
+                        <input type="text" id="publishName" placeholder="My Portfolio" maxlength="60">
+                    </div>
+                    <div class="input-group">
+                        <label for="publishDesc">Description (optional)</label>
+                        <textarea id="publishDesc" rows="2" placeholder="A short description visitors will see" maxlength="200"></textarea>
+                    </div>
+                    <div id="publishError" class="error-box"></div>
+                </div>
+                <div id="publishSuccess" class="publish-success" style="display:none;">
+                    <div class="publish-success-icon">🎉</div>
+                    <h3>Your site is live!</h3>
+                    <p>Anyone can view it at:</p>
+                    <div class="publish-url-display">
+                        <input type="text" id="publishUrlOutput" readonly>
+                        <button type="button" id="publishCopyBtn">Copy</button>
+                    </div>
+                    <div class="publish-actions">
+                        <a id="publishViewBtn" href="#" target="_blank" class="button">View Site →</a>
+                        <button type="button" id="publishDoneBtn" class="button ghost">Done</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="publishModalFooter">
+                <button type="button" class="button ghost" id="publishCancelBtn">Cancel</button>
+                <button type="button" class="button" id="publishConfirmBtn">Publish →</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- Firebase compat SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <!-- App logic -->
     <script src="script.js"></script>
 </body>
 </html>
