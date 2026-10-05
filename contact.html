@@ -34,7 +34,7 @@
                     <div class="contact-icon">✉️</div>
                     <div>
                         <h3>Email</h3>
-                       <p><a href="mailto:codewix@proton.me">codewix@proton.me</a></p>
+                        <p><a href="mailto:codewix@proton.me">codewix@proton.me</a></p>
                     </div>
                 </div>
 
@@ -96,10 +96,9 @@
     </footer>
 
     <script>
-        // Basic client-side contact form handler.
-        // Swap the setTimeout block for a real backend call (EmailJS, Formspree, or your own /api/contact route) later.
-        document.getElementById('contactForm').addEventListener('submit', function (e) {
+        document.getElementById('contactForm').addEventListener('submit', async function (e) {
             e.preventDefault();
+
             var name    = document.getElementById('contactName').value.trim();
             var email   = document.getElementById('contactEmail').value.trim();
             var subject = document.getElementById('contactSubject').value.trim();
@@ -121,10 +120,31 @@
                 return;
             }
 
-            // Placeholder success — replace with a real send call when you're ready.
-            okBox.textContent = 'Thanks, ' + name + '! Your message has been received. We\u2019ll reply to ' + email + ' soon.';
-            okBox.style.display = 'block';
-            this.reset();
+            var submitBtn = this.querySelector('button[type="submit"]');
+            var originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending…';
+
+            try {
+                var res = await fetch('/api/contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, email: email, subject: subject, message: message })
+                });
+                var data = await res.json();
+
+                if (!res.ok) throw new Error(data.error || 'Failed to send message.');
+
+                okBox.textContent = 'Thanks, ' + name + '! Your message was sent. We\u2019ll reply to ' + email + ' soon.';
+                okBox.style.display = 'block';
+                this.reset();
+            } catch (err) {
+                errBox.textContent = 'Could not send your message: ' + err.message;
+                errBox.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
         });
     </script>
 

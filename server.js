@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix Server — static files + Groq proxy + EmailJS verification
+// CodeWix Server — static files + Groq proxy + EmailJS (verification + contact)
 // ==========================================================================
 
 require('dotenv').config();
@@ -16,11 +16,9 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
 // ---- Firebase Admin init --------------------------------------------------
-// Option 1: Use a service account JSON file (local dev). Path in env var.
-// Option 2: Use individual env vars (recommended for Render).
 try {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    // Full JSON string in one env var (Render-friendly)
+    // Render env var with full JSON
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     admin.initializeApp({ credential: admin.credential.cert(sa) });
     console.log('[Firebase Admin] initialized via FIREBASE_SERVICE_ACCOUNT');
@@ -35,7 +33,7 @@ try {
     });
     console.log('[Firebase Admin] initialized via split env vars');
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    // Uses the file path from GOOGLE_APPLICATION_CREDENTIALS
+    // Path to the service account JSON (Render Secret File or local file)
     admin.initializeApp({ credential: admin.credential.applicationDefault() });
     console.log('[Firebase Admin] initialized via GOOGLE_APPLICATION_CREDENTIALS');
   } else {
@@ -113,6 +111,9 @@ app.post('/api/send-verification-email', async (req, res) => {
   if (!emailjsReady) {
     return res.status(500).json({ error: 'EmailJS is not configured on the server.' });
   }
+  if (!admin.apps.length) {
+    return res.status(500).json({ error: 'Firebase Admin is not initialized on the server.' });
+  }
 
   try {
     // 1. Generate a Firebase verification link for this user
@@ -126,7 +127,7 @@ app.post('/api/send-verification-email', async (req, res) => {
     // 2. Send via EmailJS
     const templateParams = {
       to_email: userEmail,
-      email: userEmail,                 // some templates use {{email}} instead of {{to_email}}
+      email: userEmail,
       user_name: userName || 'there',
       verification_link: verificationLink
     };
@@ -140,10 +141,68 @@ app.post('/api/send-verification-email', async (req, res) => {
     console.log('[verify] EmailJS result:', result.status, result.text);
     res.status(200).json({ ok: true, message: 'Verification email sent.' });
   } catch (err) {
-    console.error('[verify] failed:', err);
+    console.error('[verify] FULL ERROR:', err);
+    console.error('[verify] err.message:', err.message);
+    console.error('[verify] err.status:', err.status);
+    console.error('[verify] err.text:', err.text);
+    console.error('[verify] err.code:', err.code);
+
+    const friendlyMessage =
+      err.text ||
+      err.message ||
+      (typeof err === 'string' ? err : JSON.stringify(err));
+
     res.status(500).json({
-      error: err.message || 'Failed to send verification email.',
-      code: err.code || 'unknown'
+      error: friendlyMessage,
+      code: err.code || err.status || 'unknown'
+    });
+  }
+});
+
+// ==========================================================================
+// API: Contact form submission
+// ==========================================================================
+app.post('/api/contact', async (req, res) => {
+  const { name, email, subject, message } = req.body || {};
+
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Invalid email address.' });
+  }
+
+  if (!emailjsReady) {
+    return res.status(500).json({ error: 'Email service is not configured.' });
+  }
+
+  if (!process.env.EMAILJS_CONTACT_TEMPLATE_ID) {
+    return res.status(500).json({ error: 'Contact template ID is not configured.' });
+  }
+
+  try {
+    const result = await emailjs.send(
+      process.env.EMAILJS_SERVICE_ID,
+      process.env.EMAILJS_CONTACT_TEMPLATE_ID,
+      {
+        from_name: name,
+        reply_to:  email,
+        subject:   subject,
+        message:   message,
+        to_email:  'codewix@proton.me'
+      }
+    );
+
+    console.log('[contact] sent from', email, '— status:', result.status);
+    res.status(200).json({ ok: true, message: 'Message received.' });
+  } catch (err) {
+    console.error('[contact] FULL ERROR:', err);
+    console.error('[contact] err.text:', err.text);
+    console.error('[contact] err.status:', err.status);
+
+    res.status(500).json({
+      error: err.text || err.message || 'Failed to send message.'
     });
   }
 });
@@ -155,15 +214,16 @@ app.use('/api', (req, res) => {
   res.status(404).json({ error: 'Unknown API route.' });
 });
 
-// ---- Static files --------------------------------------------------------
+// ---- Static files ---------------------------------------------------------
 app.use(express.static(path.join(__dirname)));
 
-// ---- Start ---------------------------------------------------------------
+// ---- Start ----------------------------------------------------------------
 app.listen(PORT, '0.0.0.0', function () {
   console.log('\n✅ CodeWix running on port ' + PORT);
-  console.log('   Groq proxy: POST /api/chat');
-  console.log('   Email API:  POST /api/send-verification-email');
-  console.log('   GROQ_API_KEY: ' + (GROQ_API_KEY ? 'YES ✔' : 'NO ❌'));
-  console.log('   EmailJS:      ' + (emailjsReady ? 'YES ✔' : 'NO ❌'));
-  console.log('   Firebase Admin: ' + (admin.apps.length ? 'YES ✔' : 'NO ❌') + '\n');
+  console.log('   Groq proxy:      POST /api/chat');
+  console.log('   Verification:    POST /api/send-verification-email');
+  console.log('   Contact form:    POST /api/contact');
+  console.log('   GROQ_API_KEY:    ' + (GROQ_API_KEY ? 'YES ✔' : 'NO ❌'));
+  console.log('   EmailJS:         ' + (emailjsReady ? 'YES ✔' : 'NO ❌'));
+  console.log('   Firebase Admin:  ' + (admin.apps.length ? 'YES ✔' : 'NO ❌') + '\n');
 });
