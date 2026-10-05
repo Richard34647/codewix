@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
     <header>
         <div class="logo"><a href="index.html">CodeWix</a></div>
         <nav>
@@ -31,6 +32,11 @@
                     <label for="password">Password</label>
                     <input type="password" id="password" required>
                 </div>
+
+                <div class="forgot-row">
+                    <a href="forgot-password.html" class="forgot-link">Forgot password?</a>
+                </div>
+
                 <button type="submit" class="button">Log In</button>
                 <div class="form-footer">
                     Don't have an account? <a href="register.html">Register here</a>
@@ -46,11 +52,23 @@
         <a href="contact.html">Contact Us</a>
     </footer>
 
-    <!-- Firebase compat SDK — MUST be here, before script.js -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-
-    <!-- App logic -->
     <script src="script.js"></script>
+
+    <script>
+        // Show a green success banner if the user just reset their password
+        // (Firebase redirects back here with ?reset=success after the hosted reset page)
+        if (new URLSearchParams(location.search).get('reset') === 'success') {
+            var box = document.getElementById('errorBox');
+            if (box) {
+                box.className = 'success-box';
+                box.textContent = '✅ Password reset successful! Log in with your new password.';
+                box.style.display = 'block';
+            }
+            // Clean the URL so refreshing doesn't re-show the banner
+            history.replaceState({}, '', location.pathname);
+        }
+    </script>
 </body>
 </html>

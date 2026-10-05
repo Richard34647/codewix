@@ -3,10 +3,11 @@
 // Sections:
 //   1. Firebase boot
 //   2. Helpers
-//   3. Auth guard (with email verification enforcement)
+//   3. Auth guard (email verification enforced)
 //   4. Logout
-//   5. Register (with EmailJS verification + error display)
+//   5. Register (with EmailJS verification)
 //   6. Login (with email verification enforcement)
+//   6b. Forgot Password (Firebase native email)
 //   7. Sandbox IDE (dashboard.html)
 //   8. AI Assistant (ai-assistant.html)
 //   9. Daily Lessons (learn.html)
@@ -118,7 +119,6 @@ window.addEventListener('DOMContentLoaded', function () {
       console.log('[CodeWix] auth state:', user ? user.email : 'signed out');
       if (!user) { location.replace('login.html'); return; }
 
-      // Enforce email verification on protected pages
       if (!user.emailVerified) {
         alert('Please verify your email address to access this page. Check your inbox for the verification link.');
         auth.signOut().then(function () { location.replace('login.html'); });
@@ -163,7 +163,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
       console.log('[CodeWix] starting registration for:', email);
 
-      // Step 1: Create the Firebase account
       auth.createUserWithEmailAndPassword(email, password)
         .then(function (userCredential) {
           var user = userCredential.user;
@@ -201,7 +200,7 @@ window.addEventListener('DOMContentLoaded', function () {
               'Your account was created, but the verification email failed to send. ' +
               'Reason: ' + reason + '. You can try logging in, but please contact support if you do not receive an email.');
             if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
-            return; // don't redirect on failure
+            return;
           }
 
           alert('Registration successful! We sent a verification link to ' + email + '. Check your inbox and spam folder.');
@@ -226,7 +225,15 @@ window.addEventListener('DOMContentLoaded', function () {
     $('loginForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var email = $('email').value.trim(), password = $('password').value;
-      var errBox = $('errorBox'); hideError(errBox);
+      var errBox = $('errorBox');
+      hideError(errBox);
+      // Only clear the error box — the success banner is set by the inline script
+      // in login.html, and shouldn't be hidden by this handler.
+      if (errBox && errBox.classList.contains('success-box')) {
+        errBox.classList.remove('success-box');
+        errBox.classList.add('error-box');
+      }
+
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
 
       var submitBtn = $('loginForm').querySelector('button[type="submit"]');
@@ -263,6 +270,66 @@ window.addEventListener('DOMContentLoaded', function () {
         })
         .finally(function () {
           if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
+        });
+    });
+  }
+
+  // ======================================================================
+  // 6b. Forgot Password form (Firebase native email)
+  // ======================================================================
+  if ($('forgotForm')) {
+    console.log('[CodeWix] forgot password form detected');
+    $('forgotForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      var email = $('email').value.trim();
+      var errBox = $('errorBox');
+      var okBox  = $('successBox');
+      hideError(errBox);
+      if (okBox) okBox.style.display = 'none';
+
+      if (!email) {
+        showError(errBox, 'Please enter your email address.');
+        return;
+      }
+      if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+
+      var submitBtn = $('forgotForm').querySelector('button[type="submit"]');
+      var originalText = submitBtn ? submitBtn.textContent : 'Send Reset Link';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
+
+      // Firebase sends the reset email, hosts the "enter new password" page,
+      // and redirects here on success. handleCodeInApp: false uses the hosted page.
+      var actionCodeSettings = {
+        url: window.location.origin + '/login.html?reset=success',
+        handleCodeInApp: false
+      };
+
+      auth.sendPasswordResetEmail(email, actionCodeSettings)
+        .then(function () {
+          if (okBox) {
+            okBox.textContent = 'If an account exists for ' + email + ', we\u2019ve sent a reset link. Check your inbox and spam folder.';
+            okBox.style.display = 'block';
+          }
+          console.log('[CodeWix] reset email sent to', email);
+        })
+        .catch(function (err) {
+          console.error('[CodeWix] forgot password error:', err);
+          // For security, still show success for "user not found"
+          if (err.code === 'auth/user-not-found') {
+            if (okBox) {
+              okBox.textContent = 'If an account exists for ' + email + ', we\u2019ve sent a reset link. Check your inbox and spam folder.';
+              okBox.style.display = 'block';
+            }
+            return;
+          }
+          var msg = 'Could not send reset link.';
+          if (err.code === 'auth/invalid-email') msg = 'That email address does not look valid.';
+          else if (err.code === 'auth/too-many-requests') msg = 'Too many attempts. Please wait a few minutes and try again.';
+          showError(errBox, msg);
+        })
+        .finally(function () {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
         });
     });
   }
