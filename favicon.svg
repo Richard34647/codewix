@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <!-- Dark background gradient -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+
+    <!-- W letter gradient (cyan → green) -->
+    <linearGradient id="wGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+
+    <!-- Subtle glow behind the W -->
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.6">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background: rounded square with gradient -->
+  <rect width="64" height="64" rx="14" fill="url(#bgGrad)"/>
+
+  <!-- Soft cyan glow behind the letter -->
+  <rect width="64" height="64" rx="14" fill="url(#glow)"/>
+
+  <!-- Code brackets: < and > in dim cyan -->
+  <text x="14" y="42"
+        font-family="Courier New, monospace"
+        font-size="26"
+        font-weight="700"
+        fill="#38bdf8"
+        fill-opacity="0.55"
+        text-anchor="middle">&lt;</text>
+
+  <text x="50" y="42"
+        font-family="Courier New, monospace"
+        font-size="26"
+        font-weight="700"
+        fill="#38bdf8"
+        fill-opacity="0.55"
+        text-anchor="middle">&gt;</text>
+
+  <!-- Bold W in the center with gradient -->
+  <text x="32" y="45"
+        font-family="Arial Black, Arial, Helvetica, sans-serif"
+        font-size="32"
+        font-weight="900"
+        fill="url(#wGrad)"
+        text-anchor="middle"
+        letter-spacing="-2">W</text>
+
+  <!-- Subtle underline bar (like a code cursor) -->
+  <rect x="22" y="49" width="20" height="2" rx="1" fill="#38bdf8" fill-opacity="0.7"/>
+</svg>
