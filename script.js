@@ -5,9 +5,9 @@
 //   2. Helpers
 //   3. Auth guard (email verification enforced)
 //   4. Logout
-//   5. Register (with EmailJS verification)
-//   6. Login (with email verification enforcement)
-//   6b. Forgot Password (Firebase native email)
+//   5. Register (EmailJS verification)
+//   6. Login (verification enforced + resend option)
+//   6b. Forgot Password (Firebase native)
 //   7. Sandbox IDE (dashboard.html)
 //   8. AI Assistant (ai-assistant.html)
 //   9. Daily Lessons (learn.html)
@@ -96,7 +96,7 @@ window.addEventListener('DOMContentLoaded', function () {
     return map[String(lang).toLowerCase()] || 'txt';
   }
 
-  // Auto-inject "Learn" link into any nav that lacks it
+  // Auto-inject Learn link into any nav that lacks it
   document.querySelectorAll('nav').forEach(function (nav) {
     if (!nav.querySelector('a[href="learn.html"]')) {
       var a = document.createElement('a');
@@ -142,7 +142,7 @@ window.addEventListener('DOMContentLoaded', function () {
   if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
 
   // ======================================================================
-  // 5. Register — with EmailJS verification and error display
+  // 5. Register — with EmailJS verification
   // ======================================================================
   if ($('registerForm')) {
     console.log('[CodeWix] register form detected');
@@ -219,19 +219,21 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // 6. Login — with email verification enforcement
+  // 6. Login — with verification enforcement + resend option
   // ======================================================================
   if ($('loginForm')) {
+    var pendingVerificationEmail = null;
+
     $('loginForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      var email = $('email').value.trim(), password = $('password').value;
+      var email = $('email').value.trim();
+      var password = $('password').value;
       var errBox = $('errorBox');
-      hideError(errBox);
-      // Only clear the error box — the success banner is set by the inline script
-      // in login.html, and shouldn't be hidden by this handler.
-      if (errBox && errBox.classList.contains('success-box')) {
-        errBox.classList.remove('success-box');
-        errBox.classList.add('error-box');
+
+      if (errBox) {
+        errBox.className = 'error-box';
+        errBox.innerHTML = '';
+        errBox.style.display = 'none';
       }
 
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
@@ -245,9 +247,16 @@ window.addEventListener('DOMContentLoaded', function () {
           var user = userCredential.user;
 
           if (!user.emailVerified) {
+            pendingVerificationEmail = user.email;
             console.log('[CodeWix] login blocked — email not verified:', user.email);
+
             return auth.signOut().then(function () {
-              throw new Error('EMAIL_NOT_VERIFIED');
+              if (errBox) {
+                errBox.innerHTML =
+                  '<div style="margin-bottom:10px;">Please verify your email address before logging in. Check your inbox (and spam folder) for the verification link.</div>' +
+                  '<button type="button" class="resend-verify-btn">Resend verification email</button>';
+                errBox.style.display = 'block';
+              }
             });
           }
 
@@ -257,9 +266,7 @@ window.addEventListener('DOMContentLoaded', function () {
         .catch(function (err) {
           console.error('[CodeWix] login error:', err);
           var msg = err.message || 'Login failed.';
-          if (err.message === 'EMAIL_NOT_VERIFIED') {
-            msg = 'Please verify your email address before logging in. Check your inbox (and spam folder) for the verification link.';
-          } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+          if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
             msg = 'Incorrect email or password.';
           } else if (err.code === 'auth/user-not-found') {
             msg = 'No account found with that email.';
@@ -272,6 +279,53 @@ window.addEventListener('DOMContentLoaded', function () {
           if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; }
         });
     });
+
+    // Handle resend-verification button clicks (delegated)
+    var errBoxEl = $('errorBox');
+    if (errBoxEl) {
+      errBoxEl.addEventListener('click', function (e) {
+        var btn = e.target.closest('.resend-verify-btn');
+        if (!btn) return;
+
+        if (!pendingVerificationEmail) {
+          errBoxEl.className = 'error-box';
+          errBoxEl.textContent = 'Please submit the login form again first.';
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+
+        fetch('/api/send-verification-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userEmail: pendingVerificationEmail,
+            userName: pendingVerificationEmail.split('@')[0],
+            redirectUrl: window.location.origin + '/verify.html'
+          })
+        })
+        .then(function (res) {
+          return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            var reason = (result.data && result.data.error) || 'unknown error';
+            errBoxEl.className = 'error-box';
+            errBoxEl.textContent = 'Could not resend: ' + reason;
+            return;
+          }
+          errBoxEl.className = 'success-box';
+          errBoxEl.textContent = '✅ New verification email sent to ' + pendingVerificationEmail + '. Check your inbox and spam folder.';
+          console.log('[CodeWix] verification email resent to', pendingVerificationEmail);
+        })
+        .catch(function (err) {
+          console.error('[CodeWix] resend error:', err);
+          errBoxEl.className = 'error-box';
+          errBoxEl.textContent = 'Could not reach the server. Please try again.';
+        });
+      });
+    }
   }
 
   // ======================================================================
@@ -288,18 +342,13 @@ window.addEventListener('DOMContentLoaded', function () {
       hideError(errBox);
       if (okBox) okBox.style.display = 'none';
 
-      if (!email) {
-        showError(errBox, 'Please enter your email address.');
-        return;
-      }
+      if (!email) { showError(errBox, 'Please enter your email address.'); return; }
       if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
 
       var submitBtn = $('forgotForm').querySelector('button[type="submit"]');
       var originalText = submitBtn ? submitBtn.textContent : 'Send Reset Link';
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
 
-      // Firebase sends the reset email, hosts the "enter new password" page,
-      // and redirects here on success. handleCodeInApp: false uses the hosted page.
       var actionCodeSettings = {
         url: window.location.origin + '/login.html?reset=success',
         handleCodeInApp: false
@@ -315,7 +364,6 @@ window.addEventListener('DOMContentLoaded', function () {
         })
         .catch(function (err) {
           console.error('[CodeWix] forgot password error:', err);
-          // For security, still show success for "user not found"
           if (err.code === 'auth/user-not-found') {
             if (okBox) {
               okBox.textContent = 'If an account exists for ' + email + ', we\u2019ve sent a reset link. Check your inbox and spam folder.';
@@ -904,6 +952,11 @@ window.addEventListener('DOMContentLoaded', function () {
       if (modelIndicator) modelIndicator.textContent = model;
       var showThinking = thinkingToggle ? thinkingToggle.checked : false;
 
+      if (!authUser) {
+        showToast('Please sign in to use the AI assistant.', 'error');
+        return;
+      }
+
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
 
       conversation.push({ role: 'user', content: userText });
@@ -916,22 +969,53 @@ window.addEventListener('DOMContentLoaded', function () {
       setLoading(true); setStatus(showThinking ? 'Thinking…' : 'Generating…');
 
       try {
+        var idToken = await authUser.getIdToken();
+
         var payload = { model: model, messages: conversation, temperature: 0.7, max_completion_tokens: 2048 };
         if (showThinking) payload.reasoning_effort = 'medium';
+
         var response = await fetch(API_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + idToken
+          },
+          body: JSON.stringify(payload)
         });
+
         var data = await response.json();
+
+        if (response.status === 429) {
+          assistantDiv.querySelector('.message-content').innerHTML =
+            '<div class="text-part" style="color:#fbbf24;">⚠️ ' + escapeHtml(data.error || 'Daily limit reached.') + '</div>';
+          conversation.pop();
+          setStatus('Daily limit reached');
+          return;
+        }
+
+        if (response.status === 401) {
+          assistantDiv.querySelector('.message-content').innerHTML =
+            '<div class="text-part" style="color:#f87171;">Your session expired. Please refresh the page and sign in again.</div>';
+          conversation.pop();
+          setStatus('Session expired');
+          return;
+        }
+
         if (!response.ok) {
           var msg = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + response.status);
           throw new Error(msg);
         }
+
         var message = data.choices && data.choices[0] && data.choices[0].message;
         if (!message) throw new Error('Empty response from server.');
         var reply = message.content || '', reasoning = message.reasoning || '';
         setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
         conversation.push({ role: 'assistant', content: reply }); scheduleSave();
-        setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
+
+        var statusMsg = 'Ready';
+        if (data.usage) statusMsg += ' — ' + data.usage.total_tokens + ' tokens';
+        setStatus(statusMsg);
+
       } catch (err) {
         console.error('[CodeWix] chat error:', err);
         assistantDiv.querySelector('.message-content').innerHTML =

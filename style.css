@@ -2197,3 +2197,29 @@ a.studio-btn {
     .not-found-actions .button { width: 100%; text-align: center; }
     .not-found-hint { font-size: 12px; gap: 6px 12px; }
 }
+
+/* ==========================================================================
+   Resend verification button (inside error box on login)
+   ========================================================================== */
+
+.resend-verify-btn {
+    background: #38bdf8;
+    color: #020617;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    font-family: inherit;
+}
+
+.resend-verify-btn:hover {
+    background: #7dd3fc;
+}
+
+.resend-verify-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
