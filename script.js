@@ -280,7 +280,6 @@ window.addEventListener('DOMContentLoaded', function () {
       autoCloseBrackets: true,
       autoCloseTags: true,
       matchBrackets: true,
-      matchTags: { bothTags: true },
       mode: 'htmlmixed',
       extraKeys: {
         'Ctrl-Space': 'autocomplete',
@@ -354,7 +353,6 @@ window.addEventListener('DOMContentLoaded', function () {
   var currentFileLabel = $('currentFileLabel');
   var fileTreeList     = $('fileTreeList');
   var newFileBtn       = $('newFileBtn');
-  var editorLineGutter = $('editorLineGutter');
   var unsavedIndicator = $('unsavedIndicator');
   var saveProjectBtn   = $('saveProjectBtn');
   var myProjectsBtn    = $('myProjectsBtn');
@@ -407,8 +405,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateGutter() {
-      // Legacy function — CodeMirror handles its own line numbers now.
-      // Kept as a no-op so existing calls don't break.
+      // Legacy no-op — CodeMirror handles its own line numbers now.
     }
 
     function renderPreview() {
