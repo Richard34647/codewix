@@ -2078,3 +2078,122 @@ a.studio-btn {
     .lesson-actions .button,
     .lesson-actions .complete-btn { width: 100%; text-align: center; }
 }
+
+/* ==========================================================================
+   404 Page
+   ========================================================================== */
+
+.not-found-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 100px 20px 60px;
+    min-height: 70vh;
+}
+
+.not-found-card {
+    text-align: center;
+    max-width: 620px;
+    width: 100%;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 48px 40px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.not-found-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #38bdf8, #34d399);
+}
+
+.not-found-code {
+    font-family: 'Courier New', monospace;
+    font-size: 96px;
+    font-weight: bold;
+    line-height: 1;
+    background: linear-gradient(135deg, #38bdf8 0%, #34d399 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -4px;
+    margin-bottom: 16px;
+}
+
+.not-found-card h1 {
+    font-size: 26px;
+    color: #e2e8f0;
+    margin-bottom: 14px;
+    font-weight: bold;
+}
+
+.not-found-msg {
+    color: #94a3b8;
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 32px;
+}
+
+.not-found-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+}
+
+.button.ghost {
+    background: transparent;
+    color: #38bdf8;
+    border: 1px solid #38bdf8;
+    padding: 13px 26px;
+}
+.button.ghost:hover {
+    background: rgba(56, 189, 248, 0.1);
+    color: #7dd3fc;
+    border-color: #7dd3fc;
+}
+
+.not-found-hint {
+    padding-top: 24px;
+    border-top: 1px solid #334155;
+    font-size: 13px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    justify-content: center;
+    align-items: center;
+}
+
+.hint-label {
+    color: #64748b;
+}
+
+.not-found-hint a {
+    color: #38bdf8;
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+.not-found-hint a:hover {
+    color: #7dd3fc;
+    text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+    .not-found-wrap { padding: 60px 16px 40px; }
+    .not-found-card { padding: 36px 24px; border-radius: 12px; }
+    .not-found-code { font-size: 72px; margin-bottom: 12px; }
+    .not-found-card h1 { font-size: 20px; }
+    .not-found-msg { font-size: 14px; margin-bottom: 24px; }
+    .not-found-actions { flex-direction: column; }
+    .not-found-actions .button { width: 100%; text-align: center; }
+    .not-found-hint { font-size: 12px; gap: 6px 12px; }
+}
