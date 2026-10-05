@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publish | CodeWix</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="studio-header">
+        <div class="header-brand">
+            <span class="studio-logo">CodeWix</span>
+            <span class="env-badge">Publish</span>
+        </div>
+        <nav class="studio-nav">
+            <a href="dashboard.html">Workspace</a>
+            <a href="learn.html">Learn</a>
+            <a href="ai-assistant.html">AI Assistant</a>
+            <a href="explore.html">Explore</a>
+            <a href="publish.html" class="active">Publish</a>
+        </nav>
+        <div class="user-session">
+            <span id="dashUser">Developer</span>
+            <button class="exit-btn" id="logoutBtn">Exit Studio</button>
+        </div>
+    </header>
+
+    <main class="publish-workspace">
+
+        <!-- Publish form -->
+        <section class="publish-card">
+            <div class="publish-card-header">
+                <h1>🚀 Publish a <span>Project</span></h1>
+                <p>Turn any saved project into a live website anyone can visit.</p>
+            </div>
+
+            <div id="publishError" class="error-box"></div>
+            <div id="publishSuccess" class="success-box"></div>
+
+            <form id="publishForm">
+                <div class="input-group">
+                    <label for="projectSelect">Choose a Project</label>
+                    <select id="projectSelect" class="publish-select">
+                        <option value="">Loading your projects…</option>
+                    </select>
+                    <p class="publish-help">Only saved projects can be published. Save a new one from the <a href="dashboard.html">Workspace</a>.</p>
+                </div>
+
+                <div class="input-group">
+                    <label for="publishSlug">Site URL</label>
+                    <div class="publish-slug-input">
+                        <span class="publish-domain" id="publishDomain">codewix.com/s/</span>
+                        <input type="text" id="publishSlug" placeholder="my-project" maxlength="32" autocomplete="off">
+                    </div>
+                    <p class="publish-help">Lowercase letters, numbers, hyphens. 3–32 characters.</p>
+                </div>
+
+                <div class="input-group">
+                    <label for="publishName">Project Name</label>
+                    <input type="text" id="publishName" placeholder="My Portfolio" maxlength="60">
+                </div>
+
+                <div class="input-group">
+                    <label for="publishDesc">Description (optional)</label>
+                    <textarea id="publishDesc" rows="2" placeholder="A short description visitors will see" maxlength="200"></textarea>
+                </div>
+
+                <button type="submit" class="button publish-submit" id="publishSubmitBtn">
+                    Publish Site →
+                </button>
+            </form>
+        </section>
+
+        <!-- Published sites list -->
+        <section class="my-sites-section">
+            <div class="my-sites-header">
+                <h2>Your Published Sites</h2>
+                <p id="mySitesCount">Loading…</p>
+            </div>
+            <div id="mySitesGrid" class="my-sites-grid">
+                <p class="my-sites-empty">Loading…</p>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="studio-status-bar">
+        <div class="status-left-node">
+            <span class="status-indicator-dot online"></span>
+            <span id="userEmail">Session active</span>
+        </div>
+        <div class="status-right-node">
+            <span>Publish</span>
+            <span>CodeWix</span>
+        </div>
+    </footer>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

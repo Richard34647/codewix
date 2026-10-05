@@ -31,6 +31,7 @@ window.addEventListener('DOMContentLoaded', function () {
     } catch (err) { console.error('[CodeWix] init failed:', err); }
   }
 
+  // ---- Helpers ---------------------------------------------------------
   function $(id) { return document.getElementById(id); }
   function showError(el, msg) { if (el) { el.textContent = msg; el.style.display = 'block'; } else alert(msg); }
   function hideError(el) { if (el) el.style.display = 'none'; }
@@ -73,6 +74,7 @@ window.addEventListener('DOMContentLoaded', function () {
     return map[String(lang).toLowerCase()] || 'txt';
   }
 
+  // Auto-inject Learn link into non-studio navs
   document.querySelectorAll('nav').forEach(function (nav) {
     if (!nav.querySelector('a[href="learn.html"]') && !nav.classList.contains('studio-nav')) {
       var a = document.createElement('a');
@@ -83,8 +85,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  // ---- Auth guard ------------------------------------------------------
   var path = location.pathname.toLowerCase();
-  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html'];
+  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html', 'publish.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
 
   if (auth && onProtectedPage) {
@@ -100,6 +103,7 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // ---- Logout ----------------------------------------------------------
   function logout(e) {
     if (e) e.preventDefault();
     if (!auth) { location.href = 'login.html'; return; }
@@ -108,7 +112,9 @@ window.addEventListener('DOMContentLoaded', function () {
   if ($('logoutBtn'))  $('logoutBtn').addEventListener('click', logout);
   if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
 
+  // ======================================================================
   // Register
+  // ======================================================================
   if ($('registerForm')) {
     $('registerForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -151,7 +157,9 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // ======================================================================
   // Login
+  // ======================================================================
   if ($('loginForm')) {
     var pendingVerificationEmail = null;
     $('loginForm').addEventListener('submit', function (e) {
@@ -210,7 +218,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  // ======================================================================
   // Forgot password
+  // ======================================================================
   if ($('forgotForm')) {
     $('forgotForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -237,8 +247,108 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // IDE
-  var codeEditor       = $('codeEditor');
+  // ======================================================================
+  // Sandbox IDE (dashboard.html) — with CodeMirror
+  // ======================================================================
+  // ---- CodeMirror setup -----------------------------------------------
+  var cm = null;
+  var codeEditor = null;
+
+  (function initCodeMirror() {
+    var sourceEl = $('codeEditorSource');
+    if (!sourceEl || typeof CodeMirror === 'undefined') {
+      console.warn('[CodeWix] CodeMirror not loaded — falling back to basic editor.');
+      if (sourceEl) {
+        codeEditor = {
+          get value() { return sourceEl.value; },
+          set value(v) { sourceEl.value = v == null ? '' : String(v); },
+          addEventListener: function (t, fn) { if (t === 'input') sourceEl.addEventListener('input', fn); },
+          focus: function () { sourceEl.focus(); }
+        };
+      }
+      return;
+    }
+
+    cm = CodeMirror.fromTextArea(sourceEl, {
+      theme: 'dracula',
+      lineNumbers: true,
+      lineWrapping: false,
+      indentUnit: 2,
+      tabSize: 2,
+      indentWithTabs: false,
+      smartIndent: true,
+      autoCloseBrackets: true,
+      autoCloseTags: true,
+      matchBrackets: true,
+      matchTags: { bothTags: true },
+      mode: 'htmlmixed',
+      extraKeys: {
+        'Ctrl-Space': 'autocomplete',
+        'Cmd-Space': 'autocomplete',
+        'Tab': function (editor) {
+          if (editor.somethingSelected()) editor.indentSelection('add');
+          else editor.replaceSelection('  ');
+        }
+      },
+      hintOptions: {
+        completeSingle: false,
+        alignWithWord: true
+      }
+    });
+
+    // Auto-trigger autocomplete on chars that usually start a completion
+    cm.on('inputRead', function (editor, change) {
+      if (!change.text || !change.text[0]) return;
+      var ch = change.text[0];
+      if (/[<>\/=.:"\-]/.test(ch)) {
+        if (!editor.state.completionActive) {
+          editor.showHint({ completeSingle: false });
+        }
+        return;
+      }
+      var cursor = editor.getCursor();
+      var line = editor.getLine(cursor.line);
+      if (cursor.ch > 1 && /[a-zA-Z0-9_-]/.test(ch) && /\s/.test(line.charAt(cursor.ch - 2))) {
+        if (!editor.state.completionActive) {
+          editor.showHint({ completeSingle: false });
+        }
+      }
+    });
+
+    // Compatibility shim — makes CodeMirror look like the old textarea
+    codeEditor = {
+      get value() { return cm.getValue(); },
+      set value(v) { cm.setValue(v == null ? '' : String(v)); },
+      addEventListener: function (evt, fn) {
+        if (evt === 'input' || evt === 'change') {
+          cm.on('change', function () { fn(); });
+        } else if (evt === 'focus') {
+          cm.on('focus', function () { fn(); });
+        } else if (evt === 'keydown') {
+          cm.getWrapperElement().addEventListener('keydown', fn);
+        } else if (evt === 'keyup') {
+          cm.getWrapperElement().addEventListener('keyup', fn);
+        }
+      },
+      focus: function () { cm.focus(); },
+      _cm: cm
+    };
+
+    // Mode switcher based on file extension
+    window.__codewixSetEditorMode = function (filename) {
+      if (!cm) return;
+      var mode = 'htmlmixed';
+      var lower = (filename || '').toLowerCase();
+      if (lower.endsWith('.css')) mode = 'css';
+      else if (lower.endsWith('.js')) mode = 'javascript';
+      cm.setOption('mode', mode);
+      cm.setOption('hintOptions', { completeSingle: false, alignWithWord: true });
+    };
+
+    console.log('[CodeWix] CodeMirror initialized ✔');
+  })();
+
+  // ---- IDE variables ---------------------------------------------------
   var runCodeBtn       = $('runCodeBtn');
   var livePreviewFrame = $('livePreviewFrame');
   var currentFileLabel = $('currentFileLabel');
@@ -252,7 +362,6 @@ window.addEventListener('DOMContentLoaded', function () {
   var downloadFileBtn  = $('downloadFileBtn');
   var downloadZipBtn   = $('downloadZipBtn');
   var shareProjectBtn  = $('shareProjectBtn');
-  var publishBtn       = $('publishBtn');
   var projectsModal    = $('projectsModal');
   var projectsListBox  = $('projectsListContainer');
   var closeModalBtn    = $('closeProjectsModalBtn');
@@ -273,7 +382,6 @@ window.addEventListener('DOMContentLoaded', function () {
     var currentProjectName = null;
     var currentShareId = null;
     var lastSavedSnapshot = null;
-    var currentSlug = null;
 
     function snapshot() { return JSON.stringify(files); }
     function markUnsaved() {
@@ -299,11 +407,8 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateGutter() {
-      if (!editorLineGutter || !codeEditor) return;
-      var n = codeEditor.value.split('\n').length;
-      var out = '';
-      for (var i = 1; i <= n; i++) out += i + (i < n ? '\n' : '');
-      editorLineGutter.textContent = out;
+      // Legacy function — CodeMirror handles its own line numbers now.
+      // Kept as a no-op so existing calls don't break.
     }
 
     function renderPreview() {
@@ -322,11 +427,10 @@ window.addEventListener('DOMContentLoaded', function () {
       currentProjectId = projectId || null;
       currentProjectName = projectName || null;
       currentShareId = shareId || null;
-      currentSlug = null;
       lastSavedSnapshot = snapshot();
       if (codeEditor) codeEditor.value = files[activeFile];
+      if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
       rebuildFileTree();
-      updateGutter();
       renderPreview();
       if (unsavedIndicator) unsavedIndicator.style.display = 'none';
       if (projectStatusLbl) projectStatusLbl.textContent = currentProjectName ? 'Project: ' + currentProjectName : 'No project loaded';
@@ -334,13 +438,12 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (codeEditor) {
       codeEditor.value = files[activeFile];
+      if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
       lastSavedSnapshot = snapshot();
       codeEditor.addEventListener('input', function () {
         files[activeFile] = codeEditor.value;
-        updateGutter();
         markUnsaved();
       });
-      updateGutter();
     }
 
     if (runCodeBtn) runCodeBtn.addEventListener('click', function () { renderPreview(); showToast('Preview refreshed'); });
@@ -356,7 +459,8 @@ window.addEventListener('DOMContentLoaded', function () {
         activeFile = item.getAttribute('data-filename');
         if (currentFileLabel) currentFileLabel.textContent = activeFile;
         codeEditor.value = files[activeFile] || '';
-        updateGutter();
+        if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
+        if (cm) cm.focus();
       });
     }
 
@@ -370,6 +474,7 @@ window.addEventListener('DOMContentLoaded', function () {
         rebuildFileTree();
         var li = fileTreeList.querySelector('[data-filename="' + clean + '"]');
         if (li) li.click();
+        if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(clean);
         markUnsaved();
       });
     }
@@ -453,109 +558,6 @@ window.addEventListener('DOMContentLoaded', function () {
       finally { shareProjectBtn.disabled = false; shareProjectBtn.textContent = '🔗 Share'; }
     }
     if (shareProjectBtn) shareProjectBtn.addEventListener('click', shareProject);
-
-    // Publish flow
-    var publishModal     = $('publishModal');
-    var publishModalTitle= $('publishModalTitle');
-    var publishModalFoot = $('publishModalFooter');
-    var publishSlug      = $('publishSlug');
-    var publishName      = $('publishName');
-    var publishDesc      = $('publishDesc');
-    var publishError     = $('publishError');
-    var publishSuccess   = $('publishSuccess');
-    var publishUrlOut    = $('publishUrlOutput');
-    var publishViewBtn   = $('publishViewBtn');
-    var publishCopyBtn   = $('publishCopyBtn');
-    var publishDoneBtn   = $('publishDoneBtn');
-    var publishCancelBtn = $('publishCancelBtn');
-    var publishConfirmBtn= $('publishConfirmBtn');
-    var closePublishBtn  = $('closePublishModalBtn');
-
-    function openPublishModal() {
-      if (!publishModal) return;
-      files[activeFile] = codeEditor.value;
-      document.querySelector('.publish-form').style.display = 'block';
-      publishSuccess.style.display = 'none';
-      publishModalFoot.style.display = 'flex';
-      publishModalTitle.textContent = 'Publish Your Site';
-      hideError(publishError);
-      if (publishName && currentProjectName) publishName.value = currentProjectName;
-      if (publishSlug && !publishSlug.value) {
-        var suggested = (currentProjectName || 'my-project').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 30);
-        if (suggested.length < 3) suggested = 'my-project';
-        publishSlug.value = suggested;
-      }
-      publishModal.style.display = 'flex';
-      if (publishSlug) publishSlug.focus();
-    }
-
-    function closePublishModal() {
-      if (publishModal) publishModal.style.display = 'none';
-    }
-
-    if (publishBtn) publishBtn.addEventListener('click', openPublishModal);
-    if (closePublishBtn) closePublishBtn.addEventListener('click', closePublishModal);
-    if (publishCancelBtn) publishCancelBtn.addEventListener('click', closePublishModal);
-    if (publishModal) publishModal.addEventListener('click', function (e) { if (e.target === publishModal) closePublishModal(); });
-
-    if (publishConfirmBtn) {
-      publishConfirmBtn.addEventListener('click', async function () {
-        hideError(publishError);
-        var slug = (publishSlug.value || '').trim().toLowerCase();
-        var name = (publishName.value || '').trim() || currentProjectName || 'Untitled';
-        var desc = (publishDesc.value || '').trim();
-
-        if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) {
-          showError(publishError, 'Slug must be 3-32 characters, lowercase letters, numbers, and hyphens.');
-          return;
-        }
-        if (!auth || !auth.currentUser) { showError(publishError, 'You must be signed in.'); return; }
-
-        publishConfirmBtn.disabled = true;
-        publishConfirmBtn.textContent = 'Publishing…';
-
-        try {
-          files[activeFile] = codeEditor.value;
-          var idToken = await auth.currentUser.getIdToken();
-          var res = await fetch('/api/publish', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-            body: JSON.stringify({ slug: slug, projectName: name, description: desc, files: files })
-          });
-          var data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Publish failed.');
-
-          currentSlug = slug;
-          currentProjectName = name;
-          document.querySelector('.publish-form').style.display = 'none';
-          publishSuccess.style.display = 'block';
-          publishModalFoot.style.display = 'none';
-          publishModalTitle.textContent = 'Published!';
-          publishUrlOut.value = data.fullUrl;
-          publishViewBtn.href = data.url;
-          if (projectStatusLbl) projectStatusLbl.textContent = 'Published: /s/' + slug;
-          showToast('Site published ✔', 'success');
-        } catch (err) {
-          showError(publishError, err.message);
-        } finally {
-          publishConfirmBtn.disabled = false;
-          publishConfirmBtn.textContent = 'Publish →';
-        }
-      });
-    }
-
-    if (publishCopyBtn) {
-      publishCopyBtn.addEventListener('click', function () {
-        var btn = this;
-        var text = publishUrlOut.value;
-        function flash() { btn.textContent = 'Copied!'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); }
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(flash).catch(fallback);
-        else fallback();
-        function fallback() { publishUrlOut.select(); document.execCommand('copy'); flash(); }
-      });
-    }
-
-    if (publishDoneBtn) publishDoneBtn.addEventListener('click', closePublishModal);
 
     function openProjectsModal() {
       if (!projectsModal) return;
@@ -651,6 +653,7 @@ window.addEventListener('DOMContentLoaded', function () {
       if (lastSavedSnapshot !== null && lastSavedSnapshot !== snapshot()) { e.preventDefault(); e.returnValue = ''; }
     });
 
+    // Receive AI snippet
     var pending = null;
     try { pending = JSON.parse(localStorage.getItem('codewix_pending_snippet') || 'null'); } catch (e) {}
     if (pending && pending.code) {
@@ -664,12 +667,15 @@ window.addEventListener('DOMContentLoaded', function () {
       files[targetFile] = existing + (existing.trim() ? '\n\n' : '') + pending.code;
       activeFile = targetFile;
       if (codeEditor) codeEditor.value = files[activeFile];
-      rebuildFileTree(); updateGutter(); markUnsaved(); renderPreview();
+      if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
+      rebuildFileTree(); markUnsaved(); renderPreview();
       showToast('AI snippet added to ' + targetFile, 'success');
     }
   }
 
-  // AI Assistant
+  // ======================================================================
+  // AI Assistant (ai-assistant.html)
+  // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
   var sendBtn            = $('sendBtn');
@@ -993,7 +999,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // Learn page
+  // ======================================================================
+  // Learn page (learn.html)
+  // ======================================================================
   var lessonTitle   = $('lessonTitle');
   var lessonBody    = $('lessonBody');
   var lessonDayLbl  = $('lessonDayLabel');
@@ -1243,7 +1251,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // Explore
+  // ======================================================================
+  // Explore page (explore.html)
+  // ======================================================================
   var exploreGrid = $('exploreGrid');
   if (exploreGrid) {
     console.log('[CodeWix] Explore page detected');
@@ -1294,7 +1304,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // Profile
+  // ======================================================================
+  // Profile page (profile.html)
+  // ======================================================================
   var profileGrid = $('profileGrid');
   if (profileGrid) {
     console.log('[CodeWix] Profile page detected');
@@ -1355,6 +1367,254 @@ window.addEventListener('DOMContentLoaded', function () {
     if (auth) {
       auth.onAuthStateChanged(function (user) {
         if (user && $('dashUser')) $('dashUser').textContent = user.email.split('@')[0];
+      });
+    }
+  }
+
+  // ======================================================================
+  // Publish Page (publish.html)
+  // ======================================================================
+  var publishForm = $('publishForm');
+  if (publishForm) {
+    console.log('[CodeWix] Publish page detected');
+
+    var publishPageError   = $('publishError');
+    var publishPageSuccess = $('publishSuccess');
+    var projectSelect      = $('projectSelect');
+    var publishSlugInput   = $('publishSlug');
+    var publishNameInput   = $('publishName');
+    var publishDescInput   = $('publishDesc');
+    var publishSubmitBtn   = $('publishSubmitBtn');
+    var mySitesGrid        = $('mySitesGrid');
+    var mySitesCount       = $('mySitesCount');
+    var authUserP          = null;
+    var savedProjects      = [];
+
+    function loadProjects() {
+      if (!db || !auth || !auth.currentUser) return;
+      db.collection('users').doc(auth.currentUser.uid).collection('projects')
+        .orderBy('updatedAt', 'desc')
+        .get()
+        .then(function (snap) {
+          savedProjects = [];
+          projectSelect.innerHTML = '';
+          if (snap.empty) {
+            var opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'You have no saved projects yet — save one first';
+            opt.disabled = true;
+            opt.selected = true;
+            projectSelect.appendChild(opt);
+            publishSubmitBtn.disabled = true;
+            return;
+          }
+          var placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Choose a project…';
+          placeholder.disabled = true;
+          placeholder.selected = true;
+          projectSelect.appendChild(placeholder);
+
+          snap.forEach(function (doc) {
+            var data = doc.data() || {};
+            savedProjects.push({ id: doc.id, name: data.name || 'Untitled', files: data.files || {} });
+            var opt = document.createElement('option');
+            opt.value = doc.id;
+            opt.textContent = (data.name || 'Untitled') + ' · saved ' + formatDate(data.updatedAt);
+            projectSelect.appendChild(opt);
+          });
+
+          var params = new URLSearchParams(location.search);
+          var preselected = params.get('project');
+          if (preselected) {
+            projectSelect.value = preselected;
+            handleProjectChange();
+          }
+        })
+        .catch(function (err) {
+          projectSelect.innerHTML = '<option value="">Failed to load projects: ' + escapeHtml(err.message) + '</option>';
+        });
+    }
+
+    function handleProjectChange() {
+      var id = projectSelect.value;
+      if (!id) return;
+      var proj = savedProjects.find(function (p) { return p.id === id; });
+      if (!proj) return;
+
+      publishNameInput.value = proj.name;
+
+      if (!publishSlugInput.value) {
+        var suggested = proj.name.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .substring(0, 30);
+        if (suggested.length < 3) suggested = 'my-project';
+        publishSlugInput.value = suggested;
+      }
+    }
+
+    projectSelect.addEventListener('change', handleProjectChange);
+
+    function loadPublishedSites() {
+      if (!auth || !auth.currentUser) return;
+      auth.currentUser.getIdToken().then(function (token) {
+        fetch('/api/my-published', { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            renderPublishedSites(data.sites || []);
+          })
+          .catch(function (err) {
+            mySitesGrid.innerHTML = '<p class="my-sites-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
+          });
+      });
+    }
+
+    function renderPublishedSites(sites) {
+      mySitesGrid.innerHTML = '';
+      if (mySitesCount) mySitesCount.textContent = sites.length + ' site' + (sites.length === 1 ? '' : 's');
+      if (!sites.length) {
+        mySitesGrid.innerHTML = '<p class="my-sites-empty">You haven\u2019t published anything yet. Fill in the form above to publish your first site.</p>';
+        return;
+      }
+      sites.forEach(function (site) {
+        var card = document.createElement('div');
+        card.className = 'my-site-card';
+        var url = '/s/' + encodeURIComponent(site.slug);
+        var fullUrl = location.origin + url;
+        card.innerHTML =
+          '<div class="my-site-info">' +
+            '<h3>' + escapeHtml(site.projectName || 'Untitled') + '</h3>' +
+            '<a href="' + url + '" target="_blank" class="my-site-url">' + escapeHtml(fullUrl) + '</a>' +
+            '<div class="my-site-meta">' +
+              '<span>👁 ' + (site.views || 0) + ' views</span>' +
+              '<span>·</span>' +
+              '<span>' + (site.updatedAt ? formatDate(site.updatedAt) : '') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="my-site-actions">' +
+            '<a href="' + url + '" target="_blank" class="studio-btn ghost-btn">View</a>' +
+            '<button type="button" class="studio-btn ghost-btn copy-link-btn" data-url="' + escapeHtml(fullUrl) + '">Copy Link</button>' +
+            '<button type="button" class="studio-btn ghost-btn update-btn" data-slug="' + escapeHtml(site.slug) + '" data-name="' + escapeHtml(site.projectName || '') + '">Update</button>' +
+            '<button type="button" class="studio-btn ghost-btn danger-btn unpublish-btn" data-slug="' + escapeHtml(site.slug) + '">Unpublish</button>' +
+          '</div>';
+        mySitesGrid.appendChild(card);
+      });
+    }
+
+    mySitesGrid.addEventListener('click', function (e) {
+      var copyBtn = e.target.closest('.copy-link-btn');
+      if (copyBtn) {
+        var url = copyBtn.getAttribute('data-url');
+        function flash() { var old = copyBtn.textContent; copyBtn.textContent = 'Copied!'; setTimeout(function () { copyBtn.textContent = old; }, 1500); }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(flash).catch(fallback);
+        else fallback();
+        function fallback() { var ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); flash(); } catch (e) {} document.body.removeChild(ta); }
+        return;
+      }
+
+      var updateBtn = e.target.closest('.update-btn');
+      if (updateBtn) {
+        var slug = updateBtn.getAttribute('data-slug');
+        var name = updateBtn.getAttribute('data-name');
+        publishSlugInput.value = slug;
+        publishNameInput.value = name;
+        showToast('Form pre-filled. Pick the project and hit Publish to update.', 'success');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      var unBtn = e.target.closest('.unpublish-btn');
+      if (unBtn) {
+        var unSlug = unBtn.getAttribute('data-slug');
+        if (!confirm('Unpublish /s/' + unSlug + '? The site will no longer be accessible.')) return;
+        unBtn.disabled = true; unBtn.textContent = 'Removing…';
+        auth.currentUser.getIdToken().then(function (token) {
+          return fetch('/api/unpublish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ slug: unSlug })
+          }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+        })
+        .then(function (res) {
+          if (!res.ok) { showToast('Failed: ' + (res.data.error || 'unknown'), 'error'); unBtn.disabled = false; unBtn.textContent = 'Unpublish'; return; }
+          showToast('Site unpublished', 'success');
+          loadPublishedSites();
+        })
+        .catch(function (err) { showToast('Failed: ' + err.message, 'error'); unBtn.disabled = false; unBtn.textContent = 'Unpublish'; });
+        return;
+      }
+    });
+
+    publishForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      hideError(publishPageError);
+      if (publishPageSuccess) publishPageSuccess.style.display = 'none';
+
+      var projectId = projectSelect.value;
+      var slug = (publishSlugInput.value || '').trim().toLowerCase();
+      var name = (publishNameInput.value || '').trim();
+      var desc = (publishDescInput.value || '').trim();
+
+      if (!projectId) { showError(publishPageError, 'Please choose a project.'); return; }
+      if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) {
+        showError(publishPageError, 'Slug must be 3-32 characters: lowercase letters, numbers, and hyphens.');
+        return;
+      }
+      if (!name) { showError(publishPageError, 'Please enter a project name.'); return; }
+      if (!auth || !auth.currentUser) { showError(publishPageError, 'You must be signed in.'); return; }
+
+      publishSubmitBtn.disabled = true;
+      publishSubmitBtn.textContent = 'Publishing…';
+
+      try {
+        var projDoc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).get();
+        if (!projDoc.exists) { throw new Error('Project not found.'); }
+        var projData = projDoc.data();
+
+        var idToken = await auth.currentUser.getIdToken();
+        var res = await fetch('/api/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({
+            slug: slug,
+            projectName: name,
+            description: desc,
+            files: projData.files || {}
+          })
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Publish failed.');
+
+        if (publishPageSuccess) {
+          publishPageSuccess.innerHTML =
+            '✅ Your site is live at <a href="' + data.url + '" target="_blank" style="color:#34d399;font-weight:bold;">' +
+            escapeHtml(data.fullUrl) + '</a>';
+          publishPageSuccess.style.display = 'block';
+        }
+        showToast('Site published ✔', 'success');
+        loadPublishedSites();
+      } catch (err) {
+        showError(publishPageError, err.message);
+      } finally {
+        publishSubmitBtn.disabled = false;
+        publishSubmitBtn.textContent = 'Publish Site →';
+      }
+    });
+
+    if (auth) {
+      auth.onAuthStateChanged(function (user) {
+        if (!user) { location.replace('login.html'); return; }
+        if (!user.emailVerified) {
+          alert('Please verify your email first.');
+          auth.signOut().then(function () { location.replace('login.html'); });
+          return;
+        }
+        authUserP = user;
+        if ($('dashUser'))  $('dashUser').textContent  = user.email.split('@')[0];
+        if ($('userEmail')) $('userEmail').textContent = user.email;
+        loadProjects();
+        loadPublishedSites();
       });
     }
   }

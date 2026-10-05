@@ -2792,3 +2792,323 @@ a.studio-btn {
     .modal-footer { flex-direction: column; }
     .modal-footer .button { width: 100%; }
 }
+
+/* ==========================================================================
+   Publish Page
+   ========================================================================== */
+
+.publish-workspace {
+    flex: 1;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
+}
+
+.publish-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 14px;
+    padding: 36px 32px;
+    margin-bottom: 40px;
+    position: relative;
+    overflow: hidden;
+}
+
+.publish-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #38bdf8, #34d399);
+}
+
+.publish-card-header { margin-bottom: 28px; }
+
+.publish-card-header h1 {
+    font-size: 28px;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+}
+
+.publish-card-header h1 span { color: #38bdf8; }
+
+.publish-card-header p {
+    color: #94a3b8;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.publish-select {
+    width: 100%;
+    padding: 12px 14px;
+    background: #020617;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: white;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+}
+
+.publish-select:focus { border-color: #38bdf8; }
+
+.publish-submit {
+    width: 100%;
+    border: none;
+    cursor: pointer;
+    padding: 14px 24px;
+    font-size: 15px;
+    margin-top: 8px;
+}
+
+.publish-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* My sites list */
+.my-sites-section { margin-top: 40px; }
+
+.my-sites-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.my-sites-header h2 {
+    font-size: 22px;
+    color: #e2e8f0;
+}
+
+.my-sites-header p {
+    color: #64748b;
+    font-size: 13px;
+}
+
+.my-sites-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.my-sites-empty {
+    background: #1e293b;
+    border: 1px dashed #334155;
+    border-radius: 12px;
+    color: #64748b;
+    font-size: 14px;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.my-site-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    transition: border-color 0.15s ease;
+}
+
+.my-site-card:hover { border-color: #38bdf8; }
+
+.my-site-info { flex: 1; min-width: 0; }
+
+.my-site-info h3 {
+    font-size: 17px;
+    color: #e2e8f0;
+    margin-bottom: 6px;
+}
+
+.my-site-url {
+    display: inline-block;
+    color: #38bdf8;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    text-decoration: none;
+    margin-bottom: 8px;
+    word-break: break-all;
+}
+.my-site-url:hover { text-decoration: underline; }
+
+.my-site-meta {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.my-site-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.my-site-actions .studio-btn {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+.my-site-actions .danger-btn {
+    color: #f87171;
+    border-color: #7f1d1d;
+}
+
+.my-site-actions .danger-btn:hover {
+    background: rgba(248, 113, 113, 0.1);
+    border-color: #f87171;
+    color: #fecaca;
+}
+
+@media (max-width: 640px) {
+    .publish-workspace { padding: 20px 16px 40px; }
+    .publish-card { padding: 24px 20px; }
+    .publish-card-header h1 { font-size: 22px; }
+    .publish-card-header p { font-size: 14px; }
+    .my-site-card { flex-direction: column; align-items: flex-start; }
+    .my-site-actions { width: 100%; }
+    .my-site-actions .studio-btn { flex: 1; justify-content: center; padding: 8px 12px; }
+}
+
+/* ==========================================================================
+   CodeMirror Editor
+   ========================================================================== */
+
+.editor-body {
+    flex: 1;
+    display: flex;
+    background: #020617;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Hide the raw textarea — CodeMirror takes over */
+#codeEditorSource { display: none; }
+
+/* Make CodeMirror fill the editor body */
+.CodeMirror {
+    flex: 1;
+    height: 100% !important;
+    background: #020617 !important;
+    color: #e2e8f0;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.CodeMirror-gutters {
+    background: #040914 !important;
+    border-right: 1px solid #1e293b !important;
+}
+
+.CodeMirror-linenumber {
+    color: #475569 !important;
+    padding: 0 8px !important;
+}
+
+.CodeMirror-cursor {
+    border-left: 2px solid #38bdf8 !important;
+}
+
+.CodeMirror-selected {
+    background: rgba(56, 189, 248, 0.2) !important;
+}
+
+.CodeMirror-focused .CodeMirror-selected {
+    background: rgba(56, 189, 248, 0.3) !important;
+}
+
+.CodeMirror-activeline-background {
+    background: rgba(56, 189, 248, 0.05) !important;
+}
+
+/* Autocomplete popup */
+.CodeMirror-hints {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 13px !important;
+    padding: 4px !important;
+    z-index: 9999 !important;
+    max-height: 260px !important;
+}
+
+.CodeMirror-hint {
+    color: #cbd5e1 !important;
+    padding: 6px 12px !important;
+    border-radius: 4px !important;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.CodeMirror-hint:hover,
+li.CodeMirror-hint-active {
+    background: #38bdf8 !important;
+    color: #020617 !important;
+}
+
+/* Tag matching (highlights the open/close pair) */
+.CodeMirror-matchingtag {
+    background: rgba(56, 189, 248, 0.15) !important;
+}
+
+.CodeMirror-matchingbracket {
+    background: rgba(56, 189, 248, 0.2) !important;
+    color: #38bdf8 !important;
+    font-weight: bold;
+}
+
+/* Code folding markers */
+.CodeMirror-foldmarker {
+    color: #38bdf8;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 1px 6px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+/* Dracula theme overrides to match CodeWix palette */
+.cm-s-dracula.CodeMirror {
+    background: #020617 !important;
+}
+
+.cm-s-dracula .cm-keyword { color: #c084fc !important; }
+.cm-s-dracula .cm-string { color: #fbbf24 !important; }
+.cm-s-dracula .cm-number { color: #f472b6 !important; }
+.cm-s-dracula .cm-comment { color: #64748b !important; font-style: italic; }
+.cm-s-dracula .cm-def { color: #34d399 !important; }
+.cm-s-dracula .cm-variable { color: #e2e8f0 !important; }
+.cm-s-dracula .cm-property { color: #38bdf8 !important; }
+.cm-s-dracula .cm-tag { color: #38bdf8 !important; }
+.cm-s-dracula .cm-attribute { color: #c084fc !important; }
+.cm-s-dracula .cm-operator { color: #7dd3fc !important; }
+.cm-s-dracula .cm-atom { color: #f472b6 !important; }
+.cm-s-dracula .cm-builtin { color: #34d399 !important; }
+.cm-s-dracula .cm-meta { color: #94a3b8 !important; }
+
+/* Mobile */
+@media (max-width: 768px) {
+    .CodeMirror {
+        font-size: 13px;
+    }
+    .CodeMirror-hints {
+        font-size: 14px !important;
+        max-height: 200px !important;
+    }
+}

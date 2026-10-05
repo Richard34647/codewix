@@ -9,6 +9,12 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
+
+    <!-- CodeMirror styles -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,7 +27,7 @@
         <nav class="studio-nav">
             <a href="dashboard.html" class="active">Workspace</a>
             <a href="learn.html">Learn</a>
-            <a href="ai-assistance.html">AI Assistant</a>
+            <a href="ai-assistances.html">AI Assistant</a>
             <a href="explore.html">Explore</a>
         </nav>
         <div class="user-session">
@@ -57,13 +63,13 @@
                     <button class="studio-btn" id="downloadFileBtn">⬇ Download File</button>
                     <button class="studio-btn" id="downloadZipBtn">📦 Download All</button>
                     <button class="studio-btn" id="shareProjectBtn">🔗 Share</button>
-                    <button class="studio-btn" id="publishBtn" title="Publish as a live site">🚀 Publish</button>
+                    <a href="publish.html" class="studio-btn" id="publishBtn" title="Publish as a live site">🚀 Publish</a>
                     <button class="studio-btn primary-btn" id="runCodeBtn">Build &amp; Run</button>
                 </div>
             </div>
             <div class="editor-body">
-                <div class="gutter-line-numbers" id="editorLineGutter">1</div>
-                <textarea class="raw-code-input" id="codeEditor" spellcheck="false" autocomplete="off"></textarea>
+                <!-- Hidden textarea — CodeMirror replaces this on load -->
+                <textarea id="codeEditorSource" spellcheck="false" autocomplete="off"></textarea>
             </div>
         </section>
 
@@ -103,58 +109,29 @@
         </div>
     </div>
 
-    <!-- Publish Modal -->
-    <div class="modal-backdrop" id="publishModal" style="display:none;">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 id="publishModalTitle">Publish Your Site</h2>
-                <button class="modal-close" id="closePublishModalBtn">×</button>
-            </div>
-            <div class="modal-body" id="publishModalBody">
-                <div class="publish-form">
-                    <div class="input-group">
-                        <label for="publishSlug">Site URL</label>
-                        <div class="publish-slug-input">
-                            <span class="publish-domain">codewix.com/s/</span>
-                            <input type="text" id="publishSlug" placeholder="my-project" maxlength="32" autocomplete="off">
-                        </div>
-                        <p class="publish-help">Lowercase letters, numbers, hyphens. 3–32 characters.</p>
-                    </div>
-                    <div class="input-group">
-                        <label for="publishName">Project Name</label>
-                        <input type="text" id="publishName" placeholder="My Portfolio" maxlength="60">
-                    </div>
-                    <div class="input-group">
-                        <label for="publishDesc">Description (optional)</label>
-                        <textarea id="publishDesc" rows="2" placeholder="A short description visitors will see" maxlength="200"></textarea>
-                    </div>
-                    <div id="publishError" class="error-box"></div>
-                </div>
-                <div id="publishSuccess" class="publish-success" style="display:none;">
-                    <div class="publish-success-icon">🎉</div>
-                    <h3>Your site is live!</h3>
-                    <p>Anyone can view it at:</p>
-                    <div class="publish-url-display">
-                        <input type="text" id="publishUrlOutput" readonly>
-                        <button type="button" id="publishCopyBtn">Copy</button>
-                    </div>
-                    <div class="publish-actions">
-                        <a id="publishViewBtn" href="#" target="_blank" class="button">View Site →</a>
-                        <button type="button" id="publishDoneBtn" class="button ghost">Done</button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer" id="publishModalFooter">
-                <button type="button" class="button ghost" id="publishCancelBtn">Cancel</button>
-                <button type="button" class="button" id="publishConfirmBtn">Publish →</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- JSZip -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- CodeMirror core + modes + addons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/xml-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/css-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/javascript-hint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closetag.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchtags.min.js"></script>
+
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
     <script src="script.js"></script>
 </body>
 </html>
