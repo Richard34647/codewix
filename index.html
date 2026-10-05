@@ -3,22 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home | CodeWix</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>CodeWix — Learn to Code with an AI Pair Programmer</title>
+    <meta name="description" content="CodeWix is a coding platform where you write real code in a live IDE, get instant help from an AI assistant, and learn something new every day.">
+
+    <!-- Open Graph (for sharing on Discord, Twitter, WhatsApp, etc.) -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="CodeWix — Learn to Code with an AI Pair Programmer">
+    <meta property="og:description" content="Write code in a live IDE, get instant help from AI, and level up one lesson at a time.">
+    <meta property="og:url" content="https://codewi.onrender.com">
+    <meta property="og:image" content="https://codewi.onrender.com/web-app-manifest-512x512.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="CodeWix — Learn to Code with an AI Pair Programmer">
+    <meta name="twitter:description" content="Write code in a live IDE, get instant help from AI, and level up one lesson at a time.">
+    <meta name="twitter:image" content="https://codewi.onrender.com/web-app-manifest-512x512.png">
+
+    <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
-<link rel="icon" type="image/x-icon" href="/favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
     <header>
-        <div class="logo">
-            <a href="index.html">CodeWix</a>
-        </div>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
         <nav>
             <a href="index.html">Home</a>
+            <a href="learn.html">Learn</a>
             <a href="about.html">About</a>
             <a href="projects.html">Projects</a>
             <a href="register.html">Register an Account</a>
@@ -26,39 +40,133 @@
         </nav>
     </header>
 
-    <section class="hero">
-        <div>
-            <h1>Welcome to <span>CodeWix</span></h1>
-            <p>Learn to code, build projects, become a developer</p>
-            <a href="register.html" class="button">Start Coding</a>
+    <!-- ==================== Hero ==================== -->
+    <section class="hero hero-refresh">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <span class="hero-badge">🚀 Now with AI assistance</span>
+                <h1>Learn to code.<br><span>Build real projects.</span></h1>
+                <p>
+                    CodeWix is where beginners become developers. Write code in a live editor,
+                    get instant answers from an AI pair programmer, and level up one lesson at a time.
+                </p>
+                <div class="hero-cta">
+                    <a href="register.html" class="button">Start Coding Free →</a>
+                    <a href="login.html" class="button ghost">I already have an account</a>
+                </div>
+                <div class="hero-meta">
+                    <span>✓ No credit card</span>
+                    <span>✓ Free forever</span>
+                    <span>✓ Learn at your own pace</span>
+                </div>
+            </div>
+
+            <div class="hero-code">
+                <div class="code-window">
+                    <div class="code-window-bar">
+                        <span class="dot dot-red"></span>
+                        <span class="dot dot-yellow"></span>
+                        <span class="dot dot-green"></span>
+                        <span class="code-window-title">codewix — script.js</span>
+                    </div>
+                    <pre class="code-window-body"><code><span class="c-kw">const</span> <span class="c-var">name</span> = <span class="c-str">"future developer"</span>;
+
+<span class="c-kw">function</span> <span class="c-fn">greet</span>(who) {
+  <span class="c-kw">return</span> <span class="c-str">`Hello, ${who}!`</span>;
+}
+
+<span class="c-cm">// Ask the AI if you get stuck</span>
+<span class="c-fn">console</span>.<span class="c-fn">log</span>(<span class="c-fn">greet</span>(name));</code></pre>
+                </div>
+            </div>
         </div>
     </section>
 
-    <div class="code">
-        <h2>Want To Learn To Code?</h2>
-    </div>
+    <!-- ==================== Features ==================== -->
+    <section class="features-section">
+        <div class="section-head">
+            <h2>Everything you need to go from <span>zero to shipped</span></h2>
+            <p>Three tools that work together — write code, ask for help, and keep learning.</p>
+        </div>
 
-    <div class="features">
-        <div class="learn">
-            <h2>With CodeWix We Give Code Tutorials To Our Users Who Are Willing To Learn How To Code</h2>
-            <p>We Go On Coding Tutorials With Our Users</p>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>AI Pair Programmer</h3>
+                <p>Stuck on a bug? Ask the AI assistant. It explains your error, writes examples, and can even send code straight into your workspace with one click.</p>
+                <div class="feature-tags">
+                    <span>GPT-OSS 120B</span>
+                    <span>Chat history</span>
+                    <span>Send to Editor</span>
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Live IDE Sandbox</h3>
+                <p>Write HTML, CSS, and JavaScript. See the result instantly. Save projects, download them as a ZIP, or share a live link with anyone.</p>
+                <div class="feature-tags">
+                    <span>Live preview</span>
+                    <span>ZIP download</span>
+                    <span>Shareable links</span>
+                </div>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">📚</div>
+                <h3>Daily Coding Lessons</h3>
+                <p>Twenty lessons covering the fundamentals — variables, loops, functions, async, the DOM, and more. Track your progress and keep your streak alive.</p>
+                <div class="feature-tags">
+                    <span>Progress tracking</span>
+                    <span>Streak counter</span>
+                    <span>Beginner → Advanced</span>
+                </div>
+            </div>
         </div>
-        <div class="code-projects">
-            <h2>With CodeWix You Code Projects</h2>
-            <p>Code complex projects here</p>
+    </section>
+
+    <!-- ==================== How it works ==================== -->
+    <section class="how-section">
+        <div class="section-head">
+            <h2>How it works</h2>
+            <p>From sign-up to shipping your first project in under ten minutes.</p>
         </div>
-        <div class="ai-assistance">
-            <h2>We Offer AI-Assistance to Programmers</h2>
-            <p>With Our Friendly Built-in AI Users Can Code Complex Codes</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <h3>Create your account</h3>
+                <p>Sign up free with an email. Verify it and you're ready.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <h3>Learn and build</h3>
+                <p>Read a lesson, then try it out in the live workspace.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <h3>Get AI help anytime</h3>
+                <p>Stuck? Ask the assistant. It explains, debugs, and sends code to your editor.</p>
+            </div>
         </div>
-    </div>
+    </section>
+
+    <!-- ==================== Final CTA ==================== -->
+    <section class="cta-section">
+        <div class="cta-card">
+            <h2>Ready to write your first line of code?</h2>
+            <p>Join CodeWix and start building today. Free, no credit card required.</p>
+            <a href="register.html" class="button">Create Free Account →</a>
+        </div>
+    </section>
 
     <footer>
-        <p>© 2026 CodeWix Learn to Code</p>
+        <p>© 2026 CodeWix — Learn to Code</p>
         <a href="tos.html">Terms and Conditions</a>
         <a href="privacy.html">Privacy Policy</a>
         <a href="about.html">About Us</a>
         <a href="contact.html">Contact Us</a>
     </footer>
+
 </body>
 </html>
