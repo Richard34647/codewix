@@ -2894,3 +2894,26 @@ li.CodeMirror-hint-active {
     .preview-area { height: 80vh; }
     .chat-container { max-height: 80vh; }
 }
+
+.publish-ai-btn {
+    background: #1e293b;
+    color: #34d399;
+    border: 1px solid #34d399;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.publish-ai-btn:hover {
+    background: #34d399;
+    color: #020617;
+}
+
+.publish-ai-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

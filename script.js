@@ -74,7 +74,6 @@ window.addEventListener('DOMContentLoaded', function () {
     return map[String(lang).toLowerCase()] || 'txt';
   }
 
-  // Auto-inject Learn link into non-studio navs
   document.querySelectorAll('nav').forEach(function (nav) {
     if (!nav.querySelector('a[href="learn.html"]') && !nav.classList.contains('studio-nav')) {
       var a = document.createElement('a');
@@ -85,7 +84,6 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // ---- Auth guard ------------------------------------------------------
   var path = location.pathname.toLowerCase();
   var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html', 'publish.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
@@ -103,7 +101,6 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // ---- Logout ----------------------------------------------------------
   function logout(e) {
     if (e) e.preventDefault();
     if (!auth) { location.href = 'login.html'; return; }
@@ -691,6 +688,8 @@ window.addEventListener('DOMContentLoaded', function () {
       content: [
         'You are the CodeWix AI Assistant — the built-in AI helper for the CodeWix platform. You help users learn to code, debug errors, build projects, and understand how to use CodeWix itself. Keep answers concise, practical, and friendly. When showing code, ALWAYS wrap it in triple-backtick fenced blocks with the language name (like ```javascript ... ```). Never paste code inline without a fence.',
         '',
+        'When a project needs multiple files, return each file in its own fenced code block with the correct language label (html, css, javascript). The user can publish all files together with one click.',
+        '',
         '=== ABOUT CODEWIX ===',
         'CodeWix is a free platform for learning to code. It combines a live IDE, an AI pair programmer, daily coding lessons, and one-click publishing. No paywall. No ads. Built solo by a developer learning in public.',
         '',
@@ -704,110 +703,63 @@ window.addEventListener('DOMContentLoaded', function () {
         '- Write HTML, CSS, and JavaScript in a real editor (CodeMirror) with autocomplete, syntax highlighting, line numbers, and auto-closing tags/brackets.',
         '- Live preview updates as you click "Build & Run".',
         '- Save projects to your account. Load them later. Rename, delete, download as ZIP.',
-        '- Download individual files or the whole project as a ZIP.',
         '- Share a read-only link to a project snapshot.',
-        '- Press Ctrl+S (or Cmd+S) to save quickly.',
-        '- Press Ctrl+Space in the editor to manually trigger autocomplete.',
+        '- Press Ctrl+S (or Cmd+S) to save quickly. Ctrl+Space triggers autocomplete.',
         '',
         '2. AI ASSISTANT (/ai-assistant.html)',
         '- Chat with an AI powered by GPT-OSS on Groq.',
-        '- Choose from models: openai/gpt-oss-120b (recommended), openai/gpt-oss-20b (fastest), qwen/qwen3.6-27b.',
+        '- Models: openai/gpt-oss-120b (recommended), openai/gpt-oss-20b (fastest), qwen/qwen3.6-27b.',
         '- Toggle "Thinking" to see the AI reasoning process before the answer.',
-        '- Every code block has: Copy, Download, and Send to Editor buttons.',
-        '- "Send to Editor" pushes the code straight into the correct file in your workspace (HTML to index.html, CSS to style.css, JS to script.js).',
-        '- Chat history is saved per user. Use "+ New Chat" to start fresh. Use the History button to browse past conversations.',
+        '- Every code block has: Publish, Send to Editor, Download, and Copy buttons.',
+        '- "Publish" saves the code as a project and takes you to the publish page.',
+        '- "Send to Editor" pushes the code into your workspace (HTML → index.html, CSS → style.css, JS → script.js).',
+        '- Chat history is saved per user. Use "+ New Chat" to start fresh. History button to browse past chats.',
         '- Rate limit: 50 AI messages per day per user. Resets at midnight UTC.',
         '',
         '3. DAILY LESSONS (/learn.html)',
-        '- 20 lessons covering: variables, data types, if/else, loops, functions, arrays, objects, HTML structure, CSS selectors, flexbox, grid, DOM manipulation, events, async/await, fetch, try/catch, classes, localStorage, and JSON.',
-        '- Each lesson has: a concept explanation, a runnable code example (with Copy button), an exercise, and a hint you can reveal.',
-        '- Progress tracking: mark lessons complete with the button at the bottom of each lesson.',
-        '- Daily streak: count of consecutive days you have opened the Learn page.',
-        '- A new lesson is featured each day, cycling through all 20.',
+        '- 20 lessons: variables, data types, if/else, loops, functions, arrays, objects, HTML structure, CSS selectors, flexbox, grid, DOM, events, async/await, fetch, try/catch, classes, localStorage, JSON.',
+        '- Each has a concept, runnable code example, exercise, and hint.',
+        '- Progress tracking with a Mark Complete button.',
+        '- Daily streak counter.',
         '',
         '4. PUBLISHING (/publish.html)',
         '- Publish any saved project to a live URL: https://codewi.onrender.com/s/YOUR-SLUG',
-        '- Pick a custom slug (3-32 characters, lowercase letters, numbers, hyphens).',
-        '- Once published, the site is publicly accessible to anyone.',
-        '- View counter on every published site.',
-        '- Update anytime: edit the project, go to Publish, use the same slug, and the URL stays the same.',
-        '- Unpublish anytime from the Publish page.',
-        '- Every published site shows a small "Built with CodeWix" badge linking back to CodeWix.',
+        '- Custom slug (3-32 chars, lowercase letters, numbers, hyphens).',
+        '- Publicly accessible, view counter, updatable anytime, unpublishable anytime.',
+        '- Every published site shows a "Built with CodeWix" badge.',
         '',
         '5. EXPLORE PAGE (/explore.html)',
-        '- Browse all publicly published sites from CodeWix users.',
-        '- Each card shows a live preview thumbnail, project name, description, author, view count, and last updated date.',
+        '- Browse all publicly published CodeWix sites with live previews.',
         '',
         '6. USER PROFILES (/u/USERNAME)',
         '- Every user with published sites has a public profile.',
-        '- Shows their published projects and total views.',
-        '- The username is derived from the email address (the part before @).',
         '',
         '=== ACCOUNT & AUTH ===',
-        '- Free to sign up. Email + password only.',
-        '- Email verification is required before logging in.',
-        '- If you do not receive the verification email, check spam. You can request a resend from the login page.',
-        '- Forgot password? Use the "Forgot password?" link on the login page. A reset link is emailed via Firebase.',
-        '- Sessions persist across page loads. Log out anytime with the "Exit Studio" button.',
+        '- Free signup, email + password. Email verification required before login.',
+        '- Forgot password: use the link on login page. Resend verification: button appears after failed login.',
         '',
         '=== GETTING STARTED ===',
         '1. Register at /register.html',
         '2. Verify your email',
         '3. Log in at /login.html',
-        '4. Start with /learn.html for lessons, or jump straight into /dashboard.html to code',
-        '5. When ready, publish your project at /publish.html',
+        '4. Start with /learn.html or /dashboard.html',
+        '5. Publish at /publish.html',
         '',
-        '=== ANSWERS TO COMMON QUESTIONS ===',
-        '',
-        'Q: Is CodeWix free?',
-        'A: Yes, completely free. No paywall, no premium tier, no credit card required.',
-        '',
-        'Q: How do I save my work?',
-        'A: Click "Save" in the workspace toolbar, or press Ctrl+S. You need to be logged in. Then use "My Projects" to reload it later.',
-        '',
-        'Q: How do I publish a website?',
-        'A: (1) Build a project in the workspace and Save it. (2) Go to /publish.html. (3) Pick the project, choose a slug, click Publish. You will get a URL like codewi.onrender.com/s/your-slug.',
-        '',
-        'Q: Can I use my own domain?',
-        'A: Not yet. This is on the roadmap. For now, every published site uses the /s/ path on CodeWix.',
-        '',
-        'Q: How many AI messages can I send?',
-        'A: 50 per day per account. Resets at midnight UTC.',
-        '',
-        'Q: What AI model do you use?',
-        'A: GPT-OSS 120B (recommended), GPT-OSS 20B (fastest), or Qwen 3.6 27B. All via Groq API.',
-        '',
-        'Q: How do I contact support?',
-        'A: Email codewix@proton.me, or use the Contact page at /contact.html.',
-        '',
-        'Q: Can I use CodeWix on my phone?',
-        'A: Yes, CodeWix is mobile responsive. Some features work better on desktop, but reading lessons and viewing published sites work great on mobile.',
-        '',
-        'Q: What programming languages can I use?',
-        'A: The workspace supports HTML, CSS, and JavaScript with live preview. The AI assistant can help with any language, but the workspace itself runs HTML/CSS/JS in the browser.',
-        '',
-        'Q: Is my code private?',
-        'A: Projects you save in the workspace are private to your account. Only sites you explicitly Publish become public.',
-        '',
-        'Q: Do I own what I build?',
-        'A: Yes. Everything you write is yours. We just store it for you.',
-        '',
-        'Q: Why is the AI sometimes slow?',
-        'A: Groq is one of the fastest providers, but you may hit cold-start delays on the free Render tier. Usually under 5 seconds.',
-        '',
-        'Q: What if a published site does not work?',
-        'A: Email codewix@proton.me with the slug (the URL part after /s/) and we will look into it.',
-        '',
-        'Q: Can I delete my account?',
-        'A: Email codewix@proton.me and we will remove your account and all associated data within 30 days.',
-        '',
-        'Q: Does CodeWix have ads or tracking?',
-        'A: No ads. No third-party trackers. Minimal data stored: email, projects, chat history, and site progress.',
+        '=== COMMON QUESTIONS ===',
+        'Q: Is CodeWix free? A: Yes, completely free.',
+        'Q: How do I save my work? A: Click Save or press Ctrl+S.',
+        'Q: How do I publish? A: Save a project, go to /publish.html, pick a slug, click Publish.',
+        'Q: Can I use my own domain? A: Not yet — roadmap item.',
+        'Q: AI message limit? A: 50/day per user, resets at midnight UTC.',
+        'Q: Contact support? A: codewix@proton.me or /contact.html.',
+        'Q: What languages? A: HTML, CSS, JavaScript with live preview.',
+        'Q: Is my code private? A: Yes until you Publish it.',
+        'Q: Delete my account? A: Email codewix@proton.me.',
         '',
         '=== TONE ===',
-        'Be encouraging. Beginners often feel stuck or embarrassed about simple questions — never make them feel that way. Explain errors in plain English. Give concrete examples. If someone asks about a feature that does not exist, say so honestly and suggest a workaround or the closest alternative.',
+        'Encouraging, never condescending. Explain errors in plain English. Beginners deserve respect. If a feature does not exist, say so honestly.',
         '',
-        'If a user asks about something you do not know and it is not covered above, say: "I do not have information on that. Try contacting codewix@proton.me or checking the Contact page."'
+        'If you do not know something, say: "I do not have information on that. Try contacting codewix@proton.me or checking the Contact page."'
       ].join('\n')
     };
 
@@ -878,7 +830,7 @@ window.addEventListener('DOMContentLoaded', function () {
       chatContainer.innerHTML =
         '<div class="chat-message assistant-message">' +
           '<div class="message-role">Assistant</div>' +
-          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. I can help you learn to code, debug errors, understand any part of the platform, or walk you through publishing a project. What would you like to work on?</div></div>' +
+          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. I can help you learn to code, debug errors, or build a project. Ask me to write anything — when you see a code block, you can publish it live with one click.</div></div>' +
         '</div>';
     }
 
@@ -898,6 +850,12 @@ window.addEventListener('DOMContentLoaded', function () {
     function renderContent(text) {
       var parts = String(text).split(/```/);
       var html = '';
+      // Count the code blocks first so we can label the publish button appropriately
+      var blockCount = 0;
+      for (var b = 1; b < parts.length; b += 2) {
+        if (parts[b] && parts[b].trim()) blockCount++;
+      }
+
       for (var i = 0; i < parts.length; i++) {
         if (i % 2 === 0) {
           var chunk = parts[i]; if (!chunk) continue;
@@ -910,11 +868,15 @@ window.addEventListener('DOMContentLoaded', function () {
             if (firstLine && !firstLine.match(/\s/) && firstLine.length < 20) { lang = firstLine; body = body.substring(nl + 1); }
           }
           body = body.replace(/\n$/, '');
+
+          var publishLabel = blockCount > 1 ? '🚀 Publish All' : '🚀 Publish';
+
           html +=
             '<div class="code-block" data-lang="' + escapeHtml(lang) + '">' +
               '<div class="code-header">' +
                 '<span class="code-lang">' + escapeHtml(lang) + '</span>' +
                 '<div class="code-actions">' +
+                  '<button type="button" class="publish-ai-btn" title="Save & publish this code to a live URL">' + publishLabel + '</button>' +
                   '<button type="button" class="send-to-editor-btn">⚡ Send to Editor</button>' +
                   '<button type="button" class="download-code-btn">⬇</button>' +
                   '<button type="button" class="copy-btn">Copy</button>' +
@@ -954,7 +916,98 @@ window.addEventListener('DOMContentLoaded', function () {
     function setStatus(msg) { if (chatStatus) chatStatus.textContent = msg; }
     function setLoading(l) { sendBtn.disabled = l; chatInput.disabled = l; sendBtn.textContent = l ? 'Thinking…' : 'Send'; }
 
+    // ---- Publish AI code as a project and jump to publish page ----------
+    async function publishAICode(clickedBtn) {
+      if (!authUser) { showToast('Please sign in first.', 'error'); return; }
+      if (!authUser.emailVerified) { showToast('Please verify your email first.', 'error'); return; }
+      if (!db) { showToast('Database not ready.', 'error'); return; }
+
+      var messageContent = clickedBtn.closest('.message-content');
+      if (!messageContent) return;
+      var blocks = messageContent.querySelectorAll('.code-block');
+      if (!blocks.length) { showToast('No code found.', 'error'); return; }
+
+      // Build files object from every code block in this message
+      var filesObj = {};
+      var usedNames = {};
+      var defaultNames = { 'html': 'index.html', 'xml': 'index.html', 'css': 'style.css', 'javascript': 'script.js', 'js': 'script.js' };
+
+      blocks.forEach(function (block) {
+        var lang = (block.getAttribute('data-lang') || 'code').toLowerCase();
+        var codeEl = block.querySelector('code');
+        if (!codeEl) return;
+        var code = codeEl.textContent;
+        if (!code.trim()) return;
+
+        var filename = defaultNames[lang];
+        if (!filename) filename = 'snippet.' + extensionForLang(lang);
+
+        // Handle duplicates — add a number suffix
+        if (usedNames[filename]) {
+          var lastDot = filename.lastIndexOf('.');
+          var base = filename.substring(0, lastDot);
+          var ext = filename.substring(lastDot);
+          var n = 2;
+          while (usedNames[base + '-' + n + ext]) n++;
+          filename = base + '-' + n + ext;
+        }
+        usedNames[filename] = true;
+        filesObj[filename] = code;
+      });
+
+      if (!Object.keys(filesObj).length) { showToast('No code to publish.', 'error'); return; }
+
+      // Disable the button while working
+      var origText = clickedBtn.textContent;
+      clickedBtn.disabled = true;
+      clickedBtn.textContent = 'Saving…';
+
+      // Name the project after the first heading or title found, else a timestamp
+      var projectName = 'AI Project';
+      var htmlContent = filesObj['index.html'] || '';
+      var titleMatch = htmlContent.match(/<title[^>]*>([^<]+)<\/title>/i);
+      var h1Match = htmlContent.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+      if (titleMatch && titleMatch[1].trim()) projectName = titleMatch[1].trim();
+      else if (h1Match && h1Match[1].trim()) projectName = h1Match[1].trim();
+      else projectName = 'AI Project — ' + new Date().toLocaleDateString();
+
+      try {
+        var activeFirst = Object.keys(filesObj)[0];
+        var payload = {
+          name: projectName,
+          files: filesObj,
+          activeFile: activeFirst,
+          fromAI: true,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        var ref = await db.collection('users').doc(authUser.uid).collection('projects').add(payload);
+
+        clickedBtn.textContent = '✓ Saved';
+        showToast('Project saved. Opening publish page…', 'success');
+
+        // Redirect to the publish page with this project preselected
+        setTimeout(function () {
+          location.href = 'publish.html?project=' + encodeURIComponent(ref.id);
+        }, 600);
+      } catch (err) {
+        console.error('[CodeWix] publish AI code failed:', err);
+        showToast('Save failed: ' + err.message, 'error');
+        clickedBtn.disabled = false;
+        clickedBtn.textContent = origText;
+      }
+    }
+
     chatContainer.addEventListener('click', function (e) {
+      // Publish button
+      var pubBtn = e.target.closest('.publish-ai-btn');
+      if (pubBtn) {
+        publishAICode(pubBtn);
+        return;
+      }
+
+      // Send to Editor
       var sendBtn2 = e.target.closest('.send-to-editor-btn');
       if (sendBtn2) {
         var block = sendBtn2.closest('.code-block'); if (!block) return;
@@ -968,6 +1021,8 @@ window.addEventListener('DOMContentLoaded', function () {
         } catch (err) { showToast('Failed: ' + err.message, 'error'); }
         return;
       }
+
+      // Download
       var dlBtn = e.target.closest('.download-code-btn');
       if (dlBtn) {
         var blk = dlBtn.closest('.code-block'); if (!blk) return;
@@ -978,6 +1033,8 @@ window.addEventListener('DOMContentLoaded', function () {
         dlBtn.textContent = '✓'; setTimeout(function () { dlBtn.textContent = '⬇'; }, 1500);
         return;
       }
+
+      // Copy
       var btn = e.target.closest('.copy-btn'); if (!btn) return;
       var blk2 = btn.closest('.code-block'); if (!blk2) return;
       var cEl2 = blk2.querySelector('code'); if (!cEl2) return;
