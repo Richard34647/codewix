@@ -148,7 +148,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
 });
 
 // ==========================================================================
-// API: Publish a project
+// API: Publish a project (with atomic slug reservation)
 // ==========================================================================
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files } = req.body || {};
@@ -160,42 +160,70 @@ app.post('/api/publish', requireAuth, async (req, res) => {
 
   const reserved = ['api', 'admin', 'www', 'app', 'dashboard', 'login', 'register',
                     'learn', 'explore', 'profile', 'about', 'contact', 'tos', 'privacy',
-                    'settings', 'help', 'support', 'blog', 'docs', 'auth', 'user'];
+                    'settings', 'help', 'support', 'blog', 'docs', 'auth', 'user',
+                    's', 'u', 'static', 'public', 'assets', 'favicon'];
   if (reserved.indexOf(slug) !== -1) {
     return res.status(400).json({ error: 'That name is reserved. Try another.' });
   }
 
+  const uid = req.user.uid;
+  const email = req.user.email || '';
+  const username = email.split('@')[0] || 'user';
+  const pubRef = admin.firestore().collection('published').doc(slug);
+
   try {
-    const pubRef = admin.firestore().collection('published').doc(slug);
-    const existing = await pubRef.get();
+    // Use a transaction — atomic check-and-write.
+    // Two users hitting "Publish" with the same slug at the same time
+    // cannot both succeed.
+    const result = await admin.firestore().runTransaction(async (tx) => {
+      const doc = await tx.get(pubRef);
 
-    if (existing.exists && existing.data().uid !== req.user.uid) {
-      return res.status(409).json({ error: 'That name is already taken by another user.' });
-    }
+      if (doc.exists) {
+        const existingUid = doc.data().uid;
+        if (existingUid !== uid) {
+          // Different user owns this slug — reject
+          throw new Error('SLUG_TAKEN');
+        }
+        // Same user — this is an update, keep existing metadata
+        tx.set(pubRef, {
+          uid: uid,
+          username: username,
+          slug: slug,
+          projectName: projectName || 'Untitled',
+          description: description || '',
+          files: files,
+          views: doc.data().views || 0,
+          publishedAt: doc.data().publishedAt || admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return { created: false };
+      }
 
-    const email = req.user.email || '';
-    const username = email.split('@')[0] || 'user';
-
-    const payload = {
-      uid: req.user.uid,
-      username: username,
-      slug: slug,
-      projectName: projectName || 'Untitled',
-      description: description || '',
-      files: files,
-      views: existing.exists ? (existing.data().views || 0) : 0,
-      publishedAt: existing.exists ? existing.data().publishedAt : admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    };
-
-    await pubRef.set(payload);
+      // Fresh publish — create the doc
+      tx.set(pubRef, {
+        uid: uid,
+        username: username,
+        slug: slug,
+        projectName: projectName || 'Untitled',
+        description: description || '',
+        files: files,
+        views: 0,
+        publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      return { created: true };
+    });
 
     res.json({
       ok: true,
+      created: result.created,
       url: '/s/' + slug,
       fullUrl: (req.protocol + '://' + req.get('host') + '/s/' + slug)
     });
   } catch (err) {
+    if (err.message === 'SLUG_TAKEN') {
+      return res.status(409).json({ error: 'That name is already taken. Try a different slug.' });
+    }
     console.error('[publish] error:', err);
     res.status(500).json({ error: err.message });
   }
