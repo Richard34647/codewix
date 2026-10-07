@@ -31,7 +31,6 @@ window.addEventListener('DOMContentLoaded', function () {
     } catch (err) { console.error('[CodeWix] init failed:', err); }
   }
 
-  // ---- Helpers ---------------------------------------------------------
   function $(id) { return document.getElementById(id); }
   function showError(el, msg) { if (el) { el.textContent = msg; el.style.display = 'block'; } else alert(msg); }
   function hideError(el) { if (el) el.style.display = 'none'; }
@@ -688,7 +687,7 @@ window.addEventListener('DOMContentLoaded', function () {
       content: [
         'You are the CodeWix AI Assistant — the built-in AI helper for the CodeWix platform. You help users learn to code, debug errors, build projects, and understand how to use CodeWix itself. Keep answers concise, practical, and friendly. When showing code, ALWAYS wrap it in triple-backtick fenced blocks with the language name (like ```javascript ... ```). Never paste code inline without a fence.',
         '',
-        'When a project needs multiple files, return each file in its own fenced code block with the correct language label (html, css, javascript). The user can publish all files together with one click.',
+        'When a user asks for a multi-page website, produce SEPARATE HTML files for each page (index.html, about.html, contact.html, etc.) and link them with RELATIVE links like <a href="about.html">About</a>. The user can publish all files at once, and every page will be served at its own URL.',
         '',
         '=== ABOUT CODEWIX ===',
         'CodeWix is a free platform for learning to code. It combines a live IDE, an AI pair programmer, daily coding lessons, and one-click publishing. No paywall. No ads. Built solo by a developer learning in public.',
@@ -712,7 +711,7 @@ window.addEventListener('DOMContentLoaded', function () {
         '- Toggle "Thinking" to see the AI reasoning process before the answer.',
         '- Every code block has: Publish, Send to Editor, Download, and Copy buttons.',
         '- "Publish" saves the code as a project and takes you to the publish page.',
-        '- "Send to Editor" pushes the code into your workspace (HTML → index.html, CSS → style.css, JS → script.js).',
+        '- "Send to Editor" pushes the code into your workspace.',
         '- Chat history is saved per user. Use "+ New Chat" to start fresh. History button to browse past chats.',
         '- Rate limit: 50 AI messages per day per user. Resets at midnight UTC.',
         '',
@@ -724,6 +723,7 @@ window.addEventListener('DOMContentLoaded', function () {
         '',
         '4. PUBLISHING (/publish.html)',
         '- Publish any saved project to a live URL: https://codewi.onrender.com/s/YOUR-SLUG',
+        '- Multi-file projects supported — every HTML page is served at /s/YOUR-SLUG/filename.html',
         '- Custom slug (3-32 chars, lowercase letters, numbers, hyphens).',
         '- Publicly accessible, view counter, updatable anytime, unpublishable anytime.',
         '- Every published site shows a "Built with CodeWix" badge.',
@@ -749,6 +749,7 @@ window.addEventListener('DOMContentLoaded', function () {
         'Q: Is CodeWix free? A: Yes, completely free.',
         'Q: How do I save my work? A: Click Save or press Ctrl+S.',
         'Q: How do I publish? A: Save a project, go to /publish.html, pick a slug, click Publish.',
+        'Q: Can I make a multi-page site? A: Yes — create separate .html files, link them with relative hrefs, publish all at once.',
         'Q: Can I use my own domain? A: Not yet — roadmap item.',
         'Q: AI message limit? A: 50/day per user, resets at midnight UTC.',
         'Q: Contact support? A: codewix@proton.me or /contact.html.',
@@ -850,7 +851,6 @@ window.addEventListener('DOMContentLoaded', function () {
     function renderContent(text) {
       var parts = String(text).split(/```/);
       var html = '';
-      // Count the code blocks first so we can label the publish button appropriately
       var blockCount = 0;
       for (var b = 1; b < parts.length; b += 2) {
         if (parts[b] && parts[b].trim()) blockCount++;
@@ -916,7 +916,6 @@ window.addEventListener('DOMContentLoaded', function () {
     function setStatus(msg) { if (chatStatus) chatStatus.textContent = msg; }
     function setLoading(l) { sendBtn.disabled = l; chatInput.disabled = l; sendBtn.textContent = l ? 'Thinking…' : 'Send'; }
 
-    // ---- Publish AI code as a project and jump to publish page ----------
     async function publishAICode(clickedBtn) {
       if (!authUser) { showToast('Please sign in first.', 'error'); return; }
       if (!authUser.emailVerified) { showToast('Please verify your email first.', 'error'); return; }
@@ -927,7 +926,6 @@ window.addEventListener('DOMContentLoaded', function () {
       var blocks = messageContent.querySelectorAll('.code-block');
       if (!blocks.length) { showToast('No code found.', 'error'); return; }
 
-      // Build files object from every code block in this message
       var filesObj = {};
       var usedNames = {};
       var defaultNames = { 'html': 'index.html', 'xml': 'index.html', 'css': 'style.css', 'javascript': 'script.js', 'js': 'script.js' };
@@ -942,7 +940,6 @@ window.addEventListener('DOMContentLoaded', function () {
         var filename = defaultNames[lang];
         if (!filename) filename = 'snippet.' + extensionForLang(lang);
 
-        // Handle duplicates — add a number suffix
         if (usedNames[filename]) {
           var lastDot = filename.lastIndexOf('.');
           var base = filename.substring(0, lastDot);
@@ -957,12 +954,10 @@ window.addEventListener('DOMContentLoaded', function () {
 
       if (!Object.keys(filesObj).length) { showToast('No code to publish.', 'error'); return; }
 
-      // Disable the button while working
       var origText = clickedBtn.textContent;
       clickedBtn.disabled = true;
       clickedBtn.textContent = 'Saving…';
 
-      // Name the project after the first heading or title found, else a timestamp
       var projectName = 'AI Project';
       var htmlContent = filesObj['index.html'] || '';
       var titleMatch = htmlContent.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -987,7 +982,6 @@ window.addEventListener('DOMContentLoaded', function () {
         clickedBtn.textContent = '✓ Saved';
         showToast('Project saved. Opening publish page…', 'success');
 
-        // Redirect to the publish page with this project preselected
         setTimeout(function () {
           location.href = 'publish.html?project=' + encodeURIComponent(ref.id);
         }, 600);
@@ -1000,14 +994,9 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     chatContainer.addEventListener('click', function (e) {
-      // Publish button
       var pubBtn = e.target.closest('.publish-ai-btn');
-      if (pubBtn) {
-        publishAICode(pubBtn);
-        return;
-      }
+      if (pubBtn) { publishAICode(pubBtn); return; }
 
-      // Send to Editor
       var sendBtn2 = e.target.closest('.send-to-editor-btn');
       if (sendBtn2) {
         var block = sendBtn2.closest('.code-block'); if (!block) return;
@@ -1022,7 +1011,6 @@ window.addEventListener('DOMContentLoaded', function () {
         return;
       }
 
-      // Download
       var dlBtn = e.target.closest('.download-code-btn');
       if (dlBtn) {
         var blk = dlBtn.closest('.code-block'); if (!blk) return;
@@ -1034,7 +1022,6 @@ window.addEventListener('DOMContentLoaded', function () {
         return;
       }
 
-      // Copy
       var btn = e.target.closest('.copy-btn'); if (!btn) return;
       var blk2 = btn.closest('.code-block'); if (!blk2) return;
       var cEl2 = blk2.querySelector('code'); if (!cEl2) return;

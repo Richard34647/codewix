@@ -15,6 +15,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 
+// ---- Firebase Admin init --------------------------------------------------
 try {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -53,6 +54,16 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
 
 app.use(express.json({ limit: '5mb' }));
 
+// ---- Helpers --------------------------------------------------------------
+function rewritePublishedLinks(html, slug) {
+  if (!html) return '';
+  return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:|\/))([^"']+)\2/gi, function (match, attr, quote, url) {
+    if (url.startsWith('/')) return match;
+    return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
+  });
+}
+
+// ---- Auth middleware ------------------------------------------------------
 async function requireAuth(req, res, next) {
   if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured.' });
   const header = req.headers.authorization || '';
@@ -66,6 +77,7 @@ async function requireAuth(req, res, next) {
   }
 }
 
+// ---- Rate limit -----------------------------------------------------------
 async function checkRateLimit(req, res, next) {
   const uid = req.user.uid;
   const today = new Date().toISOString().slice(0, 10);
@@ -90,6 +102,9 @@ function incrementUsage(ref, currentCount) {
     .catch(function (err) { console.error('[rate] increment failed:', err.message); });
 }
 
+// ==========================================================================
+// API: Rate limit status
+// ==========================================================================
 app.get('/api/rate-limit-status', requireAuth, async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const ref = admin.firestore().collection('users').doc(req.user.uid).collection('usage').doc(today);
@@ -100,6 +115,9 @@ app.get('/api/rate-limit-status', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================================================
+// API: Groq chat proxy
+// ==========================================================================
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Server is missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
@@ -129,6 +147,9 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
+// ==========================================================================
+// API: Publish a project
+// ==========================================================================
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files } = req.body || {};
 
@@ -180,6 +201,9 @@ app.post('/api/publish', requireAuth, async (req, res) => {
   }
 });
 
+// ==========================================================================
+// API: Unpublish
+// ==========================================================================
 app.post('/api/unpublish', requireAuth, async (req, res) => {
   const { slug } = req.body || {};
   if (!slug) return res.status(400).json({ error: 'slug is required.' });
@@ -193,6 +217,9 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================================================
+// API: My published sites
+// ==========================================================================
 app.get('/api/my-published', requireAuth, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published')
@@ -214,6 +241,9 @@ app.get('/api/my-published', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================================================
+// API: Explore all published sites
+// ==========================================================================
 app.get('/api/explore', async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published')
@@ -236,6 +266,9 @@ app.get('/api/explore', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================================================
+// API: User profile
+// ==========================================================================
 app.get('/api/user/:username', async (req, res) => {
   const username = req.params.username;
   try {
@@ -260,6 +293,9 @@ app.get('/api/user/:username', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================================================
+// API: Send verification email
+// ==========================================================================
 app.post('/api/send-verification-email', async (req, res) => {
   const { userEmail, userName, redirectUrl } = req.body || {};
   if (!userEmail) return res.status(400).json({ error: 'userEmail is required.' });
@@ -268,7 +304,7 @@ app.post('/api/send-verification-email', async (req, res) => {
 
   try {
     const actionCodeSettings = {
-      url: redirectUrl || 'https://codewix.com/verify.html',
+      url: redirectUrl || 'https://codewi.onrender.com/verify.html',
       handleCodeInApp: false
     };
     const verificationLink = await admin.auth().generateEmailVerificationLink(userEmail, actionCodeSettings);
@@ -285,6 +321,9 @@ app.post('/api/send-verification-email', async (req, res) => {
   }
 });
 
+// ==========================================================================
+// API: Contact form
+// ==========================================================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body || {};
   if (!name || !email || !subject || !message) return res.status(400).json({ error: 'All fields required.' });
@@ -304,6 +343,9 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
+// ==========================================================================
+// Route: /s/:slug — serve published homepage
+// ==========================================================================
 app.get('/s/:slug', async (req, res, next) => {
   const slug = req.params.slug;
   if (!admin.apps.length) return next();
@@ -317,13 +359,17 @@ app.get('/s/:slug', async (req, res, next) => {
 
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(function () {});
 
+    const composedHtml = rewritePublishedLinks(files['index.html'] || '', slug);
+    const composedCss = files['style.css'] || '';
+    const composedJs = files['script.js'] || '';
+
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
       '<title>' + (data.projectName || slug) + '</title>' +
-      '<style>' + (files['style.css'] || '') + '</style>' +
+      '<style>' + composedCss + '</style>' +
       '</head><body>' +
-      (files['index.html'] || '') +
-      '<script>' + (files['script.js'] || '') + '<\/script>' +
+      composedHtml +
+      '<script>' + composedJs + '<\/script>' +
       '<div style="position:fixed;bottom:12px;right:12px;z-index:99999;' +
       'background:rgba(2,6,23,0.9);color:#cbd5e1;padding:8px 14px;' +
       'border-radius:20px;font-family:Arial,sans-serif;font-size:12px;' +
@@ -339,23 +385,85 @@ app.get('/s/:slug', async (req, res, next) => {
   }
 });
 
+// ==========================================================================
+// Route: /s/:slug/:filename — serve individual files of a published site
+// ==========================================================================
+app.get('/s/:slug/:filename', async (req, res, next) => {
+  const slug = req.params.slug;
+  const filename = req.params.filename;
+  if (!admin.apps.length) return next();
+
+  try {
+    const doc = await admin.firestore().collection('published').doc(slug).get();
+    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+
+    const data = doc.data();
+    const files = data.files || {};
+
+    const fileContent = files[filename];
+    if (fileContent === undefined) {
+      return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    }
+
+    const ext = path.extname(filename).toLowerCase();
+    const types = {
+      '.html': 'text/html; charset=utf-8',
+      '.htm':  'text/html; charset=utf-8',
+      '.css':  'text/css; charset=utf-8',
+      '.js':   'text/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.txt':  'text/plain; charset=utf-8',
+      '.svg':  'image/svg+xml',
+      '.png':  'image/png',
+      '.jpg':  'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif':  'image/gif',
+      '.webp': 'image/webp'
+    };
+
+    let finalContent = fileContent;
+    if (ext === '.html' || ext === '.htm') {
+      finalContent = rewritePublishedLinks(fileContent, slug);
+    }
+
+    res.type(types[ext] || 'text/plain; charset=utf-8').send(finalContent);
+  } catch (err) {
+    console.error('[s/:slug/:filename] error:', err);
+    next();
+  }
+});
+
+// ==========================================================================
+// Route: /u/:username — profile page
+// ==========================================================================
 app.get('/u/:username', function (req, res) {
   res.sendFile(path.join(__dirname, 'profile.html'));
 });
 
+// ==========================================================================
+// Fallback for unknown API routes
+// ==========================================================================
 app.use('/api', function (req, res) {
   res.status(404).json({ error: 'Unknown API route.' });
 });
 
+// ---- Static files ---------------------------------------------------------
 app.use(express.static(path.join(__dirname)));
 
+// ---- 404 fallback ---------------------------------------------------------
 app.use(function (req, res) {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
 
+// ---- Start ----------------------------------------------------------------
 app.listen(PORT, '0.0.0.0', function () {
   console.log('\n✅ CodeWix running on port ' + PORT);
-  console.log('   GROQ:      ' + (GROQ_API_KEY ? 'YES ✔' : 'NO ❌'));
-  console.log('   EmailJS:   ' + (emailjsReady ? 'YES ✔' : 'NO ❌'));
-  console.log('   FB Admin:  ' + (admin.apps.length ? 'YES ✔' : 'NO ❌') + '\n');
+  console.log('   Chat:        POST /api/chat');
+  console.log('   Publish:     POST /api/publish');
+  console.log('   Explore:     GET  /api/explore');
+  console.log('   Profiles:    GET  /api/user/:username');
+  console.log('   Site hosting: GET  /s/:slug and /s/:slug/:filename');
+  console.log('   GROQ:        ' + (GROQ_API_KEY ? 'YES ✔' : 'NO ❌'));
+  console.log('   EmailJS:     ' + (emailjsReady ? 'YES ✔' : 'NO ❌'));
+  console.log('   FB Admin:    ' + (admin.apps.length ? 'YES ✔' : 'NO ❌') + '\n');
 });
