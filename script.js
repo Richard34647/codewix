@@ -250,15 +250,23 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Sandbox IDE (dashboard.html) — with CodeMirror
   // ======================================================================
-  // ---- CodeMirror setup -----------------------------------------------
   var cm = null;
   var codeEditor = null;
 
   (function initCodeMirror() {
     var sourceEl = $('codeEditorSource');
     if (!sourceEl || typeof CodeMirror === 'undefined') {
-      console.warn('[CodeWix] CodeMirror not loaded — falling back to basic editor.');
+      console.warn('[CodeWix] CodeMirror not loaded — falling back.');
       if (sourceEl) {
+        sourceEl.style.display = 'block';
+        sourceEl.style.width = '100%';
+        sourceEl.style.height = '100%';
+        sourceEl.style.background = '#020617';
+        sourceEl.style.color = '#e2e8f0';
+        sourceEl.style.border = 'none';
+        sourceEl.style.padding = '16px';
+        sourceEl.style.fontFamily = "'Courier New', monospace";
+        sourceEl.style.fontSize = '14px';
         codeEditor = {
           get value() { return sourceEl.value; },
           set value(v) { sourceEl.value = v == null ? '' : String(v); },
@@ -295,7 +303,6 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // Auto-trigger autocomplete on chars that usually start a completion
     cm.on('inputRead', function (editor, change) {
       if (!change.text || !change.text[0]) return;
       var ch = change.text[0];
@@ -314,26 +321,19 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // Compatibility shim — makes CodeMirror look like the old textarea
     codeEditor = {
       get value() { return cm.getValue(); },
       set value(v) { cm.setValue(v == null ? '' : String(v)); },
       addEventListener: function (evt, fn) {
-        if (evt === 'input' || evt === 'change') {
-          cm.on('change', function () { fn(); });
-        } else if (evt === 'focus') {
-          cm.on('focus', function () { fn(); });
-        } else if (evt === 'keydown') {
-          cm.getWrapperElement().addEventListener('keydown', fn);
-        } else if (evt === 'keyup') {
-          cm.getWrapperElement().addEventListener('keyup', fn);
-        }
+        if (evt === 'input' || evt === 'change') cm.on('change', function () { fn(); });
+        else if (evt === 'focus') cm.on('focus', function () { fn(); });
+        else if (evt === 'keydown') cm.getWrapperElement().addEventListener('keydown', fn);
+        else if (evt === 'keyup') cm.getWrapperElement().addEventListener('keyup', fn);
       },
       focus: function () { cm.focus(); },
       _cm: cm
     };
 
-    // Mode switcher based on file extension
     window.__codewixSetEditorMode = function (filename) {
       if (!cm) return;
       var mode = 'htmlmixed';
@@ -347,7 +347,6 @@ window.addEventListener('DOMContentLoaded', function () {
     console.log('[CodeWix] CodeMirror initialized ✔');
   })();
 
-  // ---- IDE variables ---------------------------------------------------
   var runCodeBtn       = $('runCodeBtn');
   var livePreviewFrame = $('livePreviewFrame');
   var currentFileLabel = $('currentFileLabel');
@@ -402,10 +401,6 @@ window.addEventListener('DOMContentLoaded', function () {
         fileTreeList.appendChild(li);
       });
       if (currentFileLabel) currentFileLabel.textContent = activeFile;
-    }
-
-    function updateGutter() {
-      // Legacy no-op — CodeMirror handles its own line numbers now.
     }
 
     function renderPreview() {
@@ -650,7 +645,6 @@ window.addEventListener('DOMContentLoaded', function () {
       if (lastSavedSnapshot !== null && lastSavedSnapshot !== snapshot()) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    // Receive AI snippet
     var pending = null;
     try { pending = JSON.parse(localStorage.getItem('codewix_pending_snippet') || 'null'); } catch (e) {}
     if (pending && pending.code) {
@@ -694,7 +688,127 @@ window.addEventListener('DOMContentLoaded', function () {
     var API_URL = '/api/chat';
     var SYSTEM_PROMPT = {
       role: 'system',
-      content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name.'
+      content: [
+        'You are the CodeWix AI Assistant — the built-in AI helper for the CodeWix platform. You help users learn to code, debug errors, build projects, and understand how to use CodeWix itself. Keep answers concise, practical, and friendly. When showing code, ALWAYS wrap it in triple-backtick fenced blocks with the language name (like ```javascript ... ```). Never paste code inline without a fence.',
+        '',
+        '=== ABOUT CODEWIX ===',
+        'CodeWix is a free platform for learning to code. It combines a live IDE, an AI pair programmer, daily coding lessons, and one-click publishing. No paywall. No ads. Built solo by a developer learning in public.',
+        '',
+        'Website: https://codewi.onrender.com',
+        'Support email: codewix@proton.me',
+        'X (Twitter): @CodeWixi9gv',
+        '',
+        '=== FEATURES ===',
+        '',
+        '1. LIVE IDE WORKSPACE (/dashboard.html)',
+        '- Write HTML, CSS, and JavaScript in a real editor (CodeMirror) with autocomplete, syntax highlighting, line numbers, and auto-closing tags/brackets.',
+        '- Live preview updates as you click "Build & Run".',
+        '- Save projects to your account. Load them later. Rename, delete, download as ZIP.',
+        '- Download individual files or the whole project as a ZIP.',
+        '- Share a read-only link to a project snapshot.',
+        '- Press Ctrl+S (or Cmd+S) to save quickly.',
+        '- Press Ctrl+Space in the editor to manually trigger autocomplete.',
+        '',
+        '2. AI ASSISTANT (/ai-assistant.html)',
+        '- Chat with an AI powered by GPT-OSS on Groq.',
+        '- Choose from models: openai/gpt-oss-120b (recommended), openai/gpt-oss-20b (fastest), qwen/qwen3.6-27b.',
+        '- Toggle "Thinking" to see the AI reasoning process before the answer.',
+        '- Every code block has: Copy, Download, and Send to Editor buttons.',
+        '- "Send to Editor" pushes the code straight into the correct file in your workspace (HTML to index.html, CSS to style.css, JS to script.js).',
+        '- Chat history is saved per user. Use "+ New Chat" to start fresh. Use the History button to browse past conversations.',
+        '- Rate limit: 50 AI messages per day per user. Resets at midnight UTC.',
+        '',
+        '3. DAILY LESSONS (/learn.html)',
+        '- 20 lessons covering: variables, data types, if/else, loops, functions, arrays, objects, HTML structure, CSS selectors, flexbox, grid, DOM manipulation, events, async/await, fetch, try/catch, classes, localStorage, and JSON.',
+        '- Each lesson has: a concept explanation, a runnable code example (with Copy button), an exercise, and a hint you can reveal.',
+        '- Progress tracking: mark lessons complete with the button at the bottom of each lesson.',
+        '- Daily streak: count of consecutive days you have opened the Learn page.',
+        '- A new lesson is featured each day, cycling through all 20.',
+        '',
+        '4. PUBLISHING (/publish.html)',
+        '- Publish any saved project to a live URL: https://codewi.onrender.com/s/YOUR-SLUG',
+        '- Pick a custom slug (3-32 characters, lowercase letters, numbers, hyphens).',
+        '- Once published, the site is publicly accessible to anyone.',
+        '- View counter on every published site.',
+        '- Update anytime: edit the project, go to Publish, use the same slug, and the URL stays the same.',
+        '- Unpublish anytime from the Publish page.',
+        '- Every published site shows a small "Built with CodeWix" badge linking back to CodeWix.',
+        '',
+        '5. EXPLORE PAGE (/explore.html)',
+        '- Browse all publicly published sites from CodeWix users.',
+        '- Each card shows a live preview thumbnail, project name, description, author, view count, and last updated date.',
+        '',
+        '6. USER PROFILES (/u/USERNAME)',
+        '- Every user with published sites has a public profile.',
+        '- Shows their published projects and total views.',
+        '- The username is derived from the email address (the part before @).',
+        '',
+        '=== ACCOUNT & AUTH ===',
+        '- Free to sign up. Email + password only.',
+        '- Email verification is required before logging in.',
+        '- If you do not receive the verification email, check spam. You can request a resend from the login page.',
+        '- Forgot password? Use the "Forgot password?" link on the login page. A reset link is emailed via Firebase.',
+        '- Sessions persist across page loads. Log out anytime with the "Exit Studio" button.',
+        '',
+        '=== GETTING STARTED ===',
+        '1. Register at /register.html',
+        '2. Verify your email',
+        '3. Log in at /login.html',
+        '4. Start with /learn.html for lessons, or jump straight into /dashboard.html to code',
+        '5. When ready, publish your project at /publish.html',
+        '',
+        '=== ANSWERS TO COMMON QUESTIONS ===',
+        '',
+        'Q: Is CodeWix free?',
+        'A: Yes, completely free. No paywall, no premium tier, no credit card required.',
+        '',
+        'Q: How do I save my work?',
+        'A: Click "Save" in the workspace toolbar, or press Ctrl+S. You need to be logged in. Then use "My Projects" to reload it later.',
+        '',
+        'Q: How do I publish a website?',
+        'A: (1) Build a project in the workspace and Save it. (2) Go to /publish.html. (3) Pick the project, choose a slug, click Publish. You will get a URL like codewi.onrender.com/s/your-slug.',
+        '',
+        'Q: Can I use my own domain?',
+        'A: Not yet. This is on the roadmap. For now, every published site uses the /s/ path on CodeWix.',
+        '',
+        'Q: How many AI messages can I send?',
+        'A: 50 per day per account. Resets at midnight UTC.',
+        '',
+        'Q: What AI model do you use?',
+        'A: GPT-OSS 120B (recommended), GPT-OSS 20B (fastest), or Qwen 3.6 27B. All via Groq API.',
+        '',
+        'Q: How do I contact support?',
+        'A: Email codewix@proton.me, or use the Contact page at /contact.html.',
+        '',
+        'Q: Can I use CodeWix on my phone?',
+        'A: Yes, CodeWix is mobile responsive. Some features work better on desktop, but reading lessons and viewing published sites work great on mobile.',
+        '',
+        'Q: What programming languages can I use?',
+        'A: The workspace supports HTML, CSS, and JavaScript with live preview. The AI assistant can help with any language, but the workspace itself runs HTML/CSS/JS in the browser.',
+        '',
+        'Q: Is my code private?',
+        'A: Projects you save in the workspace are private to your account. Only sites you explicitly Publish become public.',
+        '',
+        'Q: Do I own what I build?',
+        'A: Yes. Everything you write is yours. We just store it for you.',
+        '',
+        'Q: Why is the AI sometimes slow?',
+        'A: Groq is one of the fastest providers, but you may hit cold-start delays on the free Render tier. Usually under 5 seconds.',
+        '',
+        'Q: What if a published site does not work?',
+        'A: Email codewix@proton.me with the slug (the URL part after /s/) and we will look into it.',
+        '',
+        'Q: Can I delete my account?',
+        'A: Email codewix@proton.me and we will remove your account and all associated data within 30 days.',
+        '',
+        'Q: Does CodeWix have ads or tracking?',
+        'A: No ads. No third-party trackers. Minimal data stored: email, projects, chat history, and site progress.',
+        '',
+        '=== TONE ===',
+        'Be encouraging. Beginners often feel stuck or embarrassed about simple questions — never make them feel that way. Explain errors in plain English. Give concrete examples. If someone asks about a feature that does not exist, say so honestly and suggest a workaround or the closest alternative.',
+        '',
+        'If a user asks about something you do not know and it is not covered above, say: "I do not have information on that. Try contacting codewix@proton.me or checking the Contact page."'
+      ].join('\n')
     };
 
     var conversation = [SYSTEM_PROMPT];
@@ -764,7 +878,7 @@ window.addEventListener('DOMContentLoaded', function () {
       chatContainer.innerHTML =
         '<div class="chat-message assistant-message">' +
           '<div class="message-role">Assistant</div>' +
-          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. Ask me to explain code, debug an error, or help you build a project.</div></div>' +
+          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. I can help you learn to code, debug errors, understand any part of the platform, or walk you through publishing a project. What would you like to work on?</div></div>' +
         '</div>';
     }
 
