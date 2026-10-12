@@ -9,22 +9,10 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
-
-    <!-- CodeMirror styles -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
-
     <link rel="stylesheet" href="style.css">
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-RPX2BV738C"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-RPX2BV738C');
-</script>
 </head>
 <body>
 
@@ -35,6 +23,7 @@
         </div>
         <nav class="studio-nav">
             <a href="dashboard.html" class="active">Workspace</a>
+            <a href="components.html">Components</a>
             <a href="learn.html">Learn</a>
             <a href="ai-assistance.html">AI Assistant</a>
             <a href="explore.html">Explore</a>
@@ -50,7 +39,7 @@
         <aside class="file-explorer">
             <div class="panel-header">
                 <h3>Files</h3>
-                <button class="action-icon-btn" id="newFileBtn" title="Create New File">+</button>
+                <button class="action-icon-btn" id="newFileBtn">+</button>
             </div>
             <ul class="file-list" id="fileTreeList">
                 <li class="file-item active" data-filename="index.html">🌐 index.html</li>
@@ -72,7 +61,7 @@
                     <button class="studio-btn" id="downloadFileBtn">⬇ Download File</button>
                     <button class="studio-btn" id="downloadZipBtn">📦 Download All</button>
                     <button class="studio-btn" id="shareProjectBtn">🔗 Share</button>
-                    <a href="publish.html" class="studio-btn" id="publishBtn" title="Publish as a live site">🚀 Publish</a>
+                    <a href="publish.html" class="studio-btn">🚀 Publish</a>
                     <button class="studio-btn primary-btn" id="runCodeBtn">Build &amp; Run</button>
                 </div>
             </div>
@@ -104,7 +93,6 @@
         </div>
     </footer>
 
-    <!-- Projects Modal -->
     <div class="modal-backdrop" id="projectsModal" style="display:none;">
         <div class="modal">
             <div class="modal-header">
@@ -117,10 +105,7 @@
         </div>
     </div>
 
-    <!-- JSZip -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
-    <!-- CodeMirror core + modes + addons (matchtags removed) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
@@ -133,12 +118,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closetag.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
-
-    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-
     <script src="script.js"></script>
 </body>
 </html>

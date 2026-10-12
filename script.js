@@ -244,7 +244,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Sandbox IDE (dashboard.html) — with CodeMirror
+  // Sandbox IDE — CodeMirror editor
   // ======================================================================
   var cm = null;
   var codeEditor = null;
@@ -293,27 +293,20 @@ window.addEventListener('DOMContentLoaded', function () {
           else editor.replaceSelection('  ');
         }
       },
-      hintOptions: {
-        completeSingle: false,
-        alignWithWord: true
-      }
+      hintOptions: { completeSingle: false, alignWithWord: true }
     });
 
     cm.on('inputRead', function (editor, change) {
       if (!change.text || !change.text[0]) return;
       var ch = change.text[0];
       if (/[<>\/=.:"\-]/.test(ch)) {
-        if (!editor.state.completionActive) {
-          editor.showHint({ completeSingle: false });
-        }
+        if (!editor.state.completionActive) editor.showHint({ completeSingle: false });
         return;
       }
       var cursor = editor.getCursor();
       var line = editor.getLine(cursor.line);
       if (cursor.ch > 1 && /[a-zA-Z0-9_-]/.test(ch) && /\s/.test(line.charAt(cursor.ch - 2))) {
-        if (!editor.state.completionActive) {
-          editor.showHint({ completeSingle: false });
-        }
+        if (!editor.state.completionActive) editor.showHint({ completeSingle: false });
       }
     });
 
@@ -403,10 +396,11 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!livePreviewFrame) return;
       if (codeEditor) files[activeFile] = codeEditor.value;
       livePreviewFrame.srcdoc =
-        '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-        (files['style.css'] || '') + '</style></head><body>' +
-        (files['index.html'] || '') + '<script>' +
-        (files['script.js'] || '') + '<\/script></body></html>';
+        '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+        '<style>' + (files['style.css'] || '') + '</style></head><body>' +
+        (files['index.html'] || '') +
+        '<script>' + (files['script.js'] || '') + '<\/script></body></html>';
     }
 
     function loadFilesIntoEditor(newFiles, projectId, projectName, shareId) {
@@ -687,80 +681,53 @@ window.addEventListener('DOMContentLoaded', function () {
       content: [
         'You are the CodeWix AI Assistant — the built-in AI helper for the CodeWix platform. You help users learn to code, debug errors, build projects, and understand how to use CodeWix itself. Keep answers concise, practical, and friendly. When showing code, ALWAYS wrap it in triple-backtick fenced blocks with the language name (like ```javascript ... ```). Never paste code inline without a fence.',
         '',
-        'When a user asks for a multi-page website, produce SEPARATE HTML files for each page (index.html, about.html, contact.html, etc.) and link them with RELATIVE links like <a href="about.html">About</a>. The user can publish all files at once, and every page will be served at its own URL.',
+        'When a user asks for a multi-page website, produce SEPARATE HTML files and link them with RELATIVE links like <a href="about.html">About</a>. The user can publish all files at once, and every page will be served at its own URL.',
         '',
         '=== ABOUT CODEWIX ===',
-        'CodeWix is a free platform for learning to code. It combines a live IDE, an AI pair programmer, daily coding lessons, and one-click publishing. No paywall. No ads. Built solo by a developer learning in public.',
+        'CodeWix is a free platform for learning to code. It combines a live IDE, an AI pair programmer, daily coding lessons, and one-click publishing. No paywall. No ads.',
         '',
         'Website: https://codewi.onrender.com',
         'Support email: codewix@proton.me',
-        'X (Twitter): @CodeWixi9gv',
         '',
         '=== FEATURES ===',
         '',
-        '1. LIVE IDE WORKSPACE (/dashboard.html)',
-        '- Write HTML, CSS, and JavaScript in a real editor (CodeMirror) with autocomplete, syntax highlighting, line numbers, and auto-closing tags/brackets.',
-        '- Live preview updates as you click "Build & Run".',
-        '- Save projects to your account. Load them later. Rename, delete, download as ZIP.',
-        '- Share a read-only link to a project snapshot.',
-        '- Press Ctrl+S (or Cmd+S) to save quickly. Ctrl+Space triggers autocomplete.',
+        '1. WORKSPACE (/dashboard.html)',
+        '- Write HTML, CSS, JavaScript with autocomplete, syntax highlighting, line numbers.',
+        '- Live preview updates on "Build & Run".',
+        '- Save projects, download as ZIP, share read-only links.',
+        '- Ctrl+S saves. Ctrl+Space triggers autocomplete.',
         '',
         '2. AI ASSISTANT (/ai-assistant.html)',
-        '- Chat with an AI powered by GPT-OSS on Groq.',
-        '- Models: openai/gpt-oss-120b (recommended), openai/gpt-oss-20b (fastest), qwen/qwen3.6-27b.',
-        '- Toggle "Thinking" to see the AI reasoning process before the answer.',
-        '- Every code block has: Publish, Send to Editor, Download, and Copy buttons.',
-        '- "Publish" saves the code as a project and takes you to the publish page.',
-        '- "Send to Editor" pushes the code into your workspace.',
-        '- Chat history is saved per user. Use "+ New Chat" to start fresh. History button to browse past chats.',
-        '- Rate limit: 50 AI messages per day per user. Resets at midnight UTC.',
+        '- Chat with GPT-OSS on Groq.',
+        '- Models: openai/gpt-oss-120b, openai/gpt-oss-20b, qwen/qwen3.6-27b.',
+        '- "Thinking" toggle shows reasoning.',
+        '- Code blocks have: Publish, Send to Editor, Download, Copy.',
+        '- Chat history saved per user.',
+        '- Rate limit: 50 messages/day.',
         '',
-        '3. DAILY LESSONS (/learn.html)',
-        '- 20 lessons: variables, data types, if/else, loops, functions, arrays, objects, HTML structure, CSS selectors, flexbox, grid, DOM, events, async/await, fetch, try/catch, classes, localStorage, JSON.',
-        '- Each has a concept, runnable code example, exercise, and hint.',
-        '- Progress tracking with a Mark Complete button.',
-        '- Daily streak counter.',
+        '3. LESSONS (/learn.html)',
+        '- 20 lessons from variables to JSON.',
+        '- Progress tracking and daily streak.',
         '',
         '4. PUBLISHING (/publish.html)',
-        '- Publish any saved project to a live URL: https://codewi.onrender.com/s/YOUR-SLUG',
-        '- Multi-file projects supported — every HTML page is served at /s/YOUR-SLUG/filename.html',
-        '- Custom slug (3-32 chars, lowercase letters, numbers, hyphens).',
-        '- Publicly accessible, view counter, updatable anytime, unpublishable anytime.',
-        '- Every published site shows a "Built with CodeWix" badge.',
+        '- Publish any project to codewi.onrender.com/s/YOUR-SLUG',
+        '- Multi-file sites supported.',
         '',
-        '5. EXPLORE PAGE (/explore.html)',
-        '- Browse all publicly published CodeWix sites with live previews.',
+        '5. COMPONENTS (/components.html)',
+        '- 30+ ready-made UI components to copy or send to the workspace.',
         '',
-        '6. USER PROFILES (/u/USERNAME)',
-        '- Every user with published sites has a public profile.',
-        '',
-        '=== ACCOUNT & AUTH ===',
-        '- Free signup, email + password. Email verification required before login.',
-        '- Forgot password: use the link on login page. Resend verification: button appears after failed login.',
-        '',
-        '=== GETTING STARTED ===',
-        '1. Register at /register.html',
-        '2. Verify your email',
-        '3. Log in at /login.html',
-        '4. Start with /learn.html or /dashboard.html',
-        '5. Publish at /publish.html',
+        '6. EXPLORE (/explore.html) — Browse published sites.',
         '',
         '=== COMMON QUESTIONS ===',
         'Q: Is CodeWix free? A: Yes, completely free.',
-        'Q: How do I save my work? A: Click Save or press Ctrl+S.',
-        'Q: How do I publish? A: Save a project, go to /publish.html, pick a slug, click Publish.',
-        'Q: Can I make a multi-page site? A: Yes — create separate .html files, link them with relative hrefs, publish all at once.',
-        'Q: Can I use my own domain? A: Not yet — roadmap item.',
-        'Q: AI message limit? A: 50/day per user, resets at midnight UTC.',
-        'Q: Contact support? A: codewix@proton.me or /contact.html.',
-        'Q: What languages? A: HTML, CSS, JavaScript with live preview.',
-        'Q: Is my code private? A: Yes until you Publish it.',
-        'Q: Delete my account? A: Email codewix@proton.me.',
+        'Q: How do I save? A: Click Save or press Ctrl+S.',
+        'Q: How do I publish? A: Save a project, go to /publish.html, pick a slug.',
+        'Q: AI limit? A: 50/day per user.',
+        'Q: Contact? A: codewix@proton.me',
         '',
         '=== TONE ===',
-        'Encouraging, never condescending. Explain errors in plain English. Beginners deserve respect. If a feature does not exist, say so honestly.',
-        '',
-        'If you do not know something, say: "I do not have information on that. Try contacting codewix@proton.me or checking the Contact page."'
+        'Encouraging, never condescending. Explain errors in plain English.',
+        'If you do not know something, say: "I do not have information on that. Try codewix@proton.me."'
       ].join('\n')
     };
 
@@ -831,7 +798,7 @@ window.addEventListener('DOMContentLoaded', function () {
       chatContainer.innerHTML =
         '<div class="chat-message assistant-message">' +
           '<div class="message-role">Assistant</div>' +
-          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. I can help you learn to code, debug errors, or build a project. Ask me to write anything — when you see a code block, you can publish it live with one click.</div></div>' +
+          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. Ask me to write anything — when you see a code block, you can publish it live with one click.</div></div>' +
         '</div>';
     }
 
@@ -868,7 +835,6 @@ window.addEventListener('DOMContentLoaded', function () {
             if (firstLine && !firstLine.match(/\s/) && firstLine.length < 20) { lang = firstLine; body = body.substring(nl + 1); }
           }
           body = body.replace(/\n$/, '');
-
           var publishLabel = blockCount > 1 ? '🚀 Publish All' : '🚀 Publish';
 
           html +=
@@ -876,7 +842,7 @@ window.addEventListener('DOMContentLoaded', function () {
               '<div class="code-header">' +
                 '<span class="code-lang">' + escapeHtml(lang) + '</span>' +
                 '<div class="code-actions">' +
-                  '<button type="button" class="publish-ai-btn" title="Save & publish this code to a live URL">' + publishLabel + '</button>' +
+                  '<button type="button" class="publish-ai-btn">' + publishLabel + '</button>' +
                   '<button type="button" class="send-to-editor-btn">⚡ Send to Editor</button>' +
                   '<button type="button" class="download-code-btn">⬇</button>' +
                   '<button type="button" class="copy-btn">Copy</button>' +
@@ -917,8 +883,8 @@ window.addEventListener('DOMContentLoaded', function () {
     function setLoading(l) { sendBtn.disabled = l; chatInput.disabled = l; sendBtn.textContent = l ? 'Thinking…' : 'Send'; }
 
     async function publishAICode(clickedBtn) {
-      if (!authUser) { showToast('Please sign in first.', 'error'); return; }
-      if (!authUser.emailVerified) { showToast('Please verify your email first.', 'error'); return; }
+      if (!authUser) { showToast('Sign in first.', 'error'); return; }
+      if (!authUser.emailVerified) { showToast('Verify your email first.', 'error'); return; }
       if (!db) { showToast('Database not ready.', 'error'); return; }
 
       var messageContent = clickedBtn.closest('.message-content');
@@ -955,8 +921,7 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!Object.keys(filesObj).length) { showToast('No code to publish.', 'error'); return; }
 
       var origText = clickedBtn.textContent;
-      clickedBtn.disabled = true;
-      clickedBtn.textContent = 'Saving…';
+      clickedBtn.disabled = true; clickedBtn.textContent = 'Saving…';
 
       var projectName = 'AI Project';
       var htmlContent = filesObj['index.html'] || '';
@@ -969,27 +934,19 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         var activeFirst = Object.keys(filesObj)[0];
         var payload = {
-          name: projectName,
-          files: filesObj,
-          activeFile: activeFirst,
+          name: projectName, files: filesObj, activeFile: activeFirst,
           fromAI: true,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-
         var ref = await db.collection('users').doc(authUser.uid).collection('projects').add(payload);
-
         clickedBtn.textContent = '✓ Saved';
         showToast('Project saved. Opening publish page…', 'success');
-
-        setTimeout(function () {
-          location.href = 'publish.html?project=' + encodeURIComponent(ref.id);
-        }, 600);
+        setTimeout(function () { location.href = 'publish.html?project=' + encodeURIComponent(ref.id); }, 600);
       } catch (err) {
         console.error('[CodeWix] publish AI code failed:', err);
         showToast('Save failed: ' + err.message, 'error');
-        clickedBtn.disabled = false;
-        clickedBtn.textContent = origText;
+        clickedBtn.disabled = false; clickedBtn.textContent = origText;
       }
     }
 
@@ -1155,7 +1112,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Learn page (learn.html)
+  // Learn page
   // ======================================================================
   var lessonTitle   = $('lessonTitle');
   var lessonBody    = $('lessonBody');
@@ -1407,7 +1364,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Explore page (explore.html)
+  // Explore page
   // ======================================================================
   var exploreGrid = $('exploreGrid');
   if (exploreGrid) {
@@ -1460,7 +1417,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Profile page (profile.html)
+  // Profile page
   // ======================================================================
   var profileGrid = $('profileGrid');
   if (profileGrid) {
@@ -1527,7 +1484,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Publish Page (publish.html)
+  // Publish Page
   // ======================================================================
   var publishForm = $('publishForm');
   if (publishForm) {
@@ -1548,26 +1505,21 @@ window.addEventListener('DOMContentLoaded', function () {
     function loadProjects() {
       if (!db || !auth || !auth.currentUser) return;
       db.collection('users').doc(auth.currentUser.uid).collection('projects')
-        .orderBy('updatedAt', 'desc')
-        .get()
+        .orderBy('updatedAt', 'desc').get()
         .then(function (snap) {
           savedProjects = [];
           projectSelect.innerHTML = '';
           if (snap.empty) {
             var opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = 'You have no saved projects yet — save one first';
-            opt.disabled = true;
-            opt.selected = true;
+            opt.value = ''; opt.textContent = 'You have no saved projects yet — save one first';
+            opt.disabled = true; opt.selected = true;
             projectSelect.appendChild(opt);
             publishSubmitBtn.disabled = true;
             return;
           }
           var placeholder = document.createElement('option');
-          placeholder.value = '';
-          placeholder.textContent = 'Choose a project…';
-          placeholder.disabled = true;
-          placeholder.selected = true;
+          placeholder.value = ''; placeholder.textContent = 'Choose a project…';
+          placeholder.disabled = true; placeholder.selected = true;
           projectSelect.appendChild(placeholder);
 
           snap.forEach(function (doc) {
@@ -1581,13 +1533,10 @@ window.addEventListener('DOMContentLoaded', function () {
 
           var params = new URLSearchParams(location.search);
           var preselected = params.get('project');
-          if (preselected) {
-            projectSelect.value = preselected;
-            handleProjectChange();
-          }
+          if (preselected) { projectSelect.value = preselected; handleProjectChange(); }
         })
         .catch(function (err) {
-          projectSelect.innerHTML = '<option value="">Failed to load projects: ' + escapeHtml(err.message) + '</option>';
+          projectSelect.innerHTML = '<option value="">Failed: ' + escapeHtml(err.message) + '</option>';
         });
     }
 
@@ -1596,14 +1545,9 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!id) return;
       var proj = savedProjects.find(function (p) { return p.id === id; });
       if (!proj) return;
-
       publishNameInput.value = proj.name;
-
       if (!publishSlugInput.value) {
-        var suggested = proj.name.toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '')
-          .substring(0, 30);
+        var suggested = proj.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 30);
         if (suggested.length < 3) suggested = 'my-project';
         publishSlugInput.value = suggested;
       }
@@ -1616,12 +1560,8 @@ window.addEventListener('DOMContentLoaded', function () {
       auth.currentUser.getIdToken().then(function (token) {
         fetch('/api/my-published', { headers: { 'Authorization': 'Bearer ' + token } })
           .then(function (r) { return r.json(); })
-          .then(function (data) {
-            renderPublishedSites(data.sites || []);
-          })
-          .catch(function (err) {
-            mySitesGrid.innerHTML = '<p class="my-sites-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
-          });
+          .then(function (data) { renderPublishedSites(data.sites || []); })
+          .catch(function (err) { mySitesGrid.innerHTML = '<p class="my-sites-empty">Failed: ' + escapeHtml(err.message) + '</p>'; });
       });
     }
 
@@ -1629,7 +1569,7 @@ window.addEventListener('DOMContentLoaded', function () {
       mySitesGrid.innerHTML = '';
       if (mySitesCount) mySitesCount.textContent = sites.length + ' site' + (sites.length === 1 ? '' : 's');
       if (!sites.length) {
-        mySitesGrid.innerHTML = '<p class="my-sites-empty">You haven\u2019t published anything yet. Fill in the form above to publish your first site.</p>';
+        mySitesGrid.innerHTML = '<p class="my-sites-empty">You haven\u2019t published anything yet.</p>';
         return;
       }
       sites.forEach(function (site) {
@@ -1682,7 +1622,7 @@ window.addEventListener('DOMContentLoaded', function () {
       var unBtn = e.target.closest('.unpublish-btn');
       if (unBtn) {
         var unSlug = unBtn.getAttribute('data-slug');
-        if (!confirm('Unpublish /s/' + unSlug + '? The site will no longer be accessible.')) return;
+        if (!confirm('Unpublish /s/' + unSlug + '?')) return;
         unBtn.disabled = true; unBtn.textContent = 'Removing…';
         auth.currentUser.getIdToken().then(function (token) {
           return fetch('/api/unpublish', {
@@ -1697,7 +1637,6 @@ window.addEventListener('DOMContentLoaded', function () {
           loadPublishedSites();
         })
         .catch(function (err) { showToast('Failed: ' + err.message, 'error'); unBtn.disabled = false; unBtn.textContent = 'Unpublish'; });
-        return;
       }
     });
 
@@ -1713,7 +1652,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
       if (!projectId) { showError(publishPageError, 'Please choose a project.'); return; }
       if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) {
-        showError(publishPageError, 'Slug must be 3-32 characters: lowercase letters, numbers, and hyphens.');
+        showError(publishPageError, 'Slug must be 3-32 characters: lowercase, numbers, hyphens.');
         return;
       }
       if (!name) { showError(publishPageError, 'Please enter a project name.'); return; }
@@ -1724,7 +1663,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
       try {
         var projDoc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).get();
-        if (!projDoc.exists) { throw new Error('Project not found.'); }
+        if (!projDoc.exists) throw new Error('Project not found.');
         var projData = projDoc.data();
 
         var idToken = await auth.currentUser.getIdToken();
@@ -1732,9 +1671,7 @@ window.addEventListener('DOMContentLoaded', function () {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
           body: JSON.stringify({
-            slug: slug,
-            projectName: name,
-            description: desc,
+            slug: slug, projectName: name, description: desc,
             files: projData.files || {}
           })
         });
@@ -1742,9 +1679,7 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!res.ok) throw new Error(data.error || 'Publish failed.');
 
         if (publishPageSuccess) {
-          publishPageSuccess.innerHTML =
-            '✅ Your site is live at <a href="' + data.url + '" target="_blank" style="color:#34d399;font-weight:bold;">' +
-            escapeHtml(data.fullUrl) + '</a>';
+          publishPageSuccess.innerHTML = '✅ Your site is live at <a href="' + data.url + '" target="_blank" style="color:#34d399;font-weight:bold;">' + escapeHtml(data.fullUrl) + '</a>';
           publishPageSuccess.style.display = 'block';
         }
         showToast('Site published ✔', 'success');

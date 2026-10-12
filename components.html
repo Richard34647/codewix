@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Components | CodeWix</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="codewix-ui.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="studio-header">
+        <div class="header-brand">
+            <span class="studio-logo">CodeWix</span>
+            <span class="env-badge">Components</span>
+        </div>
+        <nav class="studio-nav">
+            <a href="dashboard.html">Workspace</a>
+            <a href="components.html" class="active">Components</a>
+            <a href="learn.html">Learn</a>
+            <a href="ai-assistance.html">AI Assistant</a>
+            <a href="explore.html">Explore</a>
+        </nav>
+        <div class="user-session">
+            <span id="dashUser">Developer</span>
+            <button class="exit-btn" id="logoutBtn">Exit Studio</button>
+        </div>
+    </header>
+
+    <main class="components-workspace">
+        <div class="components-hero">
+            <h1>Ready-made <span>UI Components</span></h1>
+            <p>Every component ships with its own utility classes — apply styles directly in HTML. Download any component as a working ZIP project.</p>
+        </div>
+
+        <div class="components-toolbar">
+            <input type="text" id="componentSearch" placeholder="Search components… (button, card, modal)" autocomplete="off">
+            <div class="category-filter" id="categoryFilter">
+                <button type="button" class="cat-pill active" data-cat="all">All</button>
+                <button type="button" class="cat-pill" data-cat="buttons">Buttons</button>
+                <button type="button" class="cat-pill" data-cat="cards">Cards</button>
+                <button type="button" class="cat-pill" data-cat="forms">Forms</button>
+                <button type="button" class="cat-pill" data-cat="nav">Navigation</button>
+                <button type="button" class="cat-pill" data-cat="feedback">Feedback</button>
+                <button type="button" class="cat-pill" data-cat="layout">Layout</button>
+                <button type="button" class="cat-pill" data-cat="overlays">Overlays</button>
+            </div>
+        </div>
+
+        <div id="componentsGrid" class="components-grid">
+            <p class="components-empty">Loading…</p>
+        </div>
+
+        <div id="componentsEmpty" class="components-empty" style="display:none;">
+            No components match your search.
+        </div>
+    </main>
+
+    <footer class="studio-status-bar">
+        <div class="status-left-node">
+            <span class="status-indicator-dot online"></span>
+            <span id="userEmail">Components library</span>
+        </div>
+        <div class="status-right-node">
+            <span id="componentsCount">0 components</span>
+            <span>CodeWix UI</span>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="script.js"></script>
+    <script src="components.js"></script>
+</body>
+</html>

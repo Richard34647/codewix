@@ -4,22 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shared Project | CodeWix</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
-<link rel="icon" type="image/x-icon" href="/favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-RPX2BV738C"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-RPX2BV738C');
-</script>
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -30,46 +20,27 @@
         </div>
         <nav class="studio-nav">
             <a href="dashboard.html">Workspace</a>
+            <a href="components.html">Components</a>
             <a href="learn.html">Learn</a>
-            <a href="ai-assistant.html">AI Assistant</a>
+            <a href="explore.html">Explore</a>
         </nav>
         <div class="user-session">
             <span id="dashUser">Guest</span>
         </div>
     </header>
 
-    <main class="view-workspace">
-        <div class="view-header">
+    <main style="flex:1;padding:32px 20px 60px;max-width:1100px;margin:0 auto;width:100%;">
+        <div class="page-title">
             <h1 id="viewProjectName">Loading…</h1>
-            <p class="view-subtitle">Shared project preview</p>
+            <p style="color:#94a3b8;font-size:14px;">Shared project preview</p>
         </div>
 
-        <div class="view-tabs">
-            <button type="button" class="view-tab active" data-tab="preview">Preview</button>
-            <button type="button" class="view-tab" data-tab="files">Files</button>
+        <div class="preview-frame-container" style="height:70vh;min-height:400px;">
+            <iframe id="sharedPreviewFrame" sandbox="allow-scripts allow-modals"></iframe>
         </div>
 
-        <div class="view-panel" id="viewPreviewPanel">
-            <div class="preview-frame-container view-preview">
-                <iframe id="sharedPreviewFrame" sandbox="allow-scripts allow-modals"></iframe>
-            </div>
-        </div>
-
-        <div class="view-panel" id="viewFilesPanel" style="display:none;">
-            <div class="view-file-list" id="viewFileList"></div>
-            <div class="view-code-viewer">
-                <div class="code-block" data-lang="">
-                    <div class="code-header">
-                        <span class="code-lang" id="viewFileLabel">file</span>
-                        <button type="button" class="copy-btn" id="viewCopyBtn">Copy</button>
-                    </div>
-                    <pre><code id="viewCodeBlock"></code></pre>
-                </div>
-            </div>
-        </div>
-
-        <div class="view-actions">
-            <a href="dashboard.html" class="button">Open in My Workspace</a>
+        <div style="text-align:center;margin-top:24px;">
+            <a href="dashboard.html" class="button">Open in My Workspace →</a>
         </div>
     </main>
 
@@ -87,110 +58,51 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     <script>
-      if (!firebase.apps.length) {
-        firebase.initializeApp({
-          apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
-          authDomain: "codewix-16971.firebaseapp.com",
-          projectId: "codewix-16971",
-          storageBucket: "codewix-16971.firebasestorage.app",
-          messagingSenderId: "1060917593178",
-          appId: "1:1060917593178:web:8ce61640aa476bf135c463"
-        });
-      }
-      var db = firebase.firestore();
-
-      function escapeHtml(s) {
-        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      }
-
-      var sharedFiles = {}, activeSharedFile = null;
-
-      function renderPreview(files) {
-        document.getElementById('sharedPreviewFrame').srcdoc =
-          '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-          (files['style.css'] || '') + '</style></head><body>' +
-          (files['index.html'] || '') + '<script>' +
-          (files['script.js'] || '') + '<\/script></body></html>';
-      }
-
-      function showFile(name) {
-        activeSharedFile = name;
-        var code = sharedFiles[name] || '';
-        document.getElementById('viewFileLabel').textContent = name;
-        document.getElementById('viewCodeBlock').textContent = code;
-        document.querySelectorAll('#viewFileList .view-file-item').forEach(function (el) {
-          el.classList.toggle('active', el.getAttribute('data-name') === name);
-        });
-      }
-
-      var params = new URLSearchParams(location.search);
-      var id = params.get('id');
-
-      if (!id) {
-        document.getElementById('viewProjectName').textContent = 'No project specified';
-        document.getElementById('viewStatus').textContent = 'Add ?id=... to the URL';
-      } else {
-        db.collection('public').doc(id).get()
-          .then(function (doc) {
-            if (!doc.exists) {
-              document.getElementById('viewProjectName').textContent = 'Project not found';
-              document.getElementById('viewStatus').textContent = 'This project may have been deleted';
-              return;
-            }
-            var data = doc.data() || {};
-            sharedFiles = data.files || {};
-            document.getElementById('viewProjectName').textContent = data.name || 'Untitled';
-            document.getElementById('viewStatus').textContent = 'Shared project — ' + (data.name || 'Untitled');
-
-            renderPreview(sharedFiles);
-
-            var list = document.getElementById('viewFileList');
-            list.innerHTML = '';
-            Object.keys(sharedFiles).forEach(function (name, i) {
-              var item = document.createElement('button');
-              item.type = 'button';
-              item.className = 'view-file-item' + (i === 0 ? ' active' : '');
-              item.setAttribute('data-name', name);
-              var icon = '📄 ';
-              if (name.endsWith('.html')) icon = '🌐 ';
-              if (name.endsWith('.css'))  icon = '🎨 ';
-              if (name.endsWith('.js'))   icon = '⚡ ';
-              item.textContent = icon + name;
-              item.addEventListener('click', function () { showFile(name); });
-              list.appendChild(item);
+        if (!firebase.apps.length) {
+            firebase.initializeApp({
+                apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
+                authDomain: "codewix-16971.firebaseapp.com",
+                projectId: "codewix-16971",
+                storageBucket: "codewix-16971.firebasestorage.app",
+                messagingSenderId: "1060917593178",
+                appId: "1:1060917593178:web:8ce61640aa476bf135c463"
             });
-            if (Object.keys(sharedFiles).length) showFile(Object.keys(sharedFiles)[0]);
-          })
-          .catch(function (err) {
-            document.getElementById('viewProjectName').textContent = 'Failed to load';
-            document.getElementById('viewStatus').textContent = err.message;
-          });
-      }
+        }
+        var db = firebase.firestore();
 
-      // Tabs
-      document.querySelectorAll('.view-tab').forEach(function (tab) {
-        tab.addEventListener('click', function () {
-          document.querySelectorAll('.view-tab').forEach(function (t) { t.classList.remove('active'); });
-          tab.classList.add('active');
-          var which = tab.getAttribute('data-tab');
-          document.getElementById('viewPreviewPanel').style.display = which === 'preview' ? 'block' : 'none';
-          document.getElementById('viewFilesPanel').style.display   = which === 'files'   ? 'block' : 'none';
-        });
-      });
+        function escapeHtml(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
 
-      // Copy button
-      document.getElementById('viewCopyBtn').addEventListener('click', function () {
-        var btn = this, text = document.getElementById('viewCodeBlock').textContent;
-        function flash() { btn.textContent = 'Copied!'; btn.classList.add('copied');
-          setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500); }
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(flash).catch(fb);
-        else fb();
-        function fb() { var ta = document.createElement('textarea'); ta.value = text;
-          document.body.appendChild(ta); ta.select();
-          try { document.execCommand('copy'); flash(); } catch (e) {}
-          document.body.removeChild(ta); }
-      });
+        var params = new URLSearchParams(location.search);
+        var id = params.get('id');
+
+        if (!id) {
+            document.getElementById('viewProjectName').textContent = 'No project specified';
+            document.getElementById('viewStatus').textContent = 'Add ?id=... to the URL';
+        } else {
+            db.collection('public').doc(id).get().then(function (doc) {
+                if (!doc.exists) {
+                    document.getElementById('viewProjectName').textContent = 'Project not found';
+                    document.getElementById('viewStatus').textContent = 'This project may have been deleted';
+                    return;
+                }
+                var data = doc.data() || {};
+                var files = data.files || {};
+                document.getElementById('viewProjectName').textContent = data.name || 'Untitled';
+                document.getElementById('viewStatus').textContent = 'Shared project — ' + (data.name || 'Untitled');
+
+                document.getElementById('sharedPreviewFrame').srcdoc =
+                    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+                    (files['style.css'] || '') + '</style></head><body>' +
+                    (files['index.html'] || '') + '<script>' +
+                    (files['script.js'] || '') + '<\/script></body></html>';
+            }).catch(function (err) {
+                document.getElementById('viewProjectName').textContent = 'Failed to load';
+                document.getElementById('viewStatus').textContent = err.message;
+            });
+        }
     </script>
 </body>
 </html>

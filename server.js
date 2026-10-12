@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing + 404
+// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing
 // ==========================================================================
 
 require('dotenv').config();
@@ -102,9 +102,7 @@ function incrementUsage(ref, currentCount) {
     .catch(function (err) { console.error('[rate] increment failed:', err.message); });
 }
 
-// ==========================================================================
-// API: Rate limit status
-// ==========================================================================
+// ---- API: Rate limit status ----------------------------------------------
 app.get('/api/rate-limit-status', requireAuth, async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const ref = admin.firestore().collection('users').doc(req.user.uid).collection('usage').doc(today);
@@ -115,9 +113,7 @@ app.get('/api/rate-limit-status', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================================================
-// API: Groq chat proxy
-// ==========================================================================
+// ---- API: Groq chat proxy -------------------------------------------------
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Server is missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
@@ -147,12 +143,9 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
-// ==========================================================================
-// API: Publish a project (with atomic slug reservation)
-// ==========================================================================
+// ---- API: Publish (atomic slug reservation) ------------------------------
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files } = req.body || {};
-
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
   if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) {
     return res.status(400).json({ error: 'Slug must be 3-32 characters, lowercase letters, numbers and hyphens only.' });
@@ -161,7 +154,7 @@ app.post('/api/publish', requireAuth, async (req, res) => {
   const reserved = ['api', 'admin', 'www', 'app', 'dashboard', 'login', 'register',
                     'learn', 'explore', 'profile', 'about', 'contact', 'tos', 'privacy',
                     'settings', 'help', 'support', 'blog', 'docs', 'auth', 'user',
-                    's', 'u', 'static', 'public', 'assets', 'favicon'];
+                    's', 'u', 'static', 'public', 'assets', 'favicon', 'components'];
   if (reserved.indexOf(slug) !== -1) {
     return res.status(400).json({ error: 'That name is reserved. Try another.' });
   }
@@ -172,42 +165,24 @@ app.post('/api/publish', requireAuth, async (req, res) => {
   const pubRef = admin.firestore().collection('published').doc(slug);
 
   try {
-    // Use a transaction — atomic check-and-write.
-    // Two users hitting "Publish" with the same slug at the same time
-    // cannot both succeed.
     const result = await admin.firestore().runTransaction(async (tx) => {
       const doc = await tx.get(pubRef);
-
       if (doc.exists) {
         const existingUid = doc.data().uid;
-        if (existingUid !== uid) {
-          // Different user owns this slug — reject
-          throw new Error('SLUG_TAKEN');
-        }
-        // Same user — this is an update, keep existing metadata
+        if (existingUid !== uid) throw new Error('SLUG_TAKEN');
         tx.set(pubRef, {
-          uid: uid,
-          username: username,
-          slug: slug,
-          projectName: projectName || 'Untitled',
-          description: description || '',
-          files: files,
-          views: doc.data().views || 0,
+          uid: uid, username: username, slug: slug,
+          projectName: projectName || 'Untitled', description: description || '',
+          files: files, views: doc.data().views || 0,
           publishedAt: doc.data().publishedAt || admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
         return { created: false };
       }
-
-      // Fresh publish — create the doc
       tx.set(pubRef, {
-        uid: uid,
-        username: username,
-        slug: slug,
-        projectName: projectName || 'Untitled',
-        description: description || '',
-        files: files,
-        views: 0,
+        uid: uid, username: username, slug: slug,
+        projectName: projectName || 'Untitled', description: description || '',
+        files: files, views: 0,
         publishedAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
@@ -215,8 +190,7 @@ app.post('/api/publish', requireAuth, async (req, res) => {
     });
 
     res.json({
-      ok: true,
-      created: result.created,
+      ok: true, created: result.created,
       url: '/s/' + slug,
       fullUrl: (req.protocol + '://' + req.get('host') + '/s/' + slug)
     });
@@ -229,9 +203,7 @@ app.post('/api/publish', requireAuth, async (req, res) => {
   }
 });
 
-// ==========================================================================
-// API: Unpublish
-// ==========================================================================
+// ---- API: Unpublish -------------------------------------------------------
 app.post('/api/unpublish', requireAuth, async (req, res) => {
   const { slug } = req.body || {};
   if (!slug) return res.status(400).json({ error: 'slug is required.' });
@@ -245,23 +217,17 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================================================
-// API: My published sites
-// ==========================================================================
+// ---- API: My published sites ---------------------------------------------
 app.get('/api/my-published', requireAuth, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published')
-      .where('uid', '==', req.user.uid)
-      .orderBy('updatedAt', 'desc')
-      .get();
+      .where('uid', '==', req.user.uid).orderBy('updatedAt', 'desc').get();
     const sites = [];
     snap.forEach(function (doc) {
       const d = doc.data();
       sites.push({
-        slug: d.slug,
-        projectName: d.projectName,
-        description: d.description,
-        views: d.views || 0,
+        slug: d.slug, projectName: d.projectName,
+        description: d.description, views: d.views || 0,
         updatedAt: d.updatedAt ? d.updatedAt.toDate().toISOString() : null
       });
     });
@@ -269,23 +235,17 @@ app.get('/api/my-published', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================================================
-// API: Explore all published sites
-// ==========================================================================
+// ---- API: Explore ---------------------------------------------------------
 app.get('/api/explore', async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published')
-      .orderBy('updatedAt', 'desc')
-      .limit(60)
-      .get();
+      .orderBy('updatedAt', 'desc').limit(60).get();
     const sites = [];
     snap.forEach(function (doc) {
       const d = doc.data();
       sites.push({
-        slug: d.slug,
-        username: d.username,
-        projectName: d.projectName,
-        description: d.description,
+        slug: d.slug, username: d.username,
+        projectName: d.projectName, description: d.description,
         views: d.views || 0,
         updatedAt: d.updatedAt ? d.updatedAt.toDate().toISOString() : null
       });
@@ -294,26 +254,20 @@ app.get('/api/explore', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================================================
-// API: User profile
-// ==========================================================================
+// ---- API: User profile ----------------------------------------------------
 app.get('/api/user/:username', async (req, res) => {
   const username = req.params.username;
   try {
     const snap = await admin.firestore().collection('published')
-      .where('username', '==', username)
-      .orderBy('updatedAt', 'desc')
-      .get();
+      .where('username', '==', username).orderBy('updatedAt', 'desc').get();
     const sites = [];
     let uid = null;
     snap.forEach(function (doc) {
       const d = doc.data();
       uid = d.uid;
       sites.push({
-        slug: d.slug,
-        projectName: d.projectName,
-        description: d.description,
-        views: d.views || 0,
+        slug: d.slug, projectName: d.projectName,
+        description: d.description, views: d.views || 0,
         updatedAt: d.updatedAt ? d.updatedAt.toDate().toISOString() : null
       });
     });
@@ -321,9 +275,7 @@ app.get('/api/user/:username', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================================================
-// API: Send verification email
-// ==========================================================================
+// ---- API: Send verification email ----------------------------------------
 app.post('/api/send-verification-email', async (req, res) => {
   const { userEmail, userName, redirectUrl } = req.body || {};
   if (!userEmail) return res.status(400).json({ error: 'userEmail is required.' });
@@ -349,9 +301,7 @@ app.post('/api/send-verification-email', async (req, res) => {
   }
 });
 
-// ==========================================================================
-// API: Contact form
-// ==========================================================================
+// ---- API: Contact form ----------------------------------------------------
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body || {};
   if (!name || !email || !subject || !message) return res.status(400).json({ error: 'All fields required.' });
@@ -371,20 +321,16 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// ==========================================================================
-// Route: /s/:slug — serve published homepage
-// ==========================================================================
+// ---- Route: /s/:slug — published homepage ---------------------------------
 app.get('/s/:slug', async (req, res, next) => {
   const slug = req.params.slug;
   if (!admin.apps.length) return next();
-
   try {
     const doc = await admin.firestore().collection('published').doc(slug).get();
     if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
 
     const data = doc.data();
     const files = data.files || {};
-
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(function () {});
 
     const composedHtml = rewritePublishedLinks(files['index.html'] || '', slug);
@@ -401,10 +347,9 @@ app.get('/s/:slug', async (req, res, next) => {
       '<div style="position:fixed;bottom:12px;right:12px;z-index:99999;' +
       'background:rgba(2,6,23,0.9);color:#cbd5e1;padding:8px 14px;' +
       'border-radius:20px;font-family:Arial,sans-serif;font-size:12px;' +
-      'border:1px solid #334155;text-decoration:none;backdrop-filter:blur(8px);">' +
+      'border:1px solid #334155;backdrop-filter:blur(8px);">' +
       '<a href="/" style="color:#38bdf8;text-decoration:none;font-weight:bold;">⚡ Built with CodeWix</a>' +
-      '</div>' +
-      '</body></html>';
+      '</div></body></html>';
 
     res.send(html);
   } catch (err) {
@@ -413,46 +358,31 @@ app.get('/s/:slug', async (req, res, next) => {
   }
 });
 
-// ==========================================================================
-// Route: /s/:slug/:filename — serve individual files of a published site
-// ==========================================================================
+// ---- Route: /s/:slug/:filename — individual files -------------------------
 app.get('/s/:slug/:filename', async (req, res, next) => {
   const slug = req.params.slug;
   const filename = req.params.filename;
   if (!admin.apps.length) return next();
-
   try {
     const doc = await admin.firestore().collection('published').doc(slug).get();
     if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
 
     const data = doc.data();
     const files = data.files || {};
-
     const fileContent = files[filename];
-    if (fileContent === undefined) {
-      return res.status(404).sendFile(path.join(__dirname, '404.html'));
-    }
+    if (fileContent === undefined) return res.status(404).sendFile(path.join(__dirname, '404.html'));
 
     const ext = path.extname(filename).toLowerCase();
     const types = {
-      '.html': 'text/html; charset=utf-8',
-      '.htm':  'text/html; charset=utf-8',
-      '.css':  'text/css; charset=utf-8',
-      '.js':   'text/javascript; charset=utf-8',
-      '.json': 'application/json; charset=utf-8',
-      '.txt':  'text/plain; charset=utf-8',
-      '.svg':  'image/svg+xml',
-      '.png':  'image/png',
-      '.jpg':  'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif':  'image/gif',
-      '.webp': 'image/webp'
+      '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
+      '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
+      '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp'
     };
 
     let finalContent = fileContent;
-    if (ext === '.html' || ext === '.htm') {
-      finalContent = rewritePublishedLinks(fileContent, slug);
-    }
+    if (ext === '.html' || ext === '.htm') finalContent = rewritePublishedLinks(fileContent, slug);
 
     res.type(types[ext] || 'text/plain; charset=utf-8').send(finalContent);
   } catch (err) {
@@ -461,36 +391,24 @@ app.get('/s/:slug/:filename', async (req, res, next) => {
   }
 });
 
-// ==========================================================================
-// Route: /u/:username — profile page
-// ==========================================================================
+// ---- Route: /u/:username --------------------------------------------------
 app.get('/u/:username', function (req, res) {
   res.sendFile(path.join(__dirname, 'profile.html'));
 });
 
-// ==========================================================================
-// Fallback for unknown API routes
-// ==========================================================================
+// ---- Fallback -------------------------------------------------------------
 app.use('/api', function (req, res) {
   res.status(404).json({ error: 'Unknown API route.' });
 });
 
-// ---- Static files ---------------------------------------------------------
 app.use(express.static(path.join(__dirname)));
 
-// ---- 404 fallback ---------------------------------------------------------
 app.use(function (req, res) {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
 
-// ---- Start ----------------------------------------------------------------
 app.listen(PORT, '0.0.0.0', function () {
   console.log('\n✅ CodeWix running on port ' + PORT);
-  console.log('   Chat:        POST /api/chat');
-  console.log('   Publish:     POST /api/publish');
-  console.log('   Explore:     GET  /api/explore');
-  console.log('   Profiles:    GET  /api/user/:username');
-  console.log('   Site hosting: GET  /s/:slug and /s/:slug/:filename');
   console.log('   GROQ:        ' + (GROQ_API_KEY ? 'YES ✔' : 'NO ❌'));
   console.log('   EmailJS:     ' + (emailjsReady ? 'YES ✔' : 'NO ❌'));
   console.log('   FB Admin:    ' + (admin.apps.length ? 'YES ✔' : 'NO ❌') + '\n');
