@@ -315,6 +315,76 @@ function cwCloseSmall(){document.getElementById('cwSmallModal').classList.remove
 function cwOpenCanvas(){document.getElementById('cwCanvas').classList.add('cw-show');}
 function cwCloseCanvas(){document.getElementById('cwCanvas').classList.remove('cw-show');}
 <\/script>` },
+    { id:'overlay-dialog-basic', title:'Dialog (Native)', desc:'HTML <dialog> element — native browser popup with automatic ESC and focus handling.', cat:'overlays',
+      code:`<button class="cw-btn cw-btn-primary" onclick="document.getElementById('demoDialog').showModal()">Open Dialog</button>
+
+<dialog id="demoDialog" class="cw-dialog">
+  <div class="cw-dialog-header">
+    <h3 class="cw-dialog-title">Hello from a native dialog</h3>
+    <button class="cw-dialog-close" onclick="document.getElementById('demoDialog').close()">×</button>
+  </div>
+  <div class="cw-dialog-body">
+    This is a real HTML dialog element. Press ESC to close it, or click the button below.
+  </div>
+  <div class="cw-dialog-footer">
+    <button class="cw-btn cw-btn-light" onclick="document.getElementById('demoDialog').close()">Close</button>
+    <button class="cw-btn cw-btn-primary" onclick="document.getElementById('demoDialog').close()">Confirm</button>
+  </div>
+</dialog>` },
+    { id:'overlay-dialog-confirm', title:'Confirm Dialog', desc:'Compact confirmation using the native dialog element.', cat:'overlays',
+      code:`<button class="cw-btn cw-btn-outline-danger" onclick="document.getElementById('confirmDialog').showModal()">Delete Item</button>
+
+<dialog id="confirmDialog" class="cw-dialog cw-dialog-sm">
+  <div class="cw-dialog-body cw-text-center" style="padding:32px 24px;">
+    <div class="cw-fs-3xl cw-mb-2">🗑️</div>
+    <h3 class="cw-fs-lg cw-fw-bold cw-mb-2">Delete this item?</h3>
+    <p class="cw-text-muted cw-fs-sm cw-mb-4">This action can't be undone.</p>
+    <div class="cw-d-flex cw-gap-2">
+      <button class="cw-btn cw-btn-light cw-flex-1" onclick="document.getElementById('confirmDialog').close()">Cancel</button>
+      <button class="cw-btn cw-btn-danger cw-flex-1" onclick="document.getElementById('confirmDialog').close()">Delete</button>
+    </div>
+  </div>
+</dialog>` },
+    { id:'overlay-dialog-form', title:'Form Dialog', desc:'Dialog containing a form. Returns value via dialog.returnValue.', cat:'overlays',
+      code:`<button class="cw-btn cw-btn-primary" onclick="cwFormDialog()">Open Form</button>
+<p class="cw-text-muted cw-fs-sm cw-mt-2" id="cwFormResult"></p>
+
+<dialog id="formDialog" class="cw-dialog">
+  <form method="dialog">
+    <div class="cw-dialog-header">
+      <h3 class="cw-dialog-title">Your Details</h3>
+      <button type="button" class="cw-dialog-close" onclick="document.getElementById('formDialog').close()">×</button>
+    </div>
+    <div class="cw-dialog-body">
+      <div class="cw-form-group">
+        <label class="cw-form-label">Name</label>
+        <input type="text" class="cw-form-control" id="dialogName" placeholder="Your name">
+      </div>
+      <div class="cw-form-group">
+        <label class="cw-form-label">Email</label>
+        <input type="email" class="cw-form-control" id="dialogEmail" placeholder="you@example.com">
+      </div>
+    </div>
+    <div class="cw-dialog-footer">
+      <button type="button" class="cw-btn cw-btn-light" onclick="document.getElementById('formDialog').close()">Cancel</button>
+      <button type="submit" class="cw-btn cw-btn-primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function cwFormDialog() {
+  var d = document.getElementById('formDialog');
+  d.showModal();
+  d.addEventListener('close', function handler() {
+    d.removeEventListener('close', handler);
+    if (d.returnValue === 'save') {
+      document.getElementById('cwFormResult').textContent =
+        'Saved: ' + document.getElementById('dialogName').value;
+    }
+  });
+}
+<\/script>` },
 
     // ============ LAYOUT ============
     { id:'layout-hero', title:'Gradient Hero', desc:'Hero section with gradient background.', cat:'layout',
@@ -421,14 +491,12 @@ document.querySelectorAll('#cwTabNav .cw-nav-link').forEach(function(btn){
     var js = '';
     var html = code;
 
-    // Extract <style>...</style>
     var styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
     if (styleMatch) {
       css = styleMatch[1].trim();
       html = html.replace(/<style>[\s\S]*?<\/style>/i, '').trim();
     }
 
-    // Extract <script>...</script>
     var scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/i);
     if (scriptMatch) {
       js = scriptMatch[1].trim();
@@ -436,28 +504,6 @@ document.querySelectorAll('#cwTabNav .cw-nav-link').forEach(function(btn){
     }
 
     return { html: html, css: css, js: js };
-  }
-
-  function buildFullHTML(name, hasCss, hasJs) {
-    var lines = [];
-    lines.push('<!DOCTYPE html>');
-    lines.push('<html lang="en">');
-    lines.push('<head>');
-    lines.push('    <meta charset="UTF-8">');
-    lines.push('    <meta name="viewport" content="width=device-width, initial-scale=1.0">');
-    lines.push('    <title>' + name + ' | CodeWix</title>');
-    lines.push('    <link rel="stylesheet" href="codewix-ui.css">');
-    if (hasCss) lines.push('    <link rel="stylesheet" href="style.css">');
-    lines.push('</head>');
-    lines.push('<body>');
-    lines.push('    <!-- Component: ' + name + ' -->');
-    lines.push('    <div class="cw-container cw-p-4">');
-    lines.push('        <!-- Paste your component here -->');
-    lines.push('    </div>');
-    if (hasJs) lines.push('    <script src="script.js"><\/script>');
-    lines.push('</body>');
-    lines.push('</html>');
-    return lines.join('\n');
   }
 
   async function downloadComponentZip(component) {
@@ -472,7 +518,6 @@ document.querySelectorAll('#cwTabNav .cw-nav-link').forEach(function(btn){
     var zip = new JSZip();
     var folder = zip.folder(safeName);
 
-    // index.html
     var indexHtml = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>' + component.title + ' | CodeWix</title>\n    <link rel="stylesheet" href="codewix-ui.css">\n' +
       (split.css ? '    <link rel="stylesheet" href="style.css">\n' : '') +
       '</head>\n<body>\n\n    <div class="cw-container cw-p-4">\n\n' +
@@ -483,24 +528,20 @@ document.querySelectorAll('#cwTabNav .cw-nav-link').forEach(function(btn){
 
     folder.file('index.html', indexHtml);
 
-    // style.css (custom styles only if there are any; otherwise a stub)
     if (split.css) {
       folder.file('style.css', '/* Custom styles for ' + component.title + ' */\n\n' + split.css + '\n');
     } else {
       folder.file('style.css', '/* No custom styles needed — this component uses CodeWix UI utility classes. */\n');
     }
 
-    // script.js (only if there's any JS)
     if (split.js) {
       folder.file('script.js', '// JavaScript for ' + component.title + '\n\n' + split.js + '\n');
     }
 
-    // codewix-ui.css — always include so component works standalone
     var uiCssPromise = fetch('/codewix-ui.css').then(function (r) { return r.text(); }).catch(function () { return '/* CodeWix UI — download from codewi.onrender.com/codewix-ui.css */'; });
     var uiCss = await uiCssPromise;
     folder.file('codewix-ui.css', uiCss);
 
-    // README
     folder.file('README.md',
       '# ' + component.title + '\n\n' +
       component.desc + '\n\n' +
@@ -666,15 +707,15 @@ document.querySelectorAll('#cwTabNav .cw-nav-link').forEach(function(btn){
       var comp = COMPONENTS.find(function (c) { return c.id === id; });
       if (comp) {
         dlBtn.disabled = true;
-        var orig = dlBtn.textContent;
+        var orig2 = dlBtn.textContent;
         dlBtn.textContent = 'Zipping…';
         downloadComponentZip(comp).then(function () {
           dlBtn.disabled = false;
-          dlBtn.textContent = orig;
+          dlBtn.textContent = orig2;
           showToast('ZIP downloaded', 'success');
         }).catch(function (err) {
           dlBtn.disabled = false;
-          dlBtn.textContent = orig;
+          dlBtn.textContent = orig2;
           showToast('Download failed: ' + err.message, 'error');
         });
       }

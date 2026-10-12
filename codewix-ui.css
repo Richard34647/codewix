@@ -937,3 +937,77 @@ textarea.cw-form-control { min-height: 100px; resize: vertical; }
 /* ---- Object fit ---- */
 .cw-object-cover { object-fit: cover; }
 .cw-object-contain { object-fit: contain; }
+
+/* ---- HTML <dialog> element ---- */
+.cw-dialog {
+    border: none;
+    border-radius: var(--cw-radius-lg);
+    padding: 0;
+    max-width: 520px;
+    width: 90vw;
+    box-shadow: var(--cw-shadow-xl);
+    background: white;
+    color: var(--cw-text);
+    overflow: hidden;
+    font-family: inherit;
+}
+
+.cw-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.cw-dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--cw-border);
+}
+
+.cw-dialog-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--cw-text);
+}
+
+.cw-dialog-close {
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    line-height: 1;
+    color: var(--cw-muted);
+    cursor: pointer;
+    padding: 0 4px;
+    font-family: inherit;
+}
+.cw-dialog-close:hover { color: var(--cw-danger); }
+
+.cw-dialog-body {
+    padding: 20px 22px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--cw-text);
+}
+
+.cw-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 22px;
+    border-top: 1px solid var(--cw-border);
+    background: var(--cw-light);
+}
+
+.cw-dialog-sm { max-width: 380px; }
+.cw-dialog-lg { max-width: 800px; }
+
+/* Entry animation */
+.cw-dialog[open] {
+    animation: cw-dialog-in 0.2s ease;
+}
+@keyframes cw-dialog-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
