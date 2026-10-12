@@ -516,7 +516,7 @@ document.querySelectorAll('#cwTabNav .cw-nav-link').forEach(function(btn){
     var safeName = component.id;
 
     var zip = new JSZip();
-    var folder = zip.folder(safeName);
+    var folder = zip.folder('codewix-' + safeName);
 
     var indexHtml = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>' + component.title + ' | CodeWix</title>\n    <link rel="stylesheet" href="codewix-ui.css">\n' +
       (split.css ? '    <link rel="stylesheet" href="style.css">\n' : '') +
@@ -559,7 +559,7 @@ document.querySelectorAll('#cwTabNav .cw-nav-link').forEach(function(btn){
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = url;
-      a.download = safeName + '.zip';
+      a.download = 'codewix-' + safeName + '.zip';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
