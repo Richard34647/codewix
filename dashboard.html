@@ -25,7 +25,7 @@
             <a href="dashboard.html" class="active">Workspace</a>
             <a href="components.html">Components</a>
             <a href="learn.html">Learn</a>
-            <a href="ai-assistance.html">AI Assistant</a>
+            <a href="ai-assistant.html">AI Assistant</a>
             <a href="explore.html">Explore</a>
         </nav>
         <div class="user-session">
@@ -39,13 +39,17 @@
         <aside class="file-explorer">
             <div class="panel-header">
                 <h3>Files</h3>
-                <button class="action-icon-btn" id="newFileBtn">+</button>
+                <div class="file-actions">
+                    <button class="action-icon-btn" id="uploadFileBtn" title="Upload image or file">📎</button>
+                    <button class="action-icon-btn" id="newFileBtn" title="Create new file">+</button>
+                </div>
             </div>
             <ul class="file-list" id="fileTreeList">
                 <li class="file-item active" data-filename="index.html">🌐 index.html</li>
                 <li class="file-item" data-filename="style.css">🎨 style.css</li>
                 <li class="file-item" data-filename="script.js">⚡ script.js</li>
             </ul>
+            <input type="file" id="hiddenFileInput" style="display:none;" accept="image/*,.svg,.json,.txt,.md">
         </aside>
 
         <section class="editor-area">
@@ -93,6 +97,7 @@
         </div>
     </footer>
 
+    <!-- Projects modal -->
     <div class="modal-backdrop" id="projectsModal" style="display:none;">
         <div class="modal">
             <div class="modal-header">
@@ -103,6 +108,14 @@
                 <p class="modal-empty">Loading…</p>
             </div>
         </div>
+    </div>
+
+    <!-- File context menu -->
+    <div class="file-context-menu" id="fileContextMenu" style="display:none;">
+        <button type="button" data-action="rename">✎ Rename</button>
+        <button type="button" data-action="duplicate">⎘ Duplicate</button>
+        <button type="button" data-action="download">⬇ Download</button>
+        <button type="button" data-action="delete" class="danger">🗑 Delete</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -121,6 +134,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

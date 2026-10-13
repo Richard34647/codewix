@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing
+// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing + Uploads
 // ==========================================================================
 
 require('dotenv').config();
@@ -19,7 +19,10 @@ const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 try {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({ credential: admin.credential.cert(sa) });
+    admin.initializeApp({
+      credential: admin.credential.cert(sa),
+      storageBucket: 'codewix-16971.firebasestorage.app'
+    });
     console.log('[Firebase Admin] initialized via FIREBASE_SERVICE_ACCOUNT');
   } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
     admin.initializeApp({
@@ -27,11 +30,15 @@ try {
         projectId:   process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey:  process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-      })
+      }),
+      storageBucket: 'codewix-16971.firebasestorage.app'
     });
     console.log('[Firebase Admin] initialized via split env vars');
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    admin.initializeApp({ credential: admin.credential.applicationDefault() });
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      storageBucket: 'codewix-16971.firebasestorage.app'
+    });
     console.log('[Firebase Admin] initialized via GOOGLE_APPLICATION_CREDENTIALS');
   } else {
     console.warn('[Firebase Admin] No credentials found.');
@@ -60,6 +67,16 @@ function rewritePublishedLinks(html, slug) {
   return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:|\/))([^"']+)\2/gi, function (match, attr, quote, url) {
     if (url.startsWith('/')) return match;
     return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
+  });
+}
+
+function resolveAssetUrls(html, files) {
+  if (!html) return '';
+  return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) {
+    if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match;
+    var key = 'asset:' + url;
+    if (files[key]) return attr + '=' + quote + files[key] + quote;
+    return match;
   });
 }
 
@@ -333,7 +350,10 @@ app.get('/s/:slug', async (req, res, next) => {
     const files = data.files || {};
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(function () {});
 
-    const composedHtml = rewritePublishedLinks(files['index.html'] || '', slug);
+    // Resolve uploaded asset URLs, then rewrite relative links
+    var rawHtml = files['index.html'] || '';
+    rawHtml = resolveAssetUrls(rawHtml, files);
+    const composedHtml = rewritePublishedLinks(rawHtml, slug);
     const composedCss = files['style.css'] || '';
     const composedJs = files['script.js'] || '';
 
@@ -382,7 +402,10 @@ app.get('/s/:slug/:filename', async (req, res, next) => {
     };
 
     let finalContent = fileContent;
-    if (ext === '.html' || ext === '.htm') finalContent = rewritePublishedLinks(fileContent, slug);
+    if (ext === '.html' || ext === '.htm') {
+      finalContent = resolveAssetUrls(fileContent, files);
+      finalContent = rewritePublishedLinks(finalContent, slug);
+    }
 
     res.type(types[ext] || 'text/plain; charset=utf-8').send(finalContent);
   } catch (err) {

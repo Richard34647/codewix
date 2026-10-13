@@ -9,6 +9,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
   var auth = null;
   var db = null;
+  var storage = null;
 
   if (typeof firebase === 'undefined') {
     console.error('[CodeWix] firebase missing.');
@@ -27,7 +28,8 @@ window.addEventListener('DOMContentLoaded', function () {
       }
       auth = firebase.auth();
       if (firebase.firestore) db = firebase.firestore();
-      console.log('[CodeWix] Firebase ready ✔ (firestore:', !!db, ')');
+      if (firebase.storage) storage = firebase.storage();
+      console.log('[CodeWix] Firebase ready ✔ (firestore:', !!db, ', storage:', !!storage, ')');
     } catch (err) { console.error('[CodeWix] init failed:', err); }
   }
 
@@ -244,7 +246,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Sandbox IDE — CodeMirror editor
+  // Sandbox IDE — CodeMirror + uploads + asset resolution
   // ======================================================================
   var cm = null;
   var codeEditor = null;
@@ -341,6 +343,9 @@ window.addEventListener('DOMContentLoaded', function () {
   var currentFileLabel = $('currentFileLabel');
   var fileTreeList     = $('fileTreeList');
   var newFileBtn       = $('newFileBtn');
+  var uploadFileBtn    = $('uploadFileBtn');
+  var hiddenFileInput  = $('hiddenFileInput');
+  var fileContextMenu  = $('fileContextMenu');
   var unsavedIndicator = $('unsavedIndicator');
   var saveProjectBtn   = $('saveProjectBtn');
   var myProjectsBtn    = $('myProjectsBtn');
@@ -368,6 +373,7 @@ window.addEventListener('DOMContentLoaded', function () {
     var currentProjectName = null;
     var currentShareId = null;
     var lastSavedSnapshot = null;
+    var contextTargetFile = null;
 
     function snapshot() { return JSON.stringify(files); }
     function markUnsaved() {
@@ -375,31 +381,57 @@ window.addEventListener('DOMContentLoaded', function () {
       unsavedIndicator.style.display = (lastSavedSnapshot !== snapshot()) ? 'inline' : 'none';
     }
 
+    function isAsset(name) { return name.indexOf('asset:') === 0; }
+    function assetDisplayName(name) { return name.substring(6); }
+
+    function iconForFile(name) {
+      if (isAsset(name)) {
+        var lower = name.toLowerCase();
+        if (lower.match(/\.(png|jpe?g|gif|webp|svg|bmp)$/)) return '🖼 ';
+        if (lower.match(/\.(json|xml|yaml|yml)$/)) return '📋 ';
+        if (lower.match(/\.(txt|md)$/)) return '📝 ';
+        return '📎 ';
+      }
+      if (name.endsWith('.html')) return '🌐 ';
+      if (name.endsWith('.css'))  return '🎨 ';
+      if (name.endsWith('.js'))   return '⚡ ';
+      return '📄 ';
+    }
+
     function rebuildFileTree() {
       if (!fileTreeList) return;
       fileTreeList.innerHTML = '';
       Object.keys(files).forEach(function (name) {
         var li = document.createElement('li');
-        li.className = 'file-item' + (name === activeFile ? ' active' : '');
+        li.className = 'file-item' + (name === activeFile ? ' active' : '') + (isAsset(name) ? ' asset-item' : '');
         li.setAttribute('data-filename', name);
-        var icon = '📄 ';
-        if (name.endsWith('.html')) icon = '🌐 ';
-        if (name.endsWith('.css'))  icon = '🎨 ';
-        if (name.endsWith('.js'))   icon = '⚡ ';
-        li.textContent = icon + name;
+        li.textContent = iconForFile(name) + (isAsset(name) ? assetDisplayName(name) : name);
         fileTreeList.appendChild(li);
       });
-      if (currentFileLabel) currentFileLabel.textContent = activeFile;
+      if (currentFileLabel) {
+        currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile;
+      }
+    }
+
+    function resolveAssets(html) {
+      if (!html) return '';
+      return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) {
+        if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match;
+        var key = 'asset:' + url;
+        if (files[key]) return attr + '=' + quote + files[key] + quote;
+        return match;
+      });
     }
 
     function renderPreview() {
       if (!livePreviewFrame) return;
-      if (codeEditor) files[activeFile] = codeEditor.value;
+      if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value;
+      var resolvedHtml = resolveAssets(files['index.html'] || '');
       livePreviewFrame.srcdoc =
         '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
         '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
         '<style>' + (files['style.css'] || '') + '</style></head><body>' +
-        (files['index.html'] || '') +
+        resolvedHtml +
         '<script>' + (files['script.js'] || '') + '<\/script></body></html>';
     }
 
@@ -423,6 +455,7 @@ window.addEventListener('DOMContentLoaded', function () {
       if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
       lastSavedSnapshot = snapshot();
       codeEditor.addEventListener('input', function () {
+        if (isAsset(activeFile)) return;
         files[activeFile] = codeEditor.value;
         markUnsaved();
       });
@@ -431,18 +464,109 @@ window.addEventListener('DOMContentLoaded', function () {
     if (runCodeBtn) runCodeBtn.addEventListener('click', function () { renderPreview(); showToast('Preview refreshed'); });
     renderPreview();
 
+    // ---- File tree clicks ---------------------------------------------
     if (fileTreeList) {
       fileTreeList.addEventListener('click', function (e) {
         var item = e.target.closest('.file-item');
         if (!item || !codeEditor) return;
-        files[activeFile] = codeEditor.value;
+        if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
         document.querySelectorAll('.file-item').forEach(function (el) { el.classList.remove('active'); });
         item.classList.add('active');
         activeFile = item.getAttribute('data-filename');
-        if (currentFileLabel) currentFileLabel.textContent = activeFile;
-        codeEditor.value = files[activeFile] || '';
-        if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
+        if (currentFileLabel) {
+          currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile;
+        }
+        if (isAsset(activeFile)) {
+          codeEditor.value = files[activeFile] + '\n\n<!-- This is an uploaded asset. Its public URL is shown above. Use it in your HTML like: <img src="' + assetDisplayName(activeFile) + '"> -->';
+          if (cm) cm.setOption('readOnly', true);
+        } else {
+          if (cm) cm.setOption('readOnly', false);
+          codeEditor.value = files[activeFile] || '';
+          if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
+        }
         if (cm) cm.focus();
+      });
+
+      fileTreeList.addEventListener('contextmenu', function (e) {
+        var item = e.target.closest('.file-item');
+        if (!item) return;
+        e.preventDefault();
+        contextTargetFile = item.getAttribute('data-filename');
+        if (fileContextMenu) {
+          fileContextMenu.style.left = e.pageX + 'px';
+          fileContextMenu.style.top = e.pageY + 'px';
+          fileContextMenu.style.display = 'block';
+        }
+      });
+    }
+
+    document.addEventListener('click', function (e) {
+      if (fileContextMenu && !e.target.closest('#fileContextMenu')) {
+        fileContextMenu.style.display = 'none';
+      }
+    });
+
+    if (fileContextMenu) {
+      fileContextMenu.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action]');
+        if (!btn || !contextTargetFile) return;
+        var action = btn.getAttribute('data-action');
+        var target = contextTargetFile;
+        fileContextMenu.style.display = 'none';
+
+        if (action === 'rename') {
+          var newName = prompt('Rename "' + (isAsset(target) ? assetDisplayName(target) : target) + '" to:', isAsset(target) ? assetDisplayName(target) : target);
+          if (!newName) return;
+          newName = newName.trim().toLowerCase();
+          if (!newName) return;
+          var key = isAsset(target) ? 'asset:' + newName : newName;
+          if (files[key] !== undefined) { alert('A file with that name already exists.'); return; }
+          files[key] = files[target];
+          delete files[target];
+          if (activeFile === target) activeFile = key;
+          rebuildFileTree();
+          markUnsaved();
+          renderPreview();
+          showToast('Renamed');
+
+        } else if (action === 'duplicate') {
+          var base = isAsset(target) ? assetDisplayName(target) : target;
+          var lastDot = base.lastIndexOf('.');
+          var stem = lastDot > -1 ? base.substring(0, lastDot) : base;
+          var ext  = lastDot > -1 ? base.substring(lastDot) : '';
+          var copyName = stem + '-copy' + ext;
+          var n = 2;
+          while (files[isAsset(target) ? 'asset:' + copyName : copyName] !== undefined) {
+            copyName = stem + '-copy-' + n + ext;
+            n++;
+          }
+          var newKey = isAsset(target) ? 'asset:' + copyName : copyName;
+          files[newKey] = files[target];
+          rebuildFileTree();
+          markUnsaved();
+          showToast('Duplicated');
+
+        } else if (action === 'download') {
+          if (isAsset(target)) {
+            window.open(files[target], '_blank');
+          } else {
+            downloadBlob(new Blob([files[target] || ''], { type: 'text/plain;charset=utf-8' }), target);
+            showToast('Downloaded ' + target, 'success');
+          }
+
+        } else if (action === 'delete') {
+          if (!confirm('Delete "' + (isAsset(target) ? assetDisplayName(target) : target) + '"?')) return;
+          delete files[target];
+          if (activeFile === target) {
+            activeFile = Object.keys(files)[0] || 'index.html';
+            if (codeEditor) codeEditor.value = files[activeFile] || '';
+            if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
+          }
+          rebuildFileTree();
+          markUnsaved();
+          renderPreview();
+          showToast('Deleted');
+        }
       });
     }
 
@@ -451,7 +575,7 @@ window.addEventListener('DOMContentLoaded', function () {
         var name = prompt('New filename (e.g. app.js):');
         if (!name) return;
         var clean = name.trim().toLowerCase();
-        if (files[clean] !== undefined) { alert('File already exists.'); return; }
+        if (files[clean] !== undefined || files['asset:' + clean] !== undefined) { alert('File already exists.'); return; }
         files[clean] = '';
         rebuildFileTree();
         var li = fileTreeList.querySelector('[data-filename="' + clean + '"]');
@@ -461,9 +585,69 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
+    if (uploadFileBtn && hiddenFileInput) {
+      uploadFileBtn.addEventListener('click', function () {
+        hiddenFileInput.click();
+      });
+
+      hiddenFileInput.addEventListener('change', async function () {
+        var file = this.files && this.files[0];
+        if (!file) return;
+
+        if (!auth || !auth.currentUser) {
+          showToast('Please sign in first.', 'error');
+          this.value = '';
+          return;
+        }
+
+        if (!storage) {
+          showToast('File upload not available — storage not initialized.', 'error');
+          this.value = '';
+          return;
+        }
+
+        if (file.size > 2 * 1024 * 1024) {
+          showToast('File is too large. Maximum 2 MB.', 'error');
+          this.value = '';
+          return;
+        }
+
+        var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-');
+        var ts = Date.now();
+        var storagePath = 'users/' + auth.currentUser.uid + '/uploads/' + ts + '-' + safeName;
+
+        uploadFileBtn.disabled = true;
+        var origText = uploadFileBtn.textContent;
+        uploadFileBtn.textContent = '⏳';
+        showToast('Uploading…');
+
+        try {
+          var snap = await storage.ref(storagePath).put(file);
+          var url = await snap.ref.getDownloadURL();
+
+          files['asset:' + safeName] = url;
+          rebuildFileTree();
+          markUnsaved();
+          renderPreview();
+          showToast('Uploaded ' + safeName, 'success');
+        } catch (err) {
+          console.error('[CodeWix] upload failed:', err);
+          showToast('Upload failed: ' + err.message, 'error');
+        } finally {
+          uploadFileBtn.disabled = false;
+          uploadFileBtn.textContent = origText;
+          hiddenFileInput.value = '';
+        }
+      });
+    }
+
     if (downloadFileBtn) {
       downloadFileBtn.addEventListener('click', function () {
         if (!codeEditor) return;
+        if (isAsset(activeFile)) {
+          window.open(files[activeFile], '_blank');
+          return;
+        }
         files[activeFile] = codeEditor.value;
         downloadBlob(new Blob([files[activeFile] || ''], { type: 'text/plain;charset=utf-8' }), activeFile);
         showToast('Downloaded ' + activeFile, 'success');
@@ -473,11 +657,18 @@ window.addEventListener('DOMContentLoaded', function () {
     if (downloadZipBtn) {
       downloadZipBtn.addEventListener('click', async function () {
         if (typeof JSZip === 'undefined') { alert('ZIP not loaded.'); return; }
-        if (codeEditor) files[activeFile] = codeEditor.value;
+        if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value;
         downloadZipBtn.disabled = true; downloadZipBtn.textContent = 'Zipping…';
         try {
           var zip = new JSZip();
-          Object.keys(files).forEach(function (name) { zip.file(name, files[name] || ''); });
+          var assetFolder = zip.folder('assets');
+          Object.keys(files).forEach(function (name) {
+            if (isAsset(name)) {
+              assetFolder.file(assetDisplayName(name), '/* asset url: ' + files[name] + ' */\n');
+            } else {
+              zip.file(name, files[name] || '');
+            }
+          });
           var blob = await zip.generateAsync({ type: 'blob' });
           downloadBlob(blob, 'codewix-project.zip');
           showToast('ZIP downloaded', 'success');
@@ -493,7 +684,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
     function saveProject() {
       if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
-      files[activeFile] = codeEditor.value;
+      if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
       var name = currentProjectName;
       if (!name) {
         name = prompt('Name this project:', 'My Project');
@@ -519,7 +710,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
     async function shareProject() {
       if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
-      files[activeFile] = codeEditor.value;
+      if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
       if (lastSavedSnapshot !== snapshot() || !currentProjectId) {
         await new Promise(function (r) { saveProject(); setTimeout(r, 400); });
         if (!currentProjectId) return;
@@ -602,10 +793,17 @@ window.addEventListener('DOMContentLoaded', function () {
             if (!d.exists) { showToast('Not found.', 'error'); return; }
             var dd = d.data();
             var zip = new JSZip();
-            Object.keys(dd.files || {}).forEach(function (name) { zip.file(name, dd.files[name] || ''); });
+            var assetFolder = zip.folder('assets');
+            Object.keys(dd.files || {}).forEach(function (name) {
+              if (name.indexOf('asset:') === 0) {
+                assetFolder.file(name.substring(6), '/* asset url: ' + dd.files[name] + ' */\n');
+              } else {
+                zip.file(name, dd.files[name] || '');
+              }
+            });
             var blob = await zip.generateAsync({ type: 'blob' });
             var safe = (dd.name || 'project').replace(/[^a-z0-9-_]/gi, '_');
-            downloadBlob(blob, safe + '.zip');
+            downloadBlob(blob, 'codewix-' + safe + '.zip');
           } catch (err) { showToast('ZIP failed: ' + err.message, 'error'); }
           finally { btn.disabled = false; btn.textContent = '⬇ ZIP'; }
         } else if (action === 'delete') {
@@ -655,7 +853,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // AI Assistant (ai-assistant.html)
+  // AI Assistant
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -683,6 +881,8 @@ window.addEventListener('DOMContentLoaded', function () {
         '',
         'When a user asks for a multi-page website, produce SEPARATE HTML files and link them with RELATIVE links like <a href="about.html">About</a>. The user can publish all files at once, and every page will be served at its own URL.',
         '',
+        'Users can upload images and other files to their workspace. Uploaded files are referenced in HTML with simple filenames like <img src="logo.png">, and CodeWix resolves them to the real URL automatically.',
+        '',
         '=== ABOUT CODEWIX ===',
         'CodeWix is a free platform for learning to code. It combines a live IDE, an AI pair programmer, daily coding lessons, and one-click publishing. No paywall. No ads.',
         '',
@@ -694,6 +894,8 @@ window.addEventListener('DOMContentLoaded', function () {
         '1. WORKSPACE (/dashboard.html)',
         '- Write HTML, CSS, JavaScript with autocomplete, syntax highlighting, line numbers.',
         '- Live preview updates on "Build & Run".',
+        '- Upload images (📎 button) — 2 MB max, stored in Firebase Storage.',
+        '- Right-click any file to rename, duplicate, download, or delete it.',
         '- Save projects, download as ZIP, share read-only links.',
         '- Ctrl+S saves. Ctrl+Space triggers autocomplete.',
         '',
@@ -712,6 +914,7 @@ window.addEventListener('DOMContentLoaded', function () {
         '4. PUBLISHING (/publish.html)',
         '- Publish any project to codewi.onrender.com/s/YOUR-SLUG',
         '- Multi-file sites supported.',
+        '- Uploaded images work on published sites.',
         '',
         '5. COMPONENTS (/components.html)',
         '- 30+ ready-made UI components to copy or send to the workspace.',
@@ -721,6 +924,7 @@ window.addEventListener('DOMContentLoaded', function () {
         '=== COMMON QUESTIONS ===',
         'Q: Is CodeWix free? A: Yes, completely free.',
         'Q: How do I save? A: Click Save or press Ctrl+S.',
+        'Q: How do I upload images? A: Click the 📎 button in the file explorer. Max 2 MB.',
         'Q: How do I publish? A: Save a project, go to /publish.html, pick a slug.',
         'Q: AI limit? A: 50/day per user.',
         'Q: Contact? A: codewix@proton.me',
