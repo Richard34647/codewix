@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js
+// CodeWix — script.js (base64 uploads via Firestore, no Firebase Storage)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -9,7 +9,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
   var auth = null;
   var db = null;
-  var storage = null;
 
   if (typeof firebase === 'undefined') {
     console.error('[CodeWix] firebase missing.');
@@ -28,8 +27,7 @@ window.addEventListener('DOMContentLoaded', function () {
       }
       auth = firebase.auth();
       if (firebase.firestore) db = firebase.firestore();
-      if (firebase.storage) storage = firebase.storage();
-      console.log('[CodeWix] Firebase ready ✔ (firestore:', !!db, ', storage:', !!storage, ')');
+      console.log('[CodeWix] Firebase ready ✔ (firestore:', !!db, ')');
     } catch (err) { console.error('[CodeWix] init failed:', err); }
   }
 
@@ -73,6 +71,23 @@ window.addEventListener('DOMContentLoaded', function () {
       'markdown':'md','md':'md','text':'txt','plaintext':'txt'
     };
     return map[String(lang).toLowerCase()] || 'txt';
+  }
+  function readFileAsDataURL(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { reject(reader.error); };
+      reader.readAsDataURL(file);
+    });
+  }
+  function dataUrlToBlob(dataUrl) {
+    var parts = dataUrl.split(',');
+    var mimeMatch = parts[0].match(/:(.*?);/);
+    var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    var binary = atob(parts[1]);
+    var array = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    return new Blob([array], { type: mime });
   }
 
   document.querySelectorAll('nav').forEach(function (nav) {
@@ -246,7 +261,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Sandbox IDE — CodeMirror + uploads + asset resolution
+  // Sandbox IDE — CodeMirror + base64 uploads
   // ======================================================================
   var cm = null;
   var codeEditor = null;
@@ -477,7 +492,7 @@ window.addEventListener('DOMContentLoaded', function () {
           currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile;
         }
         if (isAsset(activeFile)) {
-          codeEditor.value = files[activeFile] + '\n\n<!-- This is an uploaded asset. Its public URL is shown above. Use it in your HTML like: <img src="' + assetDisplayName(activeFile) + '"> -->';
+          codeEditor.value = files[activeFile] + '\n\n<!-- This is an uploaded asset stored as base64. Use it in your HTML like: <img src="' + assetDisplayName(activeFile) + '"> -->';
           if (cm) cm.setOption('readOnly', true);
         } else {
           if (cm) cm.setOption('readOnly', false);
@@ -548,7 +563,14 @@ window.addEventListener('DOMContentLoaded', function () {
 
         } else if (action === 'download') {
           if (isAsset(target)) {
-            window.open(files[target], '_blank');
+            // Decode base64 to a real file
+            try {
+              var blob = dataUrlToBlob(files[target]);
+              downloadBlob(blob, assetDisplayName(target));
+              showToast('Downloaded ' + assetDisplayName(target), 'success');
+            } catch (err) {
+              showToast('Download failed: ' + err.message, 'error');
+            }
           } else {
             downloadBlob(new Blob([files[target] || ''], { type: 'text/plain;charset=utf-8' }), target);
             showToast('Downloaded ' + target, 'success');
@@ -585,6 +607,7 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
+    // ---- Upload file (base64 into Firestore) --------------------------
     if (uploadFileBtn && hiddenFileInput) {
       uploadFileBtn.addEventListener('click', function () {
         hiddenFileInput.click();
@@ -600,39 +623,38 @@ window.addEventListener('DOMContentLoaded', function () {
           return;
         }
 
-        if (!storage) {
-          showToast('File upload not available — storage not initialized.', 'error');
+        // 300 KB limit — keeps Firestore docs small and fast
+        if (file.size > 300 * 1024) {
+          showToast('File is too large. Maximum 300 KB.', 'error');
           this.value = '';
           return;
         }
 
-        if (file.size > 2 * 1024 * 1024) {
-          showToast('File is too large. Maximum 2 MB.', 'error');
+        // Check total project size (Firestore doc limit is 1 MB)
+        var currentSize = JSON.stringify(files).length;
+        if (currentSize > 700 * 1024) {
+          showToast('Project is getting too large. Delete unused files or start a new project.', 'error');
           this.value = '';
           return;
         }
 
         var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-');
-        var ts = Date.now();
-        var storagePath = 'users/' + auth.currentUser.uid + '/uploads/' + ts + '-' + safeName;
 
         uploadFileBtn.disabled = true;
         var origText = uploadFileBtn.textContent;
         uploadFileBtn.textContent = '⏳';
-        showToast('Uploading…');
+        showToast('Processing…');
 
         try {
-          var snap = await storage.ref(storagePath).put(file);
-          var url = await snap.ref.getDownloadURL();
-
-          files['asset:' + safeName] = url;
+          var dataUrl = await readFileAsDataURL(file);
+          files['asset:' + safeName] = dataUrl;
           rebuildFileTree();
           markUnsaved();
           renderPreview();
-          showToast('Uploaded ' + safeName, 'success');
+          showToast('Added ' + safeName, 'success');
         } catch (err) {
           console.error('[CodeWix] upload failed:', err);
-          showToast('Upload failed: ' + err.message, 'error');
+          showToast('Failed: ' + err.message, 'error');
         } finally {
           uploadFileBtn.disabled = false;
           uploadFileBtn.textContent = origText;
@@ -645,7 +667,13 @@ window.addEventListener('DOMContentLoaded', function () {
       downloadFileBtn.addEventListener('click', function () {
         if (!codeEditor) return;
         if (isAsset(activeFile)) {
-          window.open(files[activeFile], '_blank');
+          try {
+            var blob = dataUrlToBlob(files[activeFile]);
+            downloadBlob(blob, assetDisplayName(activeFile));
+            showToast('Downloaded ' + assetDisplayName(activeFile), 'success');
+          } catch (err) {
+            showToast('Download failed: ' + err.message, 'error');
+          }
           return;
         }
         files[activeFile] = codeEditor.value;
@@ -664,7 +692,13 @@ window.addEventListener('DOMContentLoaded', function () {
           var assetFolder = zip.folder('assets');
           Object.keys(files).forEach(function (name) {
             if (isAsset(name)) {
-              assetFolder.file(assetDisplayName(name), '/* asset url: ' + files[name] + ' */\n');
+              // Decode base64 back to a real image file
+              try {
+                var blob = dataUrlToBlob(files[name]);
+                assetFolder.file(assetDisplayName(name), blob, { binary: true });
+              } catch (err) {
+                assetFolder.file(assetDisplayName(name) + '.txt', '/* asset data was not readable */');
+              }
             } else {
               zip.file(name, files[name] || '');
             }
@@ -796,14 +830,17 @@ window.addEventListener('DOMContentLoaded', function () {
             var assetFolder = zip.folder('assets');
             Object.keys(dd.files || {}).forEach(function (name) {
               if (name.indexOf('asset:') === 0) {
-                assetFolder.file(name.substring(6), '/* asset url: ' + dd.files[name] + ' */\n');
+                try {
+                  var blob = dataUrlToBlob(dd.files[name]);
+                  assetFolder.file(name.substring(6), blob, { binary: true });
+                } catch (err) { /* skip */ }
               } else {
                 zip.file(name, dd.files[name] || '');
               }
             });
-            var blob = await zip.generateAsync({ type: 'blob' });
+            var blob2 = await zip.generateAsync({ type: 'blob' });
             var safe = (dd.name || 'project').replace(/[^a-z0-9-_]/gi, '_');
-            downloadBlob(blob, 'codewix-' + safe + '.zip');
+            downloadBlob(blob2, 'codewix-' + safe + '.zip');
           } catch (err) { showToast('ZIP failed: ' + err.message, 'error'); }
           finally { btn.disabled = false; btn.textContent = '⬇ ZIP'; }
         } else if (action === 'delete') {
@@ -877,61 +914,15 @@ window.addEventListener('DOMContentLoaded', function () {
     var SYSTEM_PROMPT = {
       role: 'system',
       content: [
-        'You are the CodeWix AI Assistant — the built-in AI helper for the CodeWix platform. You help users learn to code, debug errors, build projects, and understand how to use CodeWix itself. Keep answers concise, practical, and friendly. When showing code, ALWAYS wrap it in triple-backtick fenced blocks with the language name (like ```javascript ... ```). Never paste code inline without a fence.',
+        'You are the CodeWix AI Assistant — the built-in AI helper for the CodeWix platform. Help users learn to code, debug errors, build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name.',
         '',
-        'When a user asks for a multi-page website, produce SEPARATE HTML files and link them with RELATIVE links like <a href="about.html">About</a>. The user can publish all files at once, and every page will be served at its own URL.',
+        'When a user asks for a multi-page website, produce SEPARATE HTML files and link them with RELATIVE links like <a href="about.html">About</a>.',
         '',
-        'Users can upload images and other files to their workspace. Uploaded files are referenced in HTML with simple filenames like <img src="logo.png">, and CodeWix resolves them to the real URL automatically.',
+        'Users can upload images to their workspace (max 300 KB). They reference them in HTML with simple filenames like <img src="logo.png">, and CodeWix resolves them automatically.',
         '',
-        '=== ABOUT CODEWIX ===',
-        'CodeWix is a free platform for learning to code. It combines a live IDE, an AI pair programmer, daily coding lessons, and one-click publishing. No paywall. No ads.',
+        'Website: https://codewi.onrender.com | Support: codewix@proton.me',
         '',
-        'Website: https://codewi.onrender.com',
-        'Support email: codewix@proton.me',
-        '',
-        '=== FEATURES ===',
-        '',
-        '1. WORKSPACE (/dashboard.html)',
-        '- Write HTML, CSS, JavaScript with autocomplete, syntax highlighting, line numbers.',
-        '- Live preview updates on "Build & Run".',
-        '- Upload images (📎 button) — 2 MB max, stored in Firebase Storage.',
-        '- Right-click any file to rename, duplicate, download, or delete it.',
-        '- Save projects, download as ZIP, share read-only links.',
-        '- Ctrl+S saves. Ctrl+Space triggers autocomplete.',
-        '',
-        '2. AI ASSISTANT (/ai-assistant.html)',
-        '- Chat with GPT-OSS on Groq.',
-        '- Models: openai/gpt-oss-120b, openai/gpt-oss-20b, qwen/qwen3.6-27b.',
-        '- "Thinking" toggle shows reasoning.',
-        '- Code blocks have: Publish, Send to Editor, Download, Copy.',
-        '- Chat history saved per user.',
-        '- Rate limit: 50 messages/day.',
-        '',
-        '3. LESSONS (/learn.html)',
-        '- 20 lessons from variables to JSON.',
-        '- Progress tracking and daily streak.',
-        '',
-        '4. PUBLISHING (/publish.html)',
-        '- Publish any project to codewi.onrender.com/s/YOUR-SLUG',
-        '- Multi-file sites supported.',
-        '- Uploaded images work on published sites.',
-        '',
-        '5. COMPONENTS (/components.html)',
-        '- 30+ ready-made UI components to copy or send to the workspace.',
-        '',
-        '6. EXPLORE (/explore.html) — Browse published sites.',
-        '',
-        '=== COMMON QUESTIONS ===',
-        'Q: Is CodeWix free? A: Yes, completely free.',
-        'Q: How do I save? A: Click Save or press Ctrl+S.',
-        'Q: How do I upload images? A: Click the 📎 button in the file explorer. Max 2 MB.',
-        'Q: How do I publish? A: Save a project, go to /publish.html, pick a slug.',
-        'Q: AI limit? A: 50/day per user.',
-        'Q: Contact? A: codewix@proton.me',
-        '',
-        '=== TONE ===',
-        'Encouraging, never condescending. Explain errors in plain English.',
-        'If you do not know something, say: "I do not have information on that. Try codewix@proton.me."'
+        'Tone: encouraging, never condescending. Explain errors in plain English.'
       ].join('\n')
     };
 
