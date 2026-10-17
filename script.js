@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (base64 uploads via Firestore, no Firebase Storage)
+// CodeWix — script.js
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -358,6 +358,7 @@ window.addEventListener('DOMContentLoaded', function () {
   var currentFileLabel = $('currentFileLabel');
   var fileTreeList     = $('fileTreeList');
   var newFileBtn       = $('newFileBtn');
+  var renameFileBtn    = $('renameFileBtn');
   var uploadFileBtn    = $('uploadFileBtn');
   var hiddenFileInput  = $('hiddenFileInput');
   var fileContextMenu  = $('fileContextMenu');
@@ -603,6 +604,29 @@ window.addEventListener('DOMContentLoaded', function () {
         if (li) li.click();
         if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(clean);
         markUnsaved();
+      });
+    }
+
+    if (renameFileBtn) {
+      renameFileBtn.addEventListener('click', function () {
+        if (!activeFile) return;
+        var currentName = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile;
+        var newName = prompt('Rename "' + currentName + '" to:', currentName);
+        if (!newName) return;
+        newName = newName.trim().toLowerCase();
+        if (!newName || newName === currentName) return;
+        
+        var key = isAsset(activeFile) ? 'asset:' + newName : newName;
+        if (files[key] !== undefined) { alert('A file with that name already exists.'); return; }
+        
+        files[key] = files[activeFile];
+        delete files[activeFile];
+        activeFile = key;
+        
+        rebuildFileTree();
+        markUnsaved();
+        renderPreview();
+        showToast('Renamed to ' + newName, 'success');
       });
     }
 
@@ -907,17 +931,27 @@ window.addEventListener('DOMContentLoaded', function () {
 
     var API_URL = '/api/chat';
     
-    // We use a base system prompt, and append the user's name dynamically later
     var SYSTEM_PROMPT = {
       role: 'system',
       content: [
         'You are the CodeWix AI Assistant — the built-in AI helper for the CodeWix platform. Help users learn to code, debug errors, build projects. Keep answers concise and practical. ALWAYS wrap code in triple-backtick fenced blocks with the language name.',
         '',
-        'When a user asks for a multi-page website, produce SEPARATE HTML files and link them with RELATIVE links like <a href="about.html">About</a>.',
+        'CRITICAL INSTRUCTION FOR MULTI-FILE PROJECTS:',
+        'When you provide multiple files, you MUST specify the filename on the SAME LINE as the opening backticks.',
+        'Use RELATIVE links like <a href="about.html">About</a>.',
+        'Example format:',
+        '```html index.html',
+        '<h1>Home</h1><a href="about.html">About</a>',
+        '```',
+        '```html about.html',
+        '<h1>About Us</h1>',
+        '```',
+        '```css style.css',
+        'body { background: #000; }',
+        '```',
+        'If you do not provide a filename, CodeWix will default to index.html, style.css, and script.js.',
         '',
         'Users can upload images to their workspace (max 300 KB). They reference them in HTML with simple filenames like <img src="logo.png">, and CodeWix resolves them automatically.',
-        '',
-        'Website: https://codewi.onrender.com | Support: codewix@proton.me',
         '',
         'Tone: encouraging, never condescending. Explain errors in plain English.'
       ].join('\n')
@@ -928,7 +962,23 @@ window.addEventListener('DOMContentLoaded', function () {
     var currentChatTitle = '';
     var saveTimer = null;
     var authUser = null;
-    var currentUserName = 'User'; // Default name before auth loads
+    var currentUserName = 'User'; 
+
+    function getUsername() {
+      if (auth && auth.currentUser) {
+        if (auth.currentUser.displayName && auth.currentUser.displayName.trim() !== '') {
+          return auth.currentUser.displayName.trim();
+        }
+        if (auth.currentUser.email) {
+          return auth.currentUser.email.split('@')[0];
+        }
+      }
+      var dashUser = $('dashUser');
+      if (dashUser && dashUser.textContent && dashUser.textContent !== 'User') {
+        return dashUser.textContent;
+      }
+      return 'User';
+    }
 
     function chatsCollection() {
       if (!db || !authUser) return null;
@@ -987,7 +1037,6 @@ window.addEventListener('DOMContentLoaded', function () {
       updateTitleBar(); showWelcome(); chatInput.focus();
     }
 
-    // THIS IS THE FIX: The greeting now dynamically includes the username
     function showWelcome() {
       chatContainer.innerHTML =
         '<div class="chat-message assistant-message">' +
@@ -998,22 +1047,21 @@ window.addEventListener('DOMContentLoaded', function () {
 
     function onUserReady(user) {
       authUser = user;
-      // Safely extract the username from displayName or email
-      if (user.displayName) {
-        currentUserName = user.displayName;
-      } else if (user.email) {
-        currentUserName = user.email.split('@')[0];
-      } else {
-        currentUserName = 'User';
-      }
-      
+      currentUserName = getUsername();
       console.log('[CodeWix] AI Username loaded:', currentUserName);
 
-      var col = chatsCollection(); if (!col) { showWelcome(); return; }
+      var col = chatsCollection(); if (!col) { startNewChat(); return; }
       col.orderBy('updatedAt', 'desc').limit(1).get()
         .then(function (snap) {
           if (snap.empty) startNewChat();
-          else { var doc = snap.docs[0]; loadChat(doc.id, doc.data()); setStatus('Loaded previous conversation'); }
+          else { 
+            var doc = snap.docs[0]; 
+            loadChat(doc.id, doc.data()); 
+            setStatus('Loaded previous conversation'); 
+            if (!doc.data().messages || doc.data().messages.length === 0) {
+              showWelcome();
+            }
+          }
         })
         .catch(function () { startNewChat(); });
     }
@@ -1034,18 +1082,27 @@ window.addEventListener('DOMContentLoaded', function () {
           var escaped = escapeHtml(chunk).replace(/`([^`\n]+)`/g, '<code>$1</code>');
           html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>';
         } else {
-          var body = parts[i], lang = 'code', nl = body.indexOf('\n');
+          var body = parts[i], lang = 'code', filename = null, nl = body.indexOf('\n');
+          
           if (nl !== -1) {
             var firstLine = body.substring(0, nl).trim();
-            if (firstLine && !firstLine.match(/\s/) && firstLine.length < 20) { lang = firstLine; body = body.substring(nl + 1); }
+            var match = firstLine.match(/^([a-zA-Z0-9_-]+)(?:\s+(?:filename=["']?([^"'\s]+)["']?|([^"'\s]+)))?$/);
+            if (match) {
+              lang = match[1];
+              if (match[2]) filename = match[2];
+              else if (match[3]) filename = match[3];
+              body = body.substring(nl + 1);
+            }
           }
           body = body.replace(/\n$/, '');
           var publishLabel = blockCount > 1 ? '🚀 Publish All' : '🚀 Publish';
+          
+          var displayTitle = filename ? filename : lang;
 
           html +=
-            '<div class="code-block" data-lang="' + escapeHtml(lang) + '">' +
+            '<div class="code-block" data-lang="' + escapeHtml(lang) + '" ' + (filename ? 'data-filename="' + escapeHtml(filename) + '"' : '') + '>' +
               '<div class="code-header">' +
-                '<span class="code-lang">' + escapeHtml(lang) + '</span>' +
+                '<span class="code-lang">' + escapeHtml(displayTitle) + '</span>' +
                 '<div class="code-actions">' +
                   '<button type="button" class="publish-ai-btn">' + publishLabel + '</button>' +
                   '<button type="button" class="send-to-editor-btn">⚡ Send to Editor</button>' +
@@ -1103,12 +1160,13 @@ window.addEventListener('DOMContentLoaded', function () {
 
       blocks.forEach(function (block) {
         var lang = (block.getAttribute('data-lang') || 'code').toLowerCase();
+        var dataFilename = block.getAttribute('data-filename');
         var codeEl = block.querySelector('code');
         if (!codeEl) return;
         var code = codeEl.textContent;
         if (!code.trim()) return;
 
-        var filename = defaultNames[lang];
+        var filename = dataFilename || defaultNames[lang];
         if (!filename) filename = 'snippet.' + extensionForLang(lang);
 
         if (usedNames[filename]) {
@@ -1204,10 +1262,11 @@ window.addEventListener('DOMContentLoaded', function () {
         return; 
       }
 
-      // 1. Create the strict system prompt
+      currentUserName = getUsername();
+
       var dynamicSystemPrompt = {
         role: 'system',
-        content: SYSTEM_PROMPT.content + '\n\nCRITICAL INSTRUCTION: The user you are speaking to is named "' + currentUserName + '". You MUST begin your response with "Dear ' + currentUserName + '," and address them by this name.'
+        content: SYSTEM_PROMPT.content + '\n\n[CRITICAL INSTRUCTION] The user you are speaking to is named "' + currentUserName + '". You MUST begin EVERY response with the exact phrase: "Dear ' + currentUserName + ', ". Do not say "Hello I am your CodeWix AI". Just say "Dear ' + currentUserName + ', " and then answer the question.'
       };
 
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
@@ -1224,7 +1283,6 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         var idToken = await authUser.getIdToken();
         
-        // 2. Build the messages array (replace the default system prompt with the dynamic one)
         var messagesToSend = [dynamicSystemPrompt].concat(
           conversation.filter(function(m) { return m.role !== 'system'; })
         );
@@ -1236,9 +1294,6 @@ window.addEventListener('DOMContentLoaded', function () {
           max_completion_tokens: 2048 
         };
         if (showThinking) payload.reasoning_effort = 'medium';
-
-        // Debug log to verify it's being sent
-        console.log('[CodeWix] Sending AI Payload with User:', currentUserName);
 
         var response = await fetch(API_URL, {
           method: 'POST',
