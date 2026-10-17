@@ -906,6 +906,8 @@ window.addEventListener('DOMContentLoaded', function () {
     console.log('[CodeWix] AI Assistant detected');
 
     var API_URL = '/api/chat';
+    
+    // We use a base system prompt, and append the user's name dynamically later
     var SYSTEM_PROMPT = {
       role: 'system',
       content: [
@@ -926,6 +928,7 @@ window.addEventListener('DOMContentLoaded', function () {
     var currentChatTitle = '';
     var saveTimer = null;
     var authUser = null;
+    var currentUserName = 'User'; // Default name before auth loads
 
     function chatsCollection() {
       if (!db || !authUser) return null;
@@ -984,16 +987,28 @@ window.addEventListener('DOMContentLoaded', function () {
       updateTitleBar(); showWelcome(); chatInput.focus();
     }
 
+    // THIS IS THE FIX: The greeting now dynamically includes the username
     function showWelcome() {
       chatContainer.innerHTML =
         '<div class="chat-message assistant-message">' +
           '<div class="message-role">Assistant</div>' +
-          '<div class="message-content"><div class="text-part">Hello! I\'m your CodeWix AI Assistant. Ask me to write anything — when you see a code block, you can publish it live with one click.</div></div>' +
+          '<div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! I\'m your CodeWix AI Assistant. Ask me to write anything — when you see a code block, you can publish it live with one click.</div></div>' +
         '</div>';
     }
 
     function onUserReady(user) {
       authUser = user;
+      // Safely extract the username from displayName or email
+      if (user.displayName) {
+        currentUserName = user.displayName;
+      } else if (user.email) {
+        currentUserName = user.email.split('@')[0];
+      } else {
+        currentUserName = 'User';
+      }
+      
+      console.log('[CodeWix] AI Username loaded:', currentUserName);
+
       var col = chatsCollection(); if (!col) { showWelcome(); return; }
       col.orderBy('updatedAt', 'desc').limit(1).get()
         .then(function (snap) {
@@ -1189,13 +1204,10 @@ window.addEventListener('DOMContentLoaded', function () {
         return; 
       }
 
-      // Get the user's name dynamically
-      var userName = authUser.displayName || authUser.email.split('@')[0];
-
-      // Create a dynamic system prompt that includes their name
+      // 1. Create the strict system prompt
       var dynamicSystemPrompt = {
         role: 'system',
-        content: SYSTEM_PROMPT.content + '\n\nThe user you are currently talking to is named: ' + userName + '. Address them by name occasionally.'
+        content: SYSTEM_PROMPT.content + '\n\nCRITICAL INSTRUCTION: The user you are speaking to is named "' + currentUserName + '". You MUST begin your response with "Dear ' + currentUserName + '," and address them by this name.'
       };
 
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
@@ -1212,7 +1224,7 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         var idToken = await authUser.getIdToken();
         
-        // Build the messages array (replace the default system prompt with the dynamic one)
+        // 2. Build the messages array (replace the default system prompt with the dynamic one)
         var messagesToSend = [dynamicSystemPrompt].concat(
           conversation.filter(function(m) { return m.role !== 'system'; })
         );
@@ -1224,6 +1236,9 @@ window.addEventListener('DOMContentLoaded', function () {
           max_completion_tokens: 2048 
         };
         if (showThinking) payload.reasoning_effort = 'medium';
+
+        // Debug log to verify it's being sent
+        console.log('[CodeWix] Sending AI Payload with User:', currentUserName);
 
         var response = await fetch(API_URL, {
           method: 'POST',
