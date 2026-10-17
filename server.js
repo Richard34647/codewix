@@ -301,7 +301,7 @@ app.post('/api/send-verification-email', async (req, res) => {
 
   try {
     const actionCodeSettings = {
-      url: redirectUrl || 'https://codewi.onrender.com/verify.html',
+      url: redirectUrl || 'http://localhost:5500/verify.html',
       handleCodeInApp: false
     };
     const verificationLink = await admin.auth().generateEmailVerificationLink(userEmail, actionCodeSettings);
@@ -350,7 +350,6 @@ app.get('/s/:slug', async (req, res, next) => {
     const files = data.files || {};
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(function () {});
 
-    // Resolve uploaded asset URLs, then rewrite relative links
     var rawHtml = files['index.html'] || '';
     rawHtml = resolveAssetUrls(rawHtml, files);
     const composedHtml = rewritePublishedLinks(rawHtml, slug);
@@ -432,6 +431,7 @@ app.use(function (req, res) {
 
 app.listen(PORT, '0.0.0.0', function () {
   console.log('\n✅ CodeWix running on port ' + PORT);
+  console.log('   URL:         http://127.0.0.1:' + PORT);
   console.log('   GROQ:        ' + (GROQ_API_KEY ? 'YES ✔' : 'NO ❌'));
   console.log('   EmailJS:     ' + (emailjsReady ? 'YES ✔' : 'NO ❌'));
   console.log('   FB Admin:    ' + (admin.apps.length ? 'YES ✔' : 'NO ❌') + '\n');

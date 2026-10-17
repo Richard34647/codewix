@@ -563,7 +563,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
         } else if (action === 'download') {
           if (isAsset(target)) {
-            // Decode base64 to a real file
             try {
               var blob = dataUrlToBlob(files[target]);
               downloadBlob(blob, assetDisplayName(target));
@@ -607,7 +606,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // ---- Upload file (base64 into Firestore) --------------------------
     if (uploadFileBtn && hiddenFileInput) {
       uploadFileBtn.addEventListener('click', function () {
         hiddenFileInput.click();
@@ -623,14 +621,12 @@ window.addEventListener('DOMContentLoaded', function () {
           return;
         }
 
-        // 300 KB limit — keeps Firestore docs small and fast
         if (file.size > 300 * 1024) {
           showToast('File is too large. Maximum 300 KB.', 'error');
           this.value = '';
           return;
         }
 
-        // Check total project size (Firestore doc limit is 1 MB)
         var currentSize = JSON.stringify(files).length;
         if (currentSize > 700 * 1024) {
           showToast('Project is getting too large. Delete unused files or start a new project.', 'error');
@@ -692,7 +688,6 @@ window.addEventListener('DOMContentLoaded', function () {
           var assetFolder = zip.folder('assets');
           Object.keys(files).forEach(function (name) {
             if (isAsset(name)) {
-              // Decode base64 back to a real image file
               try {
                 var blob = dataUrlToBlob(files[name]);
                 assetFolder.file(assetDisplayName(name), blob, { binary: true });
@@ -1188,9 +1183,23 @@ window.addEventListener('DOMContentLoaded', function () {
       var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
       if (modelIndicator) modelIndicator.textContent = model;
       var showThinking = thinkingToggle ? thinkingToggle.checked : false;
-      if (!authUser) { showToast('Sign in first.', 'error'); return; }
+      
+      if (!authUser) { 
+        showToast('Sign in first.', 'error'); 
+        return; 
+      }
+
+      // Get the user's name dynamically
+      var userName = authUser.displayName || authUser.email.split('@')[0];
+
+      // Create a dynamic system prompt that includes their name
+      var dynamicSystemPrompt = {
+        role: 'system',
+        content: SYSTEM_PROMPT.content + '\n\nThe user you are currently talking to is named: ' + userName + '. Address them by name occasionally.'
+      };
 
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
+      
       conversation.push({ role: 'user', content: userText });
       var userDiv = appendMessage('user'); setUserMessage(userDiv, userText); scheduleSave();
 
@@ -1202,7 +1211,18 @@ window.addEventListener('DOMContentLoaded', function () {
 
       try {
         var idToken = await authUser.getIdToken();
-        var payload = { model: model, messages: conversation, temperature: 0.7, max_completion_tokens: 2048 };
+        
+        // Build the messages array (replace the default system prompt with the dynamic one)
+        var messagesToSend = [dynamicSystemPrompt].concat(
+          conversation.filter(function(m) { return m.role !== 'system'; })
+        );
+
+        var payload = { 
+          model: model, 
+          messages: messagesToSend, 
+          temperature: 0.7, 
+          max_completion_tokens: 2048 
+        };
         if (showThinking) payload.reasoning_effort = 'medium';
 
         var response = await fetch(API_URL, {
@@ -1225,10 +1245,12 @@ window.addEventListener('DOMContentLoaded', function () {
         var message = data.choices && data.choices[0] && data.choices[0].message;
         if (!message) throw new Error('Empty response.');
         var reply = message.content || '', reasoning = message.reasoning || '';
+        
         setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
         conversation.push({ role: 'assistant', content: reply }); scheduleSave();
         setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
       } catch (err) {
+        console.error('[CodeWix] chat error:', err);
         assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part">Error: ' + escapeHtml(err.message) + '</div>';
         conversation.pop(); setStatus('Failed');
       } finally {
