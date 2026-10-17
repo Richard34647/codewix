@@ -358,7 +358,6 @@ window.addEventListener('DOMContentLoaded', function () {
   var currentFileLabel = $('currentFileLabel');
   var fileTreeList     = $('fileTreeList');
   var newFileBtn       = $('newFileBtn');
-  var renameFileBtn    = $('renameFileBtn');
   var uploadFileBtn    = $('uploadFileBtn');
   var hiddenFileInput  = $('hiddenFileInput');
   var fileContextMenu  = $('fileContextMenu');
@@ -373,6 +372,20 @@ window.addEventListener('DOMContentLoaded', function () {
   var projectsListBox  = $('projectsListContainer');
   var closeModalBtn    = $('closeProjectsModalBtn');
   var projectStatusLbl = $('projectStatusLabel');
+
+  // 👇 AUTO-INJECT RENAME BUTTON INTO THE DOM 👇
+  var renameFileBtn = $('renameFileBtn');
+  if (!renameFileBtn && newFileBtn) {
+    renameFileBtn = document.createElement('button');
+    renameFileBtn.id = 'renameFileBtn';
+    renameFileBtn.className = newFileBtn.className || 'studio-btn ghost-btn';
+    renameFileBtn.textContent = '✏️ Rename';
+    renameFileBtn.style.marginLeft = '6px';
+    renameFileBtn.style.marginRight = '6px';
+    // Insert it right after the "New File" button
+    newFileBtn.parentNode.insertBefore(renameFileBtn, newFileBtn.nextSibling);
+  }
+  // 👆 AUTO-INJECT RENAME BUTTON INTO THE DOM 👆
 
   if (codeEditor || runCodeBtn || fileTreeList) {
     console.log('[CodeWix] IDE detected');
