@@ -80,7 +80,6 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.readAsText(file);
     });
   }
-  // 👇 NEW: Image Resizer to prevent Groq Token Limits 👇
   function resizeImage(file, maxWidth, maxHeight) {
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
@@ -102,7 +101,7 @@ window.addEventListener('DOMContentLoaded', function () {
           canvas.height = height;
           var ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.8)); // Compress to 80% quality
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
         img.onerror = reject;
         img.src = e.target.result;
@@ -111,7 +110,6 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.readAsDataURL(file);
     });
   }
-  // 👆 END NEW 👆
   function dataUrlToBlob(dataUrl) {
     var parts = dataUrl.split(',');
     var mimeMatch = parts[0].match(/:(.*?);/);
@@ -1555,12 +1553,14 @@ window.addEventListener('DOMContentLoaded', function () {
 
       var hasImages = pendingAttachments.some(function(a) { return a.type === 'image'; });
 
+      // 👇 UPDATED VISION MODEL ID 👇
       if (hasImages && !model.includes('vision')) {
-        model = 'llama-3.2-11b-vision-preview';
+        model = 'meta-llama/llama-4-scout-17b-16e-instruct';
         if (modelSelect) modelSelect.value = model;
         if (modelIndicator) modelIndicator.textContent = model;
         showToast('Switched to vision model for image analysis', 'success');
       }
+      // 👆 UPDATED VISION MODEL ID 👆
 
       if (modelIndicator) modelIndicator.textContent = model;
       currentUserName = getUsername();
