@@ -72,14 +72,6 @@ window.addEventListener('DOMContentLoaded', function () {
     };
     return map[String(lang).toLowerCase()] || 'txt';
   }
-  function readFileAsDataURL(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () { resolve(reader.result); };
-      reader.onerror = function () { reject(reader.error); };
-      reader.readAsDataURL(file);
-    });
-  }
   function readFileAsText(file) {
     return new Promise(function (resolve, reject) {
       var reader = new FileReader();
@@ -88,6 +80,38 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.readAsText(file);
     });
   }
+  // 👇 NEW: Image Resizer to prevent Groq Token Limits 👇
+  function resizeImage(file, maxWidth, maxHeight) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var img = new Image();
+        img.onload = function() {
+          var width = img.width;
+          var height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+          var canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8)); // Compress to 80% quality
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+  // 👆 END NEW 👆
   function dataUrlToBlob(dataUrl) {
     var parts = dataUrl.split(',');
     var mimeMatch = parts[0].match(/:(.*?);/);
@@ -1084,6 +1108,12 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!files.length) return;
 
       for (var file of files) {
+        // Block videos
+        if (file.type.startsWith('video/')) {
+          showToast('Videos are not supported. Please upload images or text files.', 'error');
+          continue;
+        }
+
         if (file.size > 4 * 1024 * 1024) {
           showToast('File too large (Max 4MB): ' + file.name, 'error');
           continue;
@@ -1093,7 +1123,8 @@ window.addEventListener('DOMContentLoaded', function () {
         try {
           var data = null;
           if (isImage) {
-            data = await readFileAsDataURL(file);
+            // Resize image to prevent token limit
+            data = await resizeImage(file, 1024, 1024);
           } else {
             data = await readFileAsText(file);
           }
@@ -1571,14 +1602,12 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         var idToken = await authUser.getIdToken();
 
-        // --- FIX 1: Handle Groq Vision System Prompt Incompatibility ---
+        // Handle Groq Vision System Prompt Incompatibility
         var messagesToSend;
         if (hasImages) {
-          // Groq vision models reject system messages. Merge into the user message instead.
           var historyWithoutSystem = conversation.filter(function(m) { return m.role !== 'system'; });
           messagesToSend = historyWithoutSystem.map(function(m, index) {
             if (index === historyWithoutSystem.length - 1 && m.role === 'user') {
-              // It's the current message
               if (typeof m.content === 'string') {
                 return { role: 'user', content: dynamicSystemPrompt.content + '\n\n' + m.content };
               } else if (Array.isArray(m.content)) {
@@ -1623,7 +1652,6 @@ window.addEventListener('DOMContentLoaded', function () {
           conversation.pop(); setStatus('Session expired'); return;
         }
 
-        // --- FIX 2: Parse error objects properly instead of showing [object Object] ---
         if (!response.ok) {
           var errorMsg = 'HTTP ' + response.status;
           if (data && data.error) {
@@ -1645,7 +1673,6 @@ window.addEventListener('DOMContentLoaded', function () {
         setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
       } catch (err) {
         console.error('[CodeWix] chat error:', err);
-        // Ensure we don't display [object Object] here either
         var displayErr = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
         assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(displayErr) + '</div>';
         conversation.pop(); setStatus('Failed');
