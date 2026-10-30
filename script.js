@@ -1571,9 +1571,33 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         var idToken = await authUser.getIdToken();
 
-        var messagesToSend = [dynamicSystemPrompt].concat(
-          conversation.filter(function(m) { return m.role !== 'system'; })
-        );
+        // --- FIX 1: Handle Groq Vision System Prompt Incompatibility ---
+        var messagesToSend;
+        if (hasImages) {
+          // Groq vision models reject system messages. Merge into the user message instead.
+          var historyWithoutSystem = conversation.filter(function(m) { return m.role !== 'system'; });
+          messagesToSend = historyWithoutSystem.map(function(m, index) {
+            if (index === historyWithoutSystem.length - 1 && m.role === 'user') {
+              // It's the current message
+              if (typeof m.content === 'string') {
+                return { role: 'user', content: dynamicSystemPrompt.content + '\n\n' + m.content };
+              } else if (Array.isArray(m.content)) {
+                var newContent = m.content.map(function(part) {
+                  if (part.type === 'text') {
+                    return { type: 'text', text: dynamicSystemPrompt.content + '\n\n' + part.text };
+                  }
+                  return part;
+                });
+                return { role: 'user', content: newContent };
+              }
+            }
+            return m;
+          });
+        } else {
+          messagesToSend = [dynamicSystemPrompt].concat(
+            conversation.filter(function(m) { return m.role !== 'system'; })
+          );
+        }
 
         var payload = {
           model: model,
@@ -1598,10 +1622,22 @@ window.addEventListener('DOMContentLoaded', function () {
           assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please refresh.</div>';
           conversation.pop(); setStatus('Session expired'); return;
         }
-        if (!response.ok) throw new Error((data && data.error) || 'HTTP ' + response.status);
+
+        // --- FIX 2: Parse error objects properly instead of showing [object Object] ---
+        if (!response.ok) {
+          var errorMsg = 'HTTP ' + response.status;
+          if (data && data.error) {
+            if (typeof data.error === 'object') {
+              errorMsg = data.error.message || JSON.stringify(data.error);
+            } else {
+              errorMsg = data.error;
+            }
+          }
+          throw new Error(errorMsg);
+        }
 
         var message = data.choices && data.choices[0] && data.choices[0].message;
-        if (!message) throw new Error('Empty response.');
+        if (!message) throw new Error('Empty response from AI.');
         var reply = message.content || '', reasoning = message.reasoning || '';
 
         setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
@@ -1609,7 +1645,9 @@ window.addEventListener('DOMContentLoaded', function () {
         setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
       } catch (err) {
         console.error('[CodeWix] chat error:', err);
-        assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part">Error: ' + escapeHtml(err.message) + '</div>';
+        // Ensure we don't display [object Object] here either
+        var displayErr = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+        assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(displayErr) + '</div>';
         conversation.pop(); setStatus('Failed');
       } finally {
         setLoading(false); chatContainer.scrollTop = chatContainer.scrollHeight; chatInput.focus();
@@ -2285,4 +2323,4 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
   }
-});
+}); // end DOMContentLoaded
