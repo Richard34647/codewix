@@ -186,7 +186,7 @@ app.post('/api/run', requireAuth, async (req, res) => {
 
   try {
     // Step 1: Create the execution session
-    const createRes = await fetch('https://api.paiza.io/runners/create', {
+    const createRes = await fetch('http://api.paiza.io/runners/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -196,7 +196,14 @@ app.post('/api/run', requireAuth, async (req, res) => {
         api_key: 'guest'
       })
     });
-    const createData = await createRes.json();
+    
+    const createText = await createRes.text();
+    let createData;
+    try {
+      createData = JSON.parse(createText);
+    } catch (e) {
+      throw new Error('Paiza.IO returned HTML instead of JSON. The service might be temporarily down or blocking guest requests.');
+    }
     
     if (createData.error) {
       throw new Error(createData.error);
@@ -213,16 +220,19 @@ app.post('/api/run', requireAuth, async (req, res) => {
       // Wait 1 second before checking
       await new Promise(r => setTimeout(r, 1000));
       
-      const detailsRes = await fetch('https://api.paiza.io/runners/get_details', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: sessionId,
-          api_key: 'guest'
-        })
-      });
+      // IMPORTANT: Paiza.IO requires a GET request for get_details
+      const url = new URL('http://api.paiza.io/runners/get_details');
+      url.searchParams.append('id', sessionId);
+      url.searchParams.append('api_key', 'guest');
+
+      const detailsRes = await fetch(url.toString(), { method: 'GET' });
+      const detailsText = await detailsRes.text();
       
-      detailsData = await detailsRes.json();
+      try {
+        detailsData = JSON.parse(detailsText);
+      } catch (e) {
+        throw new Error('Paiza.IO returned an invalid response while checking status.');
+      }
       
       if (detailsData.status === 'completed') {
         break;
