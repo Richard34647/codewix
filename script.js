@@ -80,6 +80,14 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.readAsText(file);
     });
   }
+  function readFileAsDataURL(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { reject(reader.error); };
+      reader.readAsDataURL(file);
+    });
+  }
   function resizeImage(file, maxWidth, maxHeight) {
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
@@ -131,7 +139,7 @@ window.addEventListener('DOMContentLoaded', function () {
   });
 
   var path = location.pathname.toLowerCase();
-  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html', 'publish.html'];
+  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'ai-assistance.html', 'learn.html', 'publish.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
 
   if (auth && onProtectedPage) {
@@ -516,6 +524,7 @@ window.addEventListener('DOMContentLoaded', function () {
       currentProjectName = projectName || null;
       currentShareId = shareId || null;
       lastSavedSnapshot = snapshot();
+      if (cm) cm.setOption('readOnly', false);
       if (codeEditor) codeEditor.value = files[activeFile];
       if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
       rebuildFileTree();
@@ -706,7 +715,13 @@ window.addEventListener('DOMContentLoaded', function () {
           delete files[target];
           if (activeFile === target) {
             activeFile = Object.keys(files)[0] || 'index.html';
-            if (codeEditor) codeEditor.value = files[activeFile] || '';
+            if (cm) cm.setOption('readOnly', isAsset(activeFile));
+            if (codeEditor) {
+              codeEditor.value = files[activeFile] || '';
+              if (isAsset(activeFile)) {
+                codeEditor.value += '\n\n<!-- This is an uploaded asset stored as base64. Use it in your HTML like: <img src="' + assetDisplayName(activeFile) + '"> -->';
+              }
+            }
             if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
           }
           rebuildFileTree();
@@ -861,13 +876,13 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function saveProject() {
-      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
+      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return Promise.resolve(false); }
       if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
       var name = currentProjectName;
       if (!name) {
         name = prompt('Name this project:', 'My Project');
-        if (!name) return;
-        name = name.trim(); if (!name) return;
+        if (!name) return Promise.resolve(false);
+        name = name.trim(); if (!name) return Promise.resolve(false);
       }
       saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…';
       var payload = { name: name, files: files, activeFile: activeFile, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
@@ -875,12 +890,13 @@ window.addEventListener('DOMContentLoaded', function () {
       var promise;
       if (currentProjectId) promise = col.doc(currentProjectId).update(payload);
       else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; }); }
-      promise.then(function () {
+      return promise.then(function () {
         currentProjectName = name; lastSavedSnapshot = snapshot();
         if (unsavedIndicator) unsavedIndicator.style.display = 'none';
         if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name;
         showToast('Project saved ✔', 'success');
-      }).catch(function (err) { showToast('Save failed: ' + err.message, 'error'); })
+        return true;
+      }).catch(function (err) { showToast('Save failed: ' + err.message, 'error'); return false; })
         .finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; });
     }
 
@@ -890,9 +906,10 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
       if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
       if (lastSavedSnapshot !== snapshot() || !currentProjectId) {
-        await new Promise(function (r) { saveProject(); setTimeout(r, 400); });
-        if (!currentProjectId) return;
+        var saved = await saveProject();
+        if (!saved) return;
       }
+      if (!currentProjectId) return;
       var shareId = currentShareId || currentProjectId;
       currentShareId = shareId;
       shareProjectBtn.disabled = true; shareProjectBtn.textContent = 'Sharing…';
