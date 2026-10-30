@@ -64,8 +64,9 @@ app.use(express.json({ limit: '5mb' }));
 // ---- Helpers --------------------------------------------------------------
 function rewritePublishedLinks(html, slug) {
   if (!html) return '';
-  return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:|\/))([^"']+)\2/gi, function (match, attr, quote, url) {
-    if (url.startsWith('/')) return match;
+  return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
+    if (url.startsWith('/s/') || url.startsWith('/api/')) return match;
+    if (url.startsWith('/')) return attr + '=' + quote + '/s/' + slug + url + quote;
     return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
   });
 }
@@ -157,6 +158,51 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     res.json(data);
   } catch (err) {
     res.status(502).json({ error: 'Failed to reach Groq: ' + err.message });
+  }
+});
+
+// ---- API: Run Code in other languages (Piston) ----------------------------
+app.post('/api/run', requireAuth, async (req, res) => {
+  const { language, code } = req.body || {};
+  if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
+
+  const langMap = {
+    'py': 'python', 'python': 'python',
+    'cpp': 'c++', 'c++': 'c++', 'cc': 'c++',
+    'c': 'c',
+    'java': 'java',
+    'rb': 'ruby', 'ruby': 'ruby',
+    'go': 'go',
+    'rs': 'rust', 'rust': 'rust',
+    'php': 'php',
+    'cs': 'csharp', 'csharp': 'csharp',
+    'ts': 'typescript', 'typescript': 'typescript'
+  };
+
+  const pistonLang = langMap[language.toLowerCase()];
+  if (!pistonLang) return res.status(400).json({ error: 'Unsupported language.' });
+
+  try {
+    const response = await fetch('https://emkc.org/api/v2/piston/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        language: pistonLang,
+        version: '*',
+        files: [{ content: code }]
+      })
+    });
+
+    const data = await response.json();
+    if (data.message) return res.status(400).json({ error: data.message });
+
+    res.json({
+      output: data.run.output || '',
+      stderr: data.run.stderr || '',
+      code: data.run.code
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Execution engine failed: ' + err.message });
   }
 });
 

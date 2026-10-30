@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js
+// CodeWix — script.js (Multimodal AI + Polyglot Execution)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -78,6 +78,14 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.onload = function () { resolve(reader.result); };
       reader.onerror = function () { reject(reader.error); };
       reader.readAsDataURL(file);
+    });
+  }
+  function readFileAsText(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { reject(reader.error); };
+      reader.readAsText(file);
     });
   }
   function dataUrlToBlob(dataUrl) {
@@ -261,7 +269,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Sandbox IDE — CodeMirror + base64 uploads
+  // Sandbox IDE — CodeMirror + base64 uploads + Polyglot Runner
   // ======================================================================
   var cm = null;
   var codeEditor = null;
@@ -344,8 +352,19 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!cm) return;
       var mode = 'htmlmixed';
       var lower = (filename || '').toLowerCase();
+
       if (lower.endsWith('.css')) mode = 'css';
       else if (lower.endsWith('.js')) mode = 'javascript';
+      else if (lower.endsWith('.py')) mode = 'python';
+      else if (lower.endsWith('.c') || lower.endsWith('.cpp') || lower.endsWith('.java')) mode = 'text/x-c++src';
+      else if (lower.endsWith('.go')) mode = 'go';
+      else if (lower.endsWith('.rs')) mode = 'rust';
+      else if (lower.endsWith('.php')) mode = 'php';
+      else if (lower.endsWith('.rb')) mode = 'ruby';
+      else if (lower.endsWith('.json')) mode = { name: 'javascript', json: true };
+      else if (lower.endsWith('.xml')) mode = 'xml';
+      else if (lower.endsWith('.md')) mode = 'markdown';
+
       cm.setOption('mode', mode);
       cm.setOption('hintOptions', { completeSingle: false, alignWithWord: true });
     };
@@ -382,7 +401,6 @@ window.addEventListener('DOMContentLoaded', function () {
     renameFileBtn.textContent = '✏️ Rename';
     renameFileBtn.style.marginLeft = '6px';
     renameFileBtn.style.marginRight = '6px';
-    // Insert it right after the "New File" button
     newFileBtn.parentNode.insertBefore(renameFileBtn, newFileBtn.nextSibling);
   }
   // 👆 AUTO-INJECT RENAME BUTTON INTO THE DOM 👆
@@ -424,6 +442,11 @@ window.addEventListener('DOMContentLoaded', function () {
       if (name.endsWith('.html')) return '🌐 ';
       if (name.endsWith('.css'))  return '🎨 ';
       if (name.endsWith('.js'))   return '⚡ ';
+      if (name.endsWith('.py'))   return '🐍 ';
+      if (name.endsWith('.cpp') || name.endsWith('.c')) return '⚙️ ';
+      if (name.endsWith('.java')) return '☕ ';
+      if (name.endsWith('.go'))   return '🐹 ';
+      if (name.endsWith('.rs'))   return '🦀 ';
       return '📄 ';
     }
 
@@ -490,7 +513,72 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    if (runCodeBtn) runCodeBtn.addEventListener('click', function () { renderPreview(); showToast('Preview refreshed'); });
+    if (runCodeBtn) {
+      runCodeBtn.addEventListener('click', async function () {
+        var ext = activeFile.split('.').pop().toLowerCase();
+        var webLangs = ['html', 'css', 'js', 'htm'];
+
+        if (webLangs.includes(ext)) {
+          renderPreview();
+          showToast('Preview refreshed');
+          var term = $('terminalOutput');
+          if (term) term.style.display = 'none';
+        } else {
+          if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; }
+          if (!codeEditor) return;
+
+          var code = codeEditor.value;
+          if (!code.trim()) { showToast('No code to run.', 'error'); return; }
+
+          var outputContainer = $('terminalOutput');
+          if (!outputContainer) {
+            outputContainer = document.createElement('div');
+            outputContainer.id = 'terminalOutput';
+            outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:"Courier New",monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;';
+            var parent = livePreviewFrame ? livePreviewFrame.parentNode : null;
+            if (parent) {
+              parent.style.position = 'relative';
+              parent.appendChild(outputContainer);
+            }
+          }
+
+          if (!outputContainer) return;
+          outputContainer.style.display = 'block';
+          outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
+
+          try {
+            var idToken = await auth.currentUser.getIdToken();
+            var res = await fetch('/api/run', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+              body: JSON.stringify({ language: ext, code: code })
+            });
+            var data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || 'Execution failed');
+
+            var finalOutput = data.output || '';
+            if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr;
+            if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']';
+
+            outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
+
+            var closeBtn = document.createElement('button');
+            closeBtn.textContent = '✕ Close Terminal';
+            closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-weight:bold;';
+            closeBtn.onclick = function() { outputContainer.style.display = 'none'; };
+            outputContainer.appendChild(closeBtn);
+
+          } catch (err) {
+            outputContainer.textContent = 'Error: ' + err.message;
+          }
+        }
+      });
+    }
+
+    if (!runCodeBtn && $('buildRunBtn')) {
+      $('buildRunBtn').addEventListener('click', function(){ renderPreview(); showToast('Preview refreshed'); });
+    }
     renderPreview();
 
     // ---- File tree clicks ---------------------------------------------
@@ -514,6 +602,8 @@ window.addEventListener('DOMContentLoaded', function () {
           if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
         }
         if (cm) cm.focus();
+        var term = $('terminalOutput');
+        if (term) term.style.display = 'none';
       });
 
       fileTreeList.addEventListener('contextmenu', function (e) {
@@ -607,7 +697,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (newFileBtn) {
       newFileBtn.addEventListener('click', function () {
-        var name = prompt('New filename (e.g. app.js):');
+        var name = prompt('New filename (e.g. app.py, index.html):');
         if (!name) return;
         var clean = name.trim().toLowerCase();
         if (files[clean] !== undefined || files['asset:' + clean] !== undefined) { alert('File already exists.'); return; }
@@ -628,14 +718,14 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!newName) return;
         newName = newName.trim().toLowerCase();
         if (!newName || newName === currentName) return;
-        
+
         var key = isAsset(activeFile) ? 'asset:' + newName : newName;
         if (files[key] !== undefined) { alert('A file with that name already exists.'); return; }
-        
+
         files[key] = files[activeFile];
         delete files[activeFile];
         activeFile = key;
-        
+
         rebuildFileTree();
         markUnsaved();
         renderPreview();
@@ -922,7 +1012,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // AI Assistant
+  // AI Assistant (MULTIMODAL)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -940,10 +1030,142 @@ window.addEventListener('DOMContentLoaded', function () {
   var currentChatTitleEl = $('currentChatTitle');
 
   if (chatContainer && chatInput && sendBtn) {
-    console.log('[CodeWix] AI Assistant detected');
+    console.log('[CodeWix] AI Assistant detected (Multimodal enabled)');
 
     var API_URL = '/api/chat';
-    
+
+    // 👇 INJECT UI FOR FILE UPLOADS 👇
+    var attachInput = document.createElement('input');
+    attachInput.type = 'file';
+    attachInput.id = 'chatAttachInput';
+    attachInput.style.display = 'none';
+    attachInput.multiple = true;
+    document.body.appendChild(attachInput);
+
+    var attachBtn = document.createElement('button');
+    attachBtn.id = 'chatAttachBtn';
+    attachBtn.type = 'button';
+    attachBtn.innerHTML = '📎';
+    attachBtn.title = 'Attach files or images';
+    attachBtn.style.background = 'transparent';
+    attachBtn.style.border = 'none';
+    attachBtn.style.fontSize = '20px';
+    attachBtn.style.cursor = 'pointer';
+    attachBtn.style.padding = '0 8px';
+    attachBtn.style.color = '#cbd5e1';
+
+    if (sendBtn.parentNode) {
+      sendBtn.parentNode.insertBefore(attachBtn, sendBtn);
+    }
+
+    var attachPreview = document.createElement('div');
+    attachPreview.id = 'chatAttachPreview';
+    attachPreview.style.display = 'none';
+    attachPreview.style.padding = '8px';
+    attachPreview.style.background = '#0f172a';
+    attachPreview.style.borderBottom = '1px solid #334155';
+    attachPreview.style.borderRadius = '8px 8px 0 0';
+    attachPreview.style.display = 'flex';
+    attachPreview.style.gap = '8px';
+    attachPreview.style.flexWrap = 'wrap';
+
+    if (chatInput.parentNode) {
+      chatInput.parentNode.insertBefore(attachPreview, chatInput);
+    }
+
+    var pendingAttachments = [];
+
+    attachBtn.addEventListener('click', function() {
+      attachInput.click();
+    });
+
+    attachInput.addEventListener('change', async function() {
+      var files = Array.from(this.files);
+      if (!files.length) return;
+
+      for (var file of files) {
+        if (file.size > 4 * 1024 * 1024) {
+          showToast('File too large (Max 4MB): ' + file.name, 'error');
+          continue;
+        }
+
+        var isImage = file.type.startsWith('image/');
+        try {
+          var data = null;
+          if (isImage) {
+            data = await readFileAsDataURL(file);
+          } else {
+            data = await readFileAsText(file);
+          }
+
+          pendingAttachments.push({
+            name: file.name,
+            type: isImage ? 'image' : 'text',
+            data: data
+          });
+
+          renderAttachPreview();
+        } catch (err) {
+          showToast('Failed to read ' + file.name, 'error');
+        }
+      }
+      this.value = '';
+    });
+
+    function renderAttachPreview() {
+      attachPreview.innerHTML = '';
+      if (pendingAttachments.length === 0) {
+        attachPreview.style.display = 'none';
+        return;
+      }
+      attachPreview.style.display = 'flex';
+
+      pendingAttachments.forEach(function(att, idx) {
+        var chip = document.createElement('div');
+        chip.style.display = 'flex';
+        chip.style.alignItems = 'center';
+        chip.style.gap = '4px';
+        chip.style.background = '#1e293b';
+        chip.style.border = '1px solid #334155';
+        chip.style.borderRadius = '16px';
+        chip.style.padding = '4px 10px';
+        chip.style.fontSize = '12px';
+        chip.style.color = '#f8fafc';
+
+        if (att.type === 'image') {
+          var img = document.createElement('img');
+          img.src = att.data;
+          img.style.width = '24px';
+          img.style.height = '24px';
+          img.style.objectFit = 'cover';
+          img.style.borderRadius = '4px';
+          chip.appendChild(img);
+        }
+
+        var nameSpan = document.createElement('span');
+        nameSpan.textContent = att.name;
+        chip.appendChild(nameSpan);
+
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.innerHTML = '✕';
+        removeBtn.style.background = 'none';
+        removeBtn.style.border = 'none';
+        removeBtn.style.color = '#f87171';
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.fontWeight = 'bold';
+        removeBtn.style.padding = '0 4px';
+        removeBtn.onclick = function() {
+          pendingAttachments.splice(idx, 1);
+          renderAttachPreview();
+        };
+        chip.appendChild(removeBtn);
+
+        attachPreview.appendChild(chip);
+      });
+    }
+    // 👆 INJECT UI FOR FILE UPLOADS 👆
+
     var SYSTEM_PROMPT = {
       role: 'system',
       content: [
@@ -959,12 +1181,7 @@ window.addEventListener('DOMContentLoaded', function () {
         '```html about.html',
         '<h1>About Us</h1>',
         '```',
-        '```css style.css',
-        'body { background: #000; }',
-        '```',
         'If you do not provide a filename, CodeWix will default to index.html, style.css, and script.js.',
-        '',
-        'Users can upload images to their workspace (max 300 KB). They reference them in HTML with simple filenames like <img src="logo.png">, and CodeWix resolves them automatically.',
         '',
         'Tone: encouraging, never condescending. Explain errors in plain English.'
       ].join('\n')
@@ -975,7 +1192,7 @@ window.addEventListener('DOMContentLoaded', function () {
     var currentChatTitle = '';
     var saveTimer = null;
     var authUser = null;
-    var currentUserName = 'User'; 
+    var currentUserName = 'User';
 
     function getUsername() {
       if (auth && auth.currentUser) {
@@ -985,10 +1202,6 @@ window.addEventListener('DOMContentLoaded', function () {
         if (auth.currentUser.email) {
           return auth.currentUser.email.split('@')[0];
         }
-      }
-      var dashUser = $('dashUser');
-      if (dashUser && dashUser.textContent && dashUser.textContent !== 'User') {
-        return dashUser.textContent;
       }
       return 'User';
     }
@@ -1013,12 +1226,28 @@ window.addEventListener('DOMContentLoaded', function () {
       var col = chatsCollection(); if (!col) return;
       var firstUser = msgs.find(function (m) { return m.role === 'user'; });
       var title = currentChatTitle;
+
       if (!title && firstUser) {
-        title = firstUser.content.replace(/\s+/g, ' ').trim().substring(0, 48);
-        if (firstUser.content.length > 48) title += '…';
+        var textToUse = typeof firstUser.content === 'string' ? firstUser.content : (firstUser.content.find(function(c){return c.type==='text';}) || {text:'[Attachment]'}).text;
+        title = textToUse.replace(/\s+/g, ' ').trim().substring(0, 48);
+        if (textToUse.length > 48) title += '…';
       }
       if (!title) title = 'New Chat';
-      var payload = { title: title, messages: msgs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+
+      var sanitizedMsgs = msgs.map(function(m) {
+        if (typeof m.content === 'object' && Array.isArray(m.content)) {
+          var newContent = m.content.map(function(part) {
+            if (part.type === 'image_url') {
+              return { type: 'text', text: '[Image Attachment]' };
+            }
+            return part;
+          });
+          return { role: m.role, content: newContent };
+        }
+        return m;
+      });
+
+      var payload = { title: title, messages: sanitizedMsgs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
       try {
         if (currentChatId) await col.doc(currentChatId).update(payload);
         else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); var ref = await col.add(payload); currentChatId = ref.id; }
@@ -1054,23 +1283,22 @@ window.addEventListener('DOMContentLoaded', function () {
       chatContainer.innerHTML =
         '<div class="chat-message assistant-message">' +
           '<div class="message-role">Assistant</div>' +
-          '<div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! I\'m your CodeWix AI Assistant. Ask me to write anything — when you see a code block, you can publish it live with one click.</div></div>' +
+          '<div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! I\'m your CodeWix AI Assistant. You can now attach images or code files for me to review. Ask me anything!</div></div>' +
         '</div>';
     }
 
     function onUserReady(user) {
       authUser = user;
       currentUserName = getUsername();
-      console.log('[CodeWix] AI Username loaded:', currentUserName);
 
       var col = chatsCollection(); if (!col) { startNewChat(); return; }
       col.orderBy('updatedAt', 'desc').limit(1).get()
         .then(function (snap) {
           if (snap.empty) startNewChat();
-          else { 
-            var doc = snap.docs[0]; 
-            loadChat(doc.id, doc.data()); 
-            setStatus('Loaded previous conversation'); 
+          else {
+            var doc = snap.docs[0];
+            loadChat(doc.id, doc.data());
+            setStatus('Loaded previous conversation');
             if (!doc.data().messages || doc.data().messages.length === 0) {
               showWelcome();
             }
@@ -1096,7 +1324,7 @@ window.addEventListener('DOMContentLoaded', function () {
           html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>';
         } else {
           var body = parts[i], lang = 'code', filename = null, nl = body.indexOf('\n');
-          
+
           if (nl !== -1) {
             var firstLine = body.substring(0, nl).trim();
             var match = firstLine.match(/^([a-zA-Z0-9_-]+)(?:\s+(?:filename=["']?([^"'\s]+)["']?|([^"'\s]+)))?$/);
@@ -1109,7 +1337,6 @@ window.addEventListener('DOMContentLoaded', function () {
           }
           body = body.replace(/\n$/, '');
           var publishLabel = blockCount > 1 ? '🚀 Publish All' : '🚀 Publish';
-          
           var displayTitle = filename ? filename : lang;
 
           html +=
@@ -1140,8 +1367,24 @@ window.addEventListener('DOMContentLoaded', function () {
       return div;
     }
 
-    function setUserMessage(div, text) {
-      div.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
+    function setUserMessage(div, content) {
+      var container = div.querySelector('.message-content');
+      var html = '';
+
+      if (typeof content === 'string') {
+        html = '<div class="text-part">' + escapeHtml(content).replace(/\n/g, '<br>') + '</div>';
+      } else if (Array.isArray(content)) {
+        content.forEach(function(part) {
+          if (part.type === 'text') {
+            if (part.text.indexOf('--- File:') === -1) {
+               html += '<div class="text-part">' + escapeHtml(part.text).replace(/\n/g, '<br>') + '</div>';
+            }
+          } else if (part.type === 'image_url') {
+            html += '<div style="margin-top:8px;"><img src="' + part.image_url.url + '" style="max-width:200px;border-radius:8px;border:1px solid #334155;"/></div>';
+          }
+        });
+      }
+      container.innerHTML = html;
     }
 
     function setAssistantMessage(div, content, reasoning) {
@@ -1155,7 +1398,12 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function setStatus(msg) { if (chatStatus) chatStatus.textContent = msg; }
-    function setLoading(l) { sendBtn.disabled = l; chatInput.disabled = l; sendBtn.textContent = l ? 'Thinking…' : 'Send'; }
+    function setLoading(l) {
+      sendBtn.disabled = l;
+      chatInput.disabled = l;
+      attachBtn.disabled = l;
+      sendBtn.textContent = l ? 'Thinking…' : 'Send';
+    }
 
     async function publishAICode(clickedBtn) {
       if (!authUser) { showToast('Sign in first.', 'error'); return; }
@@ -1267,14 +1515,23 @@ window.addEventListener('DOMContentLoaded', function () {
 
     async function sendToGroq(userText) {
       var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
-      if (modelIndicator) modelIndicator.textContent = model;
       var showThinking = thinkingToggle ? thinkingToggle.checked : false;
-      
-      if (!authUser) { 
-        showToast('Sign in first.', 'error'); 
-        return; 
+
+      if (!authUser) {
+        showToast('Sign in first.', 'error');
+        return;
       }
 
+      var hasImages = pendingAttachments.some(function(a) { return a.type === 'image'; });
+
+      if (hasImages && !model.includes('vision')) {
+        model = 'llama-3.2-11b-vision-preview';
+        if (modelSelect) modelSelect.value = model;
+        if (modelIndicator) modelIndicator.textContent = model;
+        showToast('Switched to vision model for image analysis', 'success');
+      }
+
+      if (modelIndicator) modelIndicator.textContent = model;
       currentUserName = getUsername();
 
       var dynamicSystemPrompt = {
@@ -1283,9 +1540,27 @@ window.addEventListener('DOMContentLoaded', function () {
       };
 
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
-      
-      conversation.push({ role: 'user', content: userText });
-      var userDiv = appendMessage('user'); setUserMessage(userDiv, userText); scheduleSave();
+
+      var userContentPayload = userText;
+      if (pendingAttachments.length > 0) {
+        userContentPayload = [{ type: 'text', text: userText }];
+        pendingAttachments.forEach(function(att) {
+          if (att.type === 'image') {
+            userContentPayload.push({ type: 'image_url', image_url: { url: att.data } });
+          } else {
+            userContentPayload[0].text += '\n\n--- File: ' + att.name + ' ---\n' + att.data + '\n--- End File ---';
+          }
+        });
+      }
+
+      conversation.push({ role: 'user', content: userContentPayload });
+
+      var userDiv = appendMessage('user');
+      setUserMessage(userDiv, userContentPayload);
+      scheduleSave();
+
+      pendingAttachments = [];
+      renderAttachPreview();
 
       var assistantDiv = appendMessage('assistant');
       assistantDiv.querySelector('.message-content').innerHTML =
@@ -1295,18 +1570,18 @@ window.addEventListener('DOMContentLoaded', function () {
 
       try {
         var idToken = await authUser.getIdToken();
-        
+
         var messagesToSend = [dynamicSystemPrompt].concat(
           conversation.filter(function(m) { return m.role !== 'system'; })
         );
 
-        var payload = { 
-          model: model, 
-          messages: messagesToSend, 
-          temperature: 0.7, 
-          max_completion_tokens: 2048 
+        var payload = {
+          model: model,
+          messages: messagesToSend,
+          temperature: 0.7,
+          max_completion_tokens: 2048
         };
-        if (showThinking) payload.reasoning_effort = 'medium';
+        if (showThinking && !model.includes('vision')) payload.reasoning_effort = 'medium';
 
         var response = await fetch(API_URL, {
           method: 'POST',
@@ -1328,7 +1603,7 @@ window.addEventListener('DOMContentLoaded', function () {
         var message = data.choices && data.choices[0] && data.choices[0].message;
         if (!message) throw new Error('Empty response.');
         var reply = message.content || '', reasoning = message.reasoning || '';
-        
+
         setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
         conversation.push({ role: 'assistant', content: reply }); scheduleSave();
         setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
@@ -1342,7 +1617,8 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function handleSend() {
-      var text = chatInput.value.trim(); if (!text) return;
+      var text = chatInput.value.trim();
+      if (!text && pendingAttachments.length === 0) return;
       chatInput.value = ''; chatInput.style.height = 'auto'; sendToGroq(text);
     }
 
@@ -1352,6 +1628,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (newChatBtn) newChatBtn.addEventListener('click', async function () {
       clearTimeout(saveTimer); await saveChatNow(); startNewChat();
+      pendingAttachments = []; renderAttachPreview();
       setStatus('New chat'); showToast('New chat');
     });
 
