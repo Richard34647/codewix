@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing + Paiza.IO
+// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing + Judge0 CE
 // ==========================================================================
 
 require('dotenv').config();
@@ -161,99 +161,58 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
-// ---- API: Run Code (Paiza.IO) ---------------------------------------------
+// ---- API: Run Code (Judge0 CE) --------------------------------------------
 app.post('/api/run', requireAuth, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
 
-  // Map file extensions to Paiza.IO language names
+  // Map file extensions to Judge0 CE Language IDs
   const langMap = {
-    'php': 'php',
-    'py': 'python3', 'python': 'python3',
-    'js': 'javascript', 'javascript': 'javascript',
-    'cpp': 'cpp', 'c++': 'cpp',
-    'c': 'c',
-    'java': 'java',
-    'rb': 'ruby', 'ruby': 'ruby',
-    'go': 'go',
-    'rs': 'rust', 'rust': 'rust',
-    'cs': 'csharp', 'csharp': 'csharp',
-    'ts': 'typescript', 'typescript': 'typescript'
+    'php': 68,                     // PHP
+    'py': 71, 'python': 71,        // Python
+    'js': 63, 'javascript': 63,    // JavaScript (Node.js)
+    'cpp': 54, 'c++': 54,          // C++ (GCC)
+    'c': 50,                       // C (GCC)
+    'java': 62,                    // Java (OpenJDK)
+    'rb': 72, 'ruby': 72,          // Ruby
+    'go': 60,                      // Go
+    'rs': 73, 'rust': 73,          // Rust
+    'ts': 74, 'typescript': 74,    // TypeScript
+    'cs': 51, 'csharp': 51         // C#
   };
 
-  const paizaLang = langMap[language.toLowerCase()];
-  if (!paizaLang) return res.status(400).json({ error: 'Unsupported language for execution.' });
+  const langId = langMap[language.toLowerCase()];
+  if (!langId) return res.status(400).json({ error: 'Unsupported language for execution.' });
 
   try {
-    // Step 1: Create the execution session
-    const createRes = await fetch('http://api.paiza.io/runners/create', {
+    // Judge0 CE public instance (HTTPS, no auth required)
+    const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
+        language_id: langId,
         source_code: code,
-        language: paizaLang,
-        input: '',
-        api_key: 'guest'
+        stdin: ''
       })
     });
+
+    const data = await response.json();
     
-    const createText = await createRes.text();
-    let createData;
-    try {
-      createData = JSON.parse(createText);
-    } catch (e) {
-      throw new Error('Paiza.IO returned HTML instead of JSON. The service might be temporarily down or blocking guest requests.');
-    }
-    
-    if (createData.error) {
-      throw new Error(createData.error);
+    if (!response.ok) {
+      throw new Error(data.message || 'Judge0 engine error.');
     }
 
-    const sessionId = createData.id;
-
-    // Step 2: Poll for the result (Paiza.IO takes a moment to compile/run)
-    let detailsData = null;
-    let attempts = 0;
-    const maxAttempts = 10; // Wait up to 10 seconds
-    
-    while (attempts < maxAttempts) {
-      // Wait 1 second before checking
-      await new Promise(r => setTimeout(r, 1000));
-      
-      // IMPORTANT: Paiza.IO requires a GET request for get_details
-      const url = new URL('http://api.paiza.io/runners/get_details');
-      url.searchParams.append('id', sessionId);
-      url.searchParams.append('api_key', 'guest');
-
-      const detailsRes = await fetch(url.toString(), { method: 'GET' });
-      const detailsText = await detailsRes.text();
-      
-      try {
-        detailsData = JSON.parse(detailsText);
-      } catch (e) {
-        throw new Error('Paiza.IO returned an invalid response while checking status.');
-      }
-      
-      if (detailsData.status === 'completed') {
-        break;
-      }
-      attempts++;
-    }
-
-    if (!detailsData || detailsData.status !== 'completed') {
-      throw new Error('Execution timed out. The server might be busy.');
-    }
-
-    // Combine build errors and runtime errors
-    let stderr = detailsData.stderr || '';
-    if (detailsData.build_stderr) stderr += '\n[Compile Output]:\n' + detailsData.build_stderr;
+    // Judge0 returns compile_output and stderr separately
+    let stderr = data.stderr || '';
+    if (data.compile_output) stderr += '\n[Compile Output]:\n' + data.compile_output;
 
     res.json({
-      output: detailsData.stdout || '',
+      output: data.stdout || '',
       stderr: stderr.trim(),
-      code: detailsData.status === 'completed' ? 0 : 1
+      code: data.status ? data.status.id : 0
     });
-
   } catch (err) {
     res.status(500).json({ error: 'Execution engine failed: ' + err.message });
   }
