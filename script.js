@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Multimodal AI + Polyglot Execution)
+// CodeWix — script.js (Multimodal AI + Polyglot Execution + HTML Output Render)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -80,14 +80,6 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.readAsText(file);
     });
   }
-  function readFileAsDataURL(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () { resolve(reader.result); };
-      reader.onerror = function () { reject(reader.error); };
-      reader.readAsDataURL(file);
-    });
-  }
   function resizeImage(file, maxWidth, maxHeight) {
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
@@ -139,7 +131,7 @@ window.addEventListener('DOMContentLoaded', function () {
   });
 
   var path = location.pathname.toLowerCase();
-  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'ai-assistance.html', 'learn.html', 'publish.html'];
+  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html', 'publish.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
 
   if (auth && onProtectedPage) {
@@ -477,6 +469,7 @@ window.addEventListener('DOMContentLoaded', function () {
       if (name.endsWith('.java')) return '☕ ';
       if (name.endsWith('.go'))   return '🐹 ';
       if (name.endsWith('.rs'))   return '🦀 ';
+      if (name.endsWith('.php'))  return '🐘 ';
       return '📄 ';
     }
 
@@ -524,7 +517,6 @@ window.addEventListener('DOMContentLoaded', function () {
       currentProjectName = projectName || null;
       currentShareId = shareId || null;
       lastSavedSnapshot = snapshot();
-      if (cm) cm.setOption('readOnly', false);
       if (codeEditor) codeEditor.value = files[activeFile];
       if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
       rebuildFileTree();
@@ -544,68 +536,84 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
+    // 👇 RUN CODE BUTTON (Polyglot + HTML Output Render) 👇
     if (runCodeBtn) {
       runCodeBtn.addEventListener('click', async function () {
         var ext = activeFile.split('.').pop().toLowerCase();
         var webLangs = ['html', 'css', 'js', 'htm'];
-
+        
+        // 1. Standard Web Preview
         if (webLangs.includes(ext)) {
           renderPreview();
           showToast('Preview refreshed');
           var term = $('terminalOutput');
           if (term) term.style.display = 'none';
-        } else {
-          if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; }
-          if (!codeEditor) return;
+          return;
+        }
 
-          var code = codeEditor.value;
-          if (!code.trim()) { showToast('No code to run.', 'error'); return; }
+        // 2. Server-side execution (PHP, Python, etc)
+        if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; }
+        if (!codeEditor) return;
 
-          var outputContainer = $('terminalOutput');
-          if (!outputContainer) {
-            outputContainer = document.createElement('div');
-            outputContainer.id = 'terminalOutput';
-            outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:"Courier New",monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;';
-            var parent = livePreviewFrame ? livePreviewFrame.parentNode : null;
-            if (parent) {
-              parent.style.position = 'relative';
-              parent.appendChild(outputContainer);
+        var code = codeEditor.value;
+        if (!code.trim()) { showToast('No code to run.', 'error'); return; }
+
+        var outputContainer = $('terminalOutput');
+        if (!outputContainer) {
+          outputContainer = document.createElement('div');
+          outputContainer.id = 'terminalOutput';
+          outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:"Courier New",monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;';
+          var parent = livePreviewFrame ? livePreviewFrame.parentNode : null;
+          if (parent) {
+            parent.style.position = 'relative';
+            parent.appendChild(outputContainer);
+          }
+        }
+        
+        outputContainer.style.display = 'block';
+        outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
+
+        try {
+          var idToken = await auth.currentUser.getIdToken();
+          var res = await fetch('/api/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+            body: JSON.stringify({ language: ext, code: code })
+          });
+          var data = await res.json();
+
+          if (!res.ok) throw new Error(data.error || 'Execution failed');
+
+          var finalOutput = data.output || '';
+          
+          // 👇 NEW: If the output looks like HTML, render it in the iframe! 👇
+          if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) {
+            if (livePreviewFrame) {
+              livePreviewFrame.srcdoc = finalOutput;
             }
+            outputContainer.style.display = 'none'; // Hide the terminal
+            showToast('Rendered PHP Output in Preview', 'success');
+            return;
           }
+          // 👆 --------------------------------------------------------- 👆
 
-          if (!outputContainer) return;
-          outputContainer.style.display = 'block';
-          outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
+          if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr;
+          if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']';
 
-          try {
-            var idToken = await auth.currentUser.getIdToken();
-            var res = await fetch('/api/run', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-              body: JSON.stringify({ language: ext, code: code })
-            });
-            var data = await res.json();
+          outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
+          
+          var closeBtn = document.createElement('button');
+          closeBtn.textContent = '✕ Close Terminal';
+          closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:12px;';
+          closeBtn.onclick = function() { outputContainer.style.display = 'none'; };
+          outputContainer.appendChild(closeBtn);
 
-            if (!res.ok) throw new Error(data.error || 'Execution failed');
-
-            var finalOutput = data.output || '';
-            if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr;
-            if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']';
-
-            outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
-
-            var closeBtn = document.createElement('button');
-            closeBtn.textContent = '✕ Close Terminal';
-            closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-weight:bold;';
-            closeBtn.onclick = function() { outputContainer.style.display = 'none'; };
-            outputContainer.appendChild(closeBtn);
-
-          } catch (err) {
-            outputContainer.textContent = 'Error: ' + err.message;
-          }
+        } catch (err) {
+          outputContainer.textContent = 'Error: ' + err.message;
         }
       });
     }
+    // 👆 RUN CODE BUTTON 👆
 
     if (!runCodeBtn && $('buildRunBtn')) {
       $('buildRunBtn').addEventListener('click', function(){ renderPreview(); showToast('Preview refreshed'); });
@@ -715,13 +723,7 @@ window.addEventListener('DOMContentLoaded', function () {
           delete files[target];
           if (activeFile === target) {
             activeFile = Object.keys(files)[0] || 'index.html';
-            if (cm) cm.setOption('readOnly', isAsset(activeFile));
-            if (codeEditor) {
-              codeEditor.value = files[activeFile] || '';
-              if (isAsset(activeFile)) {
-                codeEditor.value += '\n\n<!-- This is an uploaded asset stored as base64. Use it in your HTML like: <img src="' + assetDisplayName(activeFile) + '"> -->';
-              }
-            }
+            if (codeEditor) codeEditor.value = files[activeFile] || '';
             if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile);
           }
           rebuildFileTree();
@@ -876,13 +878,13 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     function saveProject() {
-      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return Promise.resolve(false); }
+      if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
       if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
       var name = currentProjectName;
       if (!name) {
         name = prompt('Name this project:', 'My Project');
-        if (!name) return Promise.resolve(false);
-        name = name.trim(); if (!name) return Promise.resolve(false);
+        if (!name) return;
+        name = name.trim(); if (!name) return;
       }
       saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…';
       var payload = { name: name, files: files, activeFile: activeFile, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
@@ -890,13 +892,12 @@ window.addEventListener('DOMContentLoaded', function () {
       var promise;
       if (currentProjectId) promise = col.doc(currentProjectId).update(payload);
       else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; }); }
-      return promise.then(function () {
+      promise.then(function () {
         currentProjectName = name; lastSavedSnapshot = snapshot();
         if (unsavedIndicator) unsavedIndicator.style.display = 'none';
         if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name;
         showToast('Project saved ✔', 'success');
-        return true;
-      }).catch(function (err) { showToast('Save failed: ' + err.message, 'error'); return false; })
+      }).catch(function (err) { showToast('Save failed: ' + err.message, 'error'); })
         .finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; });
     }
 
@@ -906,10 +907,9 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; }
       if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
       if (lastSavedSnapshot !== snapshot() || !currentProjectId) {
-        var saved = await saveProject();
-        if (!saved) return;
+        await new Promise(function (r) { saveProject(); setTimeout(r, 400); });
+        if (!currentProjectId) return;
       }
-      if (!currentProjectId) return;
       var shareId = currentShareId || currentProjectId;
       currentShareId = shareId;
       shareProjectBtn.disabled = true; shareProjectBtn.textContent = 'Sharing…';
@@ -1123,7 +1123,6 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!files.length) return;
 
       for (var file of files) {
-        // Block videos
         if (file.type.startsWith('video/')) {
           showToast('Videos are not supported. Please upload images or text files.', 'error');
           continue;
@@ -1138,7 +1137,6 @@ window.addEventListener('DOMContentLoaded', function () {
         try {
           var data = null;
           if (isImage) {
-            // Resize image to prevent token limit
             data = await resizeImage(file, 1024, 1024);
           } else {
             data = await readFileAsText(file);
@@ -1210,7 +1208,6 @@ window.addEventListener('DOMContentLoaded', function () {
         attachPreview.appendChild(chip);
       });
     }
-    // 👆 INJECT UI FOR FILE UPLOADS 👆
 
     var SYSTEM_PROMPT = {
       role: 'system',
@@ -1570,14 +1567,12 @@ window.addEventListener('DOMContentLoaded', function () {
 
       var hasImages = pendingAttachments.some(function(a) { return a.type === 'image'; });
 
-      // 👇 UPDATED VISION MODEL ID 👇
       if (hasImages && !model.includes('vision')) {
         model = 'meta-llama/llama-4-scout-17b-16e-instruct';
         if (modelSelect) modelSelect.value = model;
         if (modelIndicator) modelIndicator.textContent = model;
         showToast('Switched to vision model for image analysis', 'success');
       }
-      // 👆 UPDATED VISION MODEL ID 👆
 
       if (modelIndicator) modelIndicator.textContent = model;
       currentUserName = getUsername();
@@ -1619,7 +1614,6 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         var idToken = await authUser.getIdToken();
 
-        // Handle Groq Vision System Prompt Incompatibility
         var messagesToSend;
         if (hasImages) {
           var historyWithoutSystem = conversation.filter(function(m) { return m.role !== 'system'; });
