@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing + Uploads
+// CodeWix Server — static + Groq + EmailJS + Rate limiting + Publishing + Paiza.IO
 // ==========================================================================
 
 require('dotenv').config();
@@ -161,46 +161,89 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
-// ---- API: Run Code in other languages (Piston) ----------------------------
+// ---- API: Run Code (Paiza.IO) ---------------------------------------------
 app.post('/api/run', requireAuth, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
 
+  // Map file extensions to Paiza.IO language names
   const langMap = {
-    'py': 'python', 'python': 'python',
-    'cpp': 'c++', 'c++': 'c++', 'cc': 'c++',
+    'php': 'php',
+    'py': 'python3', 'python': 'python3',
+    'js': 'javascript', 'javascript': 'javascript',
+    'cpp': 'cpp', 'c++': 'cpp',
     'c': 'c',
     'java': 'java',
     'rb': 'ruby', 'ruby': 'ruby',
     'go': 'go',
     'rs': 'rust', 'rust': 'rust',
-    'php': 'php',
     'cs': 'csharp', 'csharp': 'csharp',
     'ts': 'typescript', 'typescript': 'typescript'
   };
 
-  const pistonLang = langMap[language.toLowerCase()];
-  if (!pistonLang) return res.status(400).json({ error: 'Unsupported language.' });
+  const paizaLang = langMap[language.toLowerCase()];
+  if (!paizaLang) return res.status(400).json({ error: 'Unsupported language for execution.' });
 
   try {
-    const response = await fetch('https://emkc.org/api/v2/piston/execute', {
+    // Step 1: Create the execution session
+    const createRes = await fetch('https://api.paiza.io/runners/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        language: pistonLang,
-        version: '*',
-        files: [{ content: code }]
+        source_code: code,
+        language: paizaLang,
+        input: '',
+        api_key: 'guest'
       })
     });
+    const createData = await createRes.json();
+    
+    if (createData.error) {
+      throw new Error(createData.error);
+    }
 
-    const data = await response.json();
-    if (data.message) return res.status(400).json({ error: data.message });
+    const sessionId = createData.id;
+
+    // Step 2: Poll for the result (Paiza.IO takes a moment to compile/run)
+    let detailsData = null;
+    let attempts = 0;
+    const maxAttempts = 10; // Wait up to 10 seconds
+    
+    while (attempts < maxAttempts) {
+      // Wait 1 second before checking
+      await new Promise(r => setTimeout(r, 1000));
+      
+      const detailsRes = await fetch('https://api.paiza.io/runners/get_details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: sessionId,
+          api_key: 'guest'
+        })
+      });
+      
+      detailsData = await detailsRes.json();
+      
+      if (detailsData.status === 'completed') {
+        break;
+      }
+      attempts++;
+    }
+
+    if (!detailsData || detailsData.status !== 'completed') {
+      throw new Error('Execution timed out. The server might be busy.');
+    }
+
+    // Combine build errors and runtime errors
+    let stderr = detailsData.stderr || '';
+    if (detailsData.build_stderr) stderr += '\n[Compile Output]:\n' + detailsData.build_stderr;
 
     res.json({
-      output: data.run.output || '',
-      stderr: data.run.stderr || '',
-      code: data.run.code
+      output: detailsData.stdout || '',
+      stderr: stderr.trim(),
+      code: detailsData.status === 'completed' ? 0 : 1
     });
+
   } catch (err) {
     res.status(500).json({ error: 'Execution engine failed: ' + err.message });
   }
