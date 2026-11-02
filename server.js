@@ -140,12 +140,19 @@ app.post('/api/run', requireAuth, async (req, res) => {
     const tempFile = path.join(os.tmpdir(), `script_${Date.now()}.py`);
     fs.writeFileSync(tempFile, code);
 
-    // 👇 TIMEOUT INCREASED TO 2 MINUTES (120000ms) 👇
     exec(`python3 ${tempFile}`, { timeout: 120000 }, (error, stdout, stderr) => {
       try { fs.unlinkSync(tempFile); } catch (e) {}
       
       let finalErr = stderr;
-      if (error && !stderr) finalErr = error.message;
+      if (error) {
+        if (error.killed) {
+          finalErr = "❌ PROCESS KILLED: The script took too long (exceeded 2 minutes) or ran out of memory (Render 512MB limit).";
+        } else if (!stderr && !stdout) {
+          finalErr = "❌ SERVER KILLED PROCESS: Likely Out of Memory (OOM). Headless Chrome needs more than 512MB RAM to load Instagram.";
+        } else {
+          finalErr = error.message;
+        }
+      }
 
       res.json({
         output: stdout || '',
