@@ -3,9 +3,9 @@ const express = require('express');
 const path = require('path');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
-const { exec } = require('child_process'); // 👈 Used for local execution
-const fs = require('fs');                   // 👈 Used to write temp file
-const os = require('os');                   // 👈 Used for temp directory
+const { exec } = require('child_process'); // 👈 Enables local Python execution
+const fs = require('fs');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -17,10 +17,7 @@ const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 try {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-      credential: admin.credential.cert(sa),
-      storageBucket: 'codewix-16971.firebasestorage.app'
-    });
+    admin.initializeApp({ credential: admin.credential.cert(sa), storageBucket: 'codewix-16971.firebasestorage.app' });
     console.log('[Firebase Admin] initialized via FIREBASE_SERVICE_ACCOUNT');
   } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
     admin.initializeApp({
@@ -32,16 +29,19 @@ try {
       storageBucket: 'codewix-16971.firebasestorage.app'
     });
     console.log('[Firebase Admin] initialized via split env vars');
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    admin.initializeApp({ credential: admin.credential.applicationDefault(), storageBucket: 'codewix-16971.firebasestorage.app' });
+    console.log('[Firebase Admin] initialized via GOOGLE_APPLICATION_CREDENTIALS');
+  } else {
+    console.warn('[Firebase Admin] No credentials found.');
   }
 } catch (err) { console.error('[Firebase Admin] init failed:', err.message); }
 
 let emailjsReady = false;
 if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
-  emailjs.init({
-    publicKey:  process.env.EMAILJS_PUBLIC_KEY,
-    privateKey: process.env.EMAILJS_PRIVATE_KEY,
-  });
+  emailjs.init({ publicKey: process.env.EMAILJS_PUBLIC_KEY, privateKey: process.env.EMAILJS_PRIVATE_KEY });
   emailjsReady = true;
+  console.log('[EmailJS] initialized');
 }
 
 app.use(express.json({ limit: '5mb' }));
@@ -55,7 +55,6 @@ function rewritePublishedLinks(html, slug) {
     return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
   });
 }
-
 function resolveAssetUrls(html, files) {
   if (!html) return '';
   return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) {
@@ -71,12 +70,8 @@ async function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return res.status(401).json({ error: 'Missing auth token.' });
-  try {
-    req.user = await admin.auth().verifyIdToken(idToken);
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid auth token.' });
-  }
+  try { req.user = await admin.auth().verifyIdToken(idToken); next(); }
+  catch (err) { return res.status(401).json({ error: 'Invalid auth token.' }); }
 }
 
 async function checkRateLimit(req, res, next) {
@@ -87,9 +82,7 @@ async function checkRateLimit(req, res, next) {
     const doc = await ref.get();
     const count = doc.exists ? (doc.data().count || 0) : 0;
     if (count >= RATE_LIMIT_PER_DAY) return res.status(429).json({ error: 'Daily limit reached.' });
-    req.rateLimitRef = ref;
-    req.rateLimitCount = count;
-    next();
+    req.rateLimitRef = ref; req.rateLimitCount = count; next();
   } catch (err) { next(); }
 }
 
@@ -110,62 +103,43 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     if (!groqRes.ok) return res.status(groqRes.status).json(data);
     incrementUsage(req.rateLimitRef, req.rateLimitCount);
     res.json(data);
-  } catch (err) {
-    res.status(502).json({ error: 'Failed to reach Groq: ' + err.message });
-  }
+  } catch (err) { res.status(502).json({ error: 'Failed to reach Groq: ' + err.message }); }
 });
 
-// ---- API: Run Code (Python Locally, Others via Judge0) --------------------
+// ---- API: Run Code (Python locally, Others via Judge0) --------------------
 app.post('/api/run', requireAuth, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
 
   const lang = language.toLowerCase();
 
-  // 👇 1. RUN PYTHON LOCALLY (Allows Selenium) 👇
+  // 1. RUN PYTHON LOCALLY (Supports Selenium)
   if (lang === 'py' || lang === 'python') {
     const tempFile = path.join(os.tmpdir(), `script_${Date.now()}.py`);
     fs.writeFileSync(tempFile, code);
 
     exec(`python3 ${tempFile}`, { timeout: 30000 }, (error, stdout, stderr) => {
       try { fs.unlinkSync(tempFile); } catch (e) {}
-      
       let finalErr = stderr;
       if (error && !stderr) finalErr = error.message;
-
-      res.json({
-        output: stdout || '',
-        stderr: finalErr || '',
-        code: error ? 1 : 0
-      });
+      res.json({ output: stdout || '', stderr: finalErr || '', code: error ? 1 : 0 });
     });
     return;
   }
 
-  // 👇 2. OTHER LANGUAGES (PHP, C++, Java via Judge0) 👇
-  const langMap = {
-    'php': 68, 'js': 63, 'javascript': 63, 'cpp': 54, 'c++': 54,
-    'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60,
-    'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51
-  };
+  // 2. OTHER LANGUAGES (PHP, C++, Java via Judge0)
+  const langMap = { 'php': 68, 'js': 63, 'javascript': 63, 'cpp': 54, 'c++': 54, 'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 };
   const langId = langMap[lang];
   if (!langId) return res.status(400).json({ error: 'Unsupported language.' });
 
   try {
     const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ language_id: langId, source_code: code })
     });
     const data = await response.json();
-    res.json({
-      output: data.stdout || '',
-      stderr: data.stderr || data.compile_output || '',
-      code: data.status ? data.status.id : 0
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Execution engine failed: ' + err.message });
-  }
+    res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
+  } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
 });
 
 // ---- API: Publish / Unpublish / My Sites / Explore / Profile --------------
@@ -255,7 +229,6 @@ app.get('/s/:slug', async (req, res, next) => {
     if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
     const files = doc.data().files || {};
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
-    
     let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (doc.data().projectName || req.params.slug) + '</title><style>' + (files['style.css'] || '') + '</style></head><body>' + rewritePublishedLinks(rawHtml, req.params.slug) + '<script>' + (files['script.js'] || '') + '<\/script></body></html>';
     res.send(html);
