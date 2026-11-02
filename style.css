@@ -1494,3 +1494,46 @@ footer a:hover { color: #38bdf8; }
     .component-actions { flex-direction: column; }
     .comp-btn { width: 100%; }
 }
+
+/* --- Google Auth Styles --- */
+.auth-divider {
+  text-align: center;
+  margin: 20px 0;
+  color: #64748b;
+  font-size: 14px;
+  position: relative;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 40%;
+  height: 1px;
+  background: #334155;
+}
+
+.auth-divider::before { left: 0; }
+.auth-divider::after { right: 0; }
+
+.google-btn {
+  width: 100%;
+  padding: 12px;
+  background: white;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.2s;
+}
+
+.google-btn:hover {
+  background: #f1f5f9;
+}
