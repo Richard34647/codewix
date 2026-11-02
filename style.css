@@ -1421,7 +1421,7 @@ footer a:hover { color: #38bdf8; }
 
     footer { flex-direction: column; gap: 10px; padding: 20px 16px; }
 
-    .studio-header { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 8px; }
+    .studio-header { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 8px; width: 400px; overflow: hidden }
     .studio-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; }
     .studio-nav a { margin: 4px 8px; font-size: 13px; }
     .user-session { font-size: 12px; gap: 8px; }
@@ -1487,53 +1487,59 @@ footer a:hover { color: #38bdf8; }
 
     .components-workspace { padding: 20px 14px 40px; }
     .components-hero h1 { font-size: 24px; }
+    .component-card{ width: 400px;}
     .components-grid { grid-template-columns: 1fr; gap: 14px; }
     .component-preview { height: 220px; }
-    .category-filter { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+    .category-filter { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; width: -webkit-fill-available; }
     .cat-pill { flex-shrink: 0; }
     .component-actions { flex-direction: column; }
     .comp-btn { width: 100%; }
 }
 
-/* --- Google Auth Styles --- */
+/* =========================================
+   GOOGLE AUTH STYLES (Add to bottom)
+   ========================================= */
+
 .auth-divider {
-  text-align: center;
-  margin: 20px 0;
-  color: #64748b;
-  font-size: 14px;
-  position: relative;
+    text-align: center;
+    margin: 24px 0;
+    color: #64748b;
+    font-size: 14px;
+    position: relative;
 }
 
 .auth-divider::before,
 .auth-divider::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 40%;
-  height: 1px;
-  background: #334155;
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background: #334155;
 }
 
 .auth-divider::before { left: 0; }
 .auth-divider::after { right: 0; }
 
 .google-btn {
-  width: 100%;
-  padding: 12px;
-  background: white;
-  color: #334155;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: background 0.2s;
+    width: 100%;
+    padding: 12px;
+    background: white;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background 0.2s;
+    font-family: inherit;
+    margin-bottom: 15px;
 }
 
 .google-btn:hover {
-  background: #f1f5f9;
+    background: #f1f5f9;
 }
