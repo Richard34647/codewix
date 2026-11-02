@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Multimodal AI + Polyglot Execution + HTML Output Render)
+// CodeWix — script.js (Multimodal AI + Polyglot Execution + Google Auth)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -260,6 +260,42 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
   }
+
+  // ======================================================================
+  // Google Auth (Login & Register)
+  // ======================================================================
+  function handleGoogleAuth(buttonId, errBoxId) {
+    if ($(buttonId)) {
+      $(buttonId).addEventListener('click', function () {
+        var errBox = $(errBoxId);
+        hideError(errBox);
+        
+        if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+
+        var provider = new firebase.auth.GoogleAuthProvider();
+        
+        auth.signInWithPopup(provider)
+          .then(function (result) {
+            var user = result.user;
+            // Google accounts are typically verified already
+            if (!user.emailVerified) {
+              return auth.signOut().then(function () {
+                showError(errBox, 'Please verify your Google email before logging in.');
+              });
+            }
+            window.location.href = 'dashboard.html';
+          })
+          .catch(function (error) {
+            console.error('[Google Auth] Error:', error);
+            if (error.code === 'auth/popup-closed-by-user') return;
+            showError(errBox, error.message);
+          });
+      });
+    }
+  }
+
+  handleGoogleAuth('googleLoginBtn', 'errorBox');
+  handleGoogleAuth('googleRegisterBtn', 'errorBox');
 
   // ======================================================================
   // Forgot password
@@ -536,13 +572,11 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // 👇 RUN CODE BUTTON (Polyglot + HTML Output Render) 👇
     if (runCodeBtn) {
       runCodeBtn.addEventListener('click', async function () {
         var ext = activeFile.split('.').pop().toLowerCase();
         var webLangs = ['html', 'css', 'js', 'htm'];
         
-        // 1. Standard Web Preview
         if (webLangs.includes(ext)) {
           renderPreview();
           showToast('Preview refreshed');
@@ -551,7 +585,6 @@ window.addEventListener('DOMContentLoaded', function () {
           return;
         }
 
-        // 2. Server-side execution (PHP, Python, etc)
         if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; }
         if (!codeEditor) return;
 
@@ -586,16 +619,14 @@ window.addEventListener('DOMContentLoaded', function () {
 
           var finalOutput = data.output || '';
           
-          // 👇 NEW: If the output looks like HTML, render it in the iframe! 👇
           if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) {
             if (livePreviewFrame) {
               livePreviewFrame.srcdoc = finalOutput;
             }
-            outputContainer.style.display = 'none'; // Hide the terminal
+            outputContainer.style.display = 'none';
             showToast('Rendered PHP Output in Preview', 'success');
             return;
           }
-          // 👆 --------------------------------------------------------- 👆
 
           if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr;
           if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']';
@@ -613,7 +644,6 @@ window.addEventListener('DOMContentLoaded', function () {
         }
       });
     }
-    // 👆 RUN CODE BUTTON 👆
 
     if (!runCodeBtn && $('buildRunBtn')) {
       $('buildRunBtn').addEventListener('click', function(){ renderPreview(); showToast('Preview refreshed'); });
