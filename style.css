@@ -1543,3 +1543,56 @@ footer a:hover { color: #38bdf8; }
 .google-btn:hover {
     background: #f1f5f9;
 }
+
+/* =========================================
+   DOWNLOAD APP BUTTONS
+   ========================================= */
+
+/* Hero Section Download Button (Green) */
+.download-btn {
+    background: #34d399;
+    color: #020617;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 26px;
+    font-size: 15px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: background 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.download-btn:hover {
+    background: #10b981;
+    color: #020617;
+}
+
+/* Navigation Bar Download Button (Blue) */
+.nav-download-btn {
+    background: #38bdf8;
+    color: #020617 !important;
+    padding: 6px 14px !important;
+    border-radius: 6px;
+    font-weight: bold;
+    margin-left: 16px;
+    transition: background 0.2s ease;
+}
+
+.nav-download-btn:hover {
+    background: #7dd3fc;
+    color: #020617 !important;
+}
+
+/* Mobile Responsive Fix for Nav Button */
+@media (max-width: 768px) {
+    .nav-download-btn {
+        margin-left: 0;
+        margin-top: 8px;
+        text-align: center;
+        display: inline-block;
+    }
+}
