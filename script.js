@@ -128,7 +128,6 @@ window.addEventListener('DOMContentLoaded', function () {
     document.body.classList.add('light-mode');
   }
 
-  // Inject toggle button
   var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
   if (navMenu) {
     var themeBtn = document.createElement('button');
@@ -1847,9 +1846,7 @@ window.addEventListener('DOMContentLoaded', function () {
   if (lessonTitle && lessonBody) {
     console.log('[CodeWix] Learn page detected');
 
-    // Sequential Curriculum: HTML -> CSS -> JS -> PHP -> Python
     var LESSONS = [
-      // --- HTML ---
       { title: 'HTML: Page Structure', level: 'Beginner', lang: 'html',
         concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.',
         code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>',
@@ -1865,8 +1862,6 @@ window.addEventListener('DOMContentLoaded', function () {
         code: '<ul>\n  <li>Apples</li>\n  <li>Bananas</li>\n  <li>Cherries</li>\n</ul>',
         exercise: 'Make an ordered list of your top 3 favorite movies.',
         hint: 'Use <code>&lt;ol&gt;</code> and <code>&lt;li&gt;</code>' },
-
-      // --- CSS ---
       { title: 'CSS: Basics and Selectors', level: 'Beginner', lang: 'css',
         concept: 'CSS changes how HTML looks. You target elements using selectors (like <code>body</code> or <code>.my-class</code>) and change properties like <code>color</code> and <code>background</code>.',
         code: 'body {\n  background-color: #0f172a;\n  color: white;\n  font-family: Arial, sans-serif;\n}\n\nh1 {\n  color: #38bdf8;\n}',
@@ -1882,8 +1877,6 @@ window.addEventListener('DOMContentLoaded', function () {
         code: '.container {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  height: 100vh;\n}',
         exercise: 'Create a flex container that spaces items evenly using <code>justify-content: space-between;</code>.',
         hint: 'Use <code>display: flex;</code>' },
-
-      // --- JavaScript ---
       { title: 'JS: Variables & Data Types', level: 'Beginner', lang: 'javascript',
         concept: 'Use <code>let</code> for variables that change and <code>const</code> for constants. JS has strings, numbers, and booleans.',
         code: 'let name = "Alice";\nconst age = 25;\nlet isStudent = true;\n\nconsole.log(name, age, isStudent);',
@@ -1899,8 +1892,6 @@ window.addEventListener('DOMContentLoaded', function () {
         code: '// Assuming HTML has: <h1 id="title">Hello</h1>\nlet heading = document.getElementById("title");\nheading.innerText = "Changed by JS!";\nheading.style.color = "red";',
         exercise: 'Change the background color of the body using JS: <code>document.body.style.backgroundColor = "black";</code>',
         hint: 'Select body with <code>document.body</code>' },
-
-      // --- PHP ---
       { title: 'PHP: Introduction & Echo', level: 'Beginner', lang: 'php',
         concept: 'PHP is a server-side language. Code goes inside <code>&lt;?php ... ?&gt;</code>. Use <code>echo</code> to print text.',
         code: '<?php\necho "Hello, PHP!";\n$name = "Alice";\necho "<br>Welcome, $name";\n?>',
@@ -1916,8 +1907,6 @@ window.addEventListener('DOMContentLoaded', function () {
         code: '<?php\n$colors = array("Red", "Green", "Blue");\necho $colors[0]; // Outputs: Red\n?>',
         exercise: 'Create an array of 3 animals and echo the second one.',
         hint: '<code>echo $animals[1];</code>' },
-
-      // --- Python ---
       { title: 'Python: Hello World', level: 'Beginner', lang: 'python',
         concept: 'Python is famous for being readable. No semicolons needed! Just use <code>print()</code> to output text.',
         code: 'print("Hello, World!")\nname = "Alice"\nprint(f"Welcome, {name}")',
@@ -2522,4 +2511,39 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
   }
+
+  // ======================================================================
+  // INJECT LIVE STATUS WIDGET INTO FOOTER
+  // ======================================================================
+  var footer = document.querySelector('footer');
+  if (footer) {
+    var statusWidget = document.createElement('a');
+    statusWidget.href = 'status.html';
+    statusWidget.className = 'footer-status-widget';
+    statusWidget.innerHTML = '<div class="footer-status-dot"></div><span class="footer-status-text">Checking status...</span>';
+    
+    footer.appendChild(statusWidget);
+    
+    var statusDot = statusWidget.querySelector('.footer-status-dot');
+    var statusText = statusWidget.querySelector('.footer-status-text');
+
+    fetch('/api/uptime-status')
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.status === 'up') {
+          statusWidget.classList.add('up');
+          statusText.textContent = 'All Systems Operational';
+        } else if (data.status === 'down') {
+          statusWidget.classList.add('down');
+          statusText.textContent = 'System Outage';
+        } else {
+          statusText.textContent = 'Status Unknown';
+        }
+      })
+      .catch(function() {
+        statusWidget.classList.add('down');
+        statusText.textContent = 'Unable to fetch status';
+      });
+  }
+
 }); // end DOMContentLoaded
