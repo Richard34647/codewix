@@ -13,13 +13,26 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 
-// ---- Firebase Admin init --------------------------------------------------
+// ==========================================
+// BULLETPROOF FIREBASE INITIALIZATION
+// ==========================================
 try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
+  
+  if (fs.existsSync(serviceAccountPath)) {
+    // Method 1: JSON file in the root directory
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
+    console.log('✅ [Firebase Admin] Initialized via firebase-service-account.json');
+  } 
+  else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    // Method 2: Single environment variable containing the whole JSON
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     admin.initializeApp({ credential: admin.credential.cert(sa), storageBucket: 'codewix-16971.firebasestorage.app' });
-    console.log('✅ [Firebase Admin] Initialized via FIREBASE_SERVICE_ACCOUNT');
-  } else if (process.env.FIREBASE_PROJECT_ID) {
+    console.log('✅ [Firebase Admin] Initialized via FIREBASE_SERVICE_ACCOUNT env var');
+  } 
+  else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    // Method 3: Split environment variables
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
@@ -28,11 +41,15 @@ try {
       }),
       storageBucket: 'codewix-16971.firebasestorage.app'
     });
-    console.log('✅ [Firebase Admin] Initialized via env vars');
-  } else {
-    console.warn('❌ [Firebase Admin] No credentials found.');
+    console.log('✅ [Firebase Admin] Initialized via split env vars');
+  } 
+  else {
+    console.error('❌ [Firebase Admin] CRITICAL ERROR: No credentials found!');
+    console.error('👉 Please add FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to Render environment variables.');
   }
-} catch (err) { console.error('❌ [Firebase Admin] init failed:', err.message); }
+} catch (err) { 
+  console.error('❌ [Firebase Admin] init failed:', err.message); 
+}
 
 let emailjsReady = false;
 if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
@@ -65,7 +82,6 @@ function resolveAssetUrls(html, files) {
 
 async function requireAuth(req, res, next) {
   if (!admin.apps.length) {
-    console.error('❌ Auth failed: Firebase Admin not initialized.');
     return res.status(500).json({ error: 'Auth not configured. Missing Firebase credentials on server.' });
   }
   const header = req.headers.authorization || '';
@@ -119,16 +135,12 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
       return res.status(groqRes.status).json({ error: errData.error?.message || errData.error || 'Groq API Error' });
     }
 
-    if (!groqRes.body) {
-      throw new Error('Groq returned an empty response body.');
-    }
+    if (!groqRes.body) throw new Error('Groq returned an empty response body.');
 
-    // Set headers for SSE (Server-Sent Events)
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    // Pipe the stream to the frontend
     const reader = groqRes.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let done = false;
@@ -140,7 +152,6 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     }
     res.end();
     
-    // Increment usage after stream finishes
     incrementUsage(req.rateLimitRef, req.rateLimitCount);
 
   } catch (err) {
