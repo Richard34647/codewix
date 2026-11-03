@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File)
+// CodeWix — script.js (Full Master File with AI Streaming)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -1121,7 +1121,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // AI Assistant (MULTIMODAL)
+  // AI Assistant (MULTIMODAL + STREAMING)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -1675,8 +1675,11 @@ window.addEventListener('DOMContentLoaded', function () {
       renderAttachPreview();
 
       var assistantDiv = appendMessage('assistant');
-      assistantDiv.querySelector('.message-content').innerHTML =
-        '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span></div>';
+      
+      // Create a streaming container
+      var messageContent = assistantDiv.querySelector('.message-content');
+      messageContent.innerHTML = '<div class="text-part streaming-text"></div>';
+      var textEl = messageContent.querySelector('.streaming-text');
 
       setLoading(true); setStatus(showThinking ? 'Thinking…' : 'Generating…');
 
@@ -1721,40 +1724,59 @@ window.addEventListener('DOMContentLoaded', function () {
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
           body: JSON.stringify(payload)
         });
-        var data = await response.json();
 
         if (response.status === 429) {
-          assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#fbbf24;">⚠️ ' + escapeHtml(data.error || 'Daily limit reached.') + '</div>';
-          conversation.pop(); setStatus('Limit reached'); return;
+          messageContent.innerHTML = '<div class="text-part" style="color:#fbbf24;">⚠️ ' + escapeHtml((await response.json()).error || 'Daily limit reached.') + '</div>';
+          conversation.pop(); setStatus('Limit reached'); setLoading(false); return;
         }
         if (response.status === 401) {
-          assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please refresh.</div>';
-          conversation.pop(); setStatus('Session expired'); return;
+          messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please refresh.</div>';
+          conversation.pop(); setStatus('Session expired'); setLoading(false); return;
         }
+        if (!response.ok) throw new Error('HTTP ' + response.status);
 
-        if (!response.ok) {
-          var errorMsg = 'HTTP ' + response.status;
-          if (data && data.error) {
-            if (typeof data.error === 'object') {
-              errorMsg = data.error.message || JSON.stringify(data.error);
-            } else {
-              errorMsg = data.error;
+        // STREAMING LOGIC
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let reply = '';
+        let done = false;
+        let buffer = '';
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            buffer += decoder.decode(value, { stream: true });
+            let lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (let line of lines) {
+              line = line.trim();
+              if (line.startsWith('data: ')) {
+                const dataStr = line.slice(6);
+                if (dataStr === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  const delta = parsed.choices[0].delta;
+                  if (delta && delta.content) {
+                    reply += delta.content;
+                    textEl.innerHTML = escapeHtml(reply).replace(/\n/g, '<br>');
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                  }
+                } catch (e) {}
+              }
             }
           }
-          throw new Error(errorMsg);
         }
 
-        var message = data.choices && data.choices[0] && data.choices[0].message;
-        if (!message) throw new Error('Empty response from AI.');
-        var reply = message.content || '', reasoning = message.reasoning || '';
-
-        setAssistantMessage(assistantDiv, reply, showThinking ? reasoning : '');
+        // Re-render final markdown (code blocks, etc)
+        setAssistantMessage(assistantDiv, reply, '');
         conversation.push({ role: 'assistant', content: reply }); scheduleSave();
-        setStatus('Ready' + (data.usage ? ' — ' + data.usage.total_tokens + ' tokens' : ''));
+        setStatus('Ready');
+
       } catch (err) {
         console.error('[CodeWix] chat error:', err);
-        var displayErr = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
-        assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(displayErr) + '</div>';
+        messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(err.message) + '</div>';
         conversation.pop(); setStatus('Failed');
       } finally {
         setLoading(false); chatContainer.scrollTop = chatContainer.scrollHeight; chatInput.focus();
@@ -2515,35 +2537,39 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // INJECT LIVE STATUS WIDGET INTO FOOTER
   // ======================================================================
-  var footer = document.querySelector('footer');
-  if (footer) {
-    var statusWidget = document.createElement('a');
-    statusWidget.href = 'status.html';
-    statusWidget.className = 'footer-status-widget';
-    statusWidget.innerHTML = '<div class="footer-status-dot"></div><span class="footer-status-text">Checking status...</span>';
-    
-    footer.appendChild(statusWidget);
-    
-    var statusDot = statusWidget.querySelector('.footer-status-dot');
-    var statusText = statusWidget.querySelector('.footer-status-text');
+  var isDesktopApp = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  if (!isDesktopApp) {
+    var footer = document.querySelector('footer');
+    if (footer) {
+      var statusWidget = document.createElement('a');
+      statusWidget.href = 'status.html';
+      statusWidget.className = 'footer-status-widget';
+      statusWidget.innerHTML = '<div class="footer-status-dot"></div><span class="footer-status-text">Checking status...</span>';
+      
+      footer.appendChild(statusWidget);
+      
+      var statusDot = statusWidget.querySelector('.footer-status-dot');
+      var statusText = statusWidget.querySelector('.footer-status-text');
 
-    fetch('/api/uptime-status')
-      .then(function(res) { return res.json(); })
-      .then(function(data) {
-        if (data.status === 'up') {
-          statusWidget.classList.add('up');
-          statusText.textContent = 'All Systems Operational';
-        } else if (data.status === 'down') {
+      fetch('/api/uptime-status')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.status === 'up') {
+            statusWidget.classList.add('up');
+            statusText.textContent = 'All Systems Operational';
+          } else if (data.status === 'down') {
+            statusWidget.classList.add('down');
+            statusText.textContent = 'System Outage';
+          } else {
+            statusText.textContent = 'Status Unknown';
+          }
+        })
+        .catch(function() {
           statusWidget.classList.add('down');
-          statusText.textContent = 'System Outage';
-        } else {
-          statusText.textContent = 'Status Unknown';
-        }
-      })
-      .catch(function() {
-        statusWidget.classList.add('down');
-        statusText.textContent = 'Unable to fetch status';
-      });
+          statusText.textContent = 'Unable to fetch status';
+        });
+    }
   }
 
 }); // end DOMContentLoaded
