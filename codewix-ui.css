@@ -545,7 +545,7 @@ textarea.cw-form-control { min-height: 100px; resize: vertical; }
     border: 3px solid var(--cw-border);
     border-top-color: var(--cw-primary);
     border-radius: 50%;
-    animation: cw-spin 0.8s linear infinite;
+    animation: cw-spin 0.5s linear infinite;
 }
 .cw-spinner-sm { width: 18px; height: 18px; border-width: 2px; }
 .cw-spinner-lg { width: 48px; height: 48px; border-width: 4px; }

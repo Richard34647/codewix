@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeWix Arcade</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* =========================================
+           ARCADE HUB STYLES
+           ========================================= */
+        .arcade-wrapper {
+            max-width: 1000px; margin: 120px auto 60px; padding: 0 20px;
+        }
+        .arcade-header { text-align: center; margin-bottom: 50px; }
+        .arcade-header h1 {
+            font-size: 42px; color: #e2e8f0; margin-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+        }
+        .arcade-header h1 span { color: #38bdf8; }
+        .arcade-header p { color: #94a3b8; font-size: 18px; }
+
+        .game-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px;
+        }
+        .game-card {
+            background: #0f172a; border: 1px solid #1e293b; border-radius: 16px;
+            padding: 30px 20px; text-align: center; cursor: pointer;
+            transition: all 0.3s ease; position: relative; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .game-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(90deg, #38bdf8, #a78bfa); opacity: 0; transition: opacity 0.3s;
+        }
+        .game-card:hover {
+            transform: translateY(-5px); border-color: #38bdf8; box-shadow: 0 10px 30px rgba(56, 189, 248, 0.1);
+        }
+        .game-card:hover::before { opacity: 1; }
+        .game-icon { font-size: 54px; margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.2)); }
+        .game-card h3 { color: #e2e8f0; font-size: 22px; margin-bottom: 10px; }
+        .game-card p { color: #64748b; font-size: 14px; line-height: 1.5; }
+
+        /* =========================================
+           ACTIVE GAME CONTAINER
+           ========================================= */
+        #activeGameContainer {
+            display: none; background: #0f172a; border: 1px solid #1e293b;
+            border-radius: 16px; padding: 30px; min-height: 600px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5); position: relative;
+        }
+        .back-btn {
+            background: transparent; color: #94a3b8; border: 1px solid #334155;
+            padding: 8px 16px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; margin-bottom: 20px; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .back-btn:hover { background: #1e293b; color: #fff; }
+        .game-title-bar { text-align: center; margin-bottom: 20px; }
+        .game-title-bar h2 { color: #38bdf8; font-size: 28px; }
+
+        /* =========================================
+           GAME 1: CODE DASH
+           ========================================= */
+        .dash-stats {
+            display: flex; justify-content: space-between; background: #1e293b;
+            padding: 20px; border-radius: 12px; margin-bottom: 20px;
+        }
+        .dash-stat-box { text-align: center; }
+        .dash-stat-box .label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .dash-stat-box .value { font-size: 24px; font-weight: bold; color: #38bdf8; font-family: 'Courier New', monospace; }
+        .dash-code-display {
+            background: #020617; border: 1px solid #334155; border-radius: 12px;
+            padding: 30px; font-family: 'Courier New', monospace; font-size: 24px;
+            line-height: 1.6; margin-bottom: 20px; min-height: 150px;
+        }
+        .dash-code-display .correct { color: #34d399; }
+        .dash-code-display .incorrect { color: #f87171; background: rgba(248, 113, 113, 0.2); }
+        .dash-code-display .current { border-bottom: 2px solid #38bdf8; animation: blink 1s step-end infinite; }
+        .dash-code-display .pending { color: #64748b; }
+        @keyframes blink { 50% { border-color: transparent; } }
+        .dash-input {
+            width: 100%; background: #1e293b; border: 2px solid #334155;
+            border-radius: 12px; padding: 20px; color: #e2e8f0;
+            font-family: 'Courier New', monospace; font-size: 20px; outline: none;
+        }
+        .dash-input:focus { border-color: #38bdf8; }
+
+        /* =========================================
+           GAME 2: SYNTAX DRIVER (FIRST PERSON)
+           ========================================= */
+        #driverContainer { position: relative; width: 100%; max-width: 800px; margin: 0 auto; }
+        #driverCanvas { width: 100%; height: auto; border-radius: 12px; border: 2px solid #1e293b; display: block; }
+        
+        .driver-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+            padding: 20px;
+        }
+        
+        .driver-prompt-box {
+            background: rgba(2, 6, 23, 0.85); border: 2px solid #38bdf8; border-radius: 12px;
+            padding: 15px 30px; text-align: center; pointer-events: auto;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2); margin: 0 auto;
+            align-self: center;
+        }
+        .driver-prompt-box h3 { color: #94a3b8; font-size: 14px; text-transform: uppercase; margin-bottom: 5px; }
+        .driver-code-prompt {
+            font-family: 'Courier New', monospace; font-size: 32px; font-weight: bold;
+            color: #e2e8f0; letter-spacing: 2px;
+        }
+        .driver-code-prompt .highlight { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
+        
+        .driver-input {
+            width: 100%; max-width: 500px; background: rgba(15, 23, 42, 0.9); border: 2px solid #38bdf8;
+            border-radius: 12px; padding: 15px; color: #34d399; font-family: 'Courier New', monospace;
+            font-size: 24px; outline: none; text-align: center; pointer-events: auto; align-self: center;
+            margin-bottom: 20px;
+        }
+        .driver-input:focus { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+
+        /* =========================================
+           GAME 3: SYNTAX SHOOTER
+           ========================================= */
+        #canvasContainer {
+            display: flex; justify-content: center; align-items: center;
+            background: #020617; border-radius: 12px; overflow: hidden; border: 2px solid #1e293b; position: relative;
+        }
+        canvas { display: block; background: #0a0f1d; }
+        .shooter-hud {
+            display: flex; justify-content: space-between; margin-bottom: 10px;
+            font-family: 'Courier New', monospace; font-size: 20px; color: #38bdf8; font-weight: bold;
+        }
+        .target-prompt {
+            background: rgba(2, 6, 23, 0.85); border: 2px solid #f87171; border-radius: 8px;
+            padding: 10px 20px; text-align: center; position: absolute; top: 10px; left: 50%;
+            transform: translateX(-50%); font-family: 'Courier New', monospace; font-size: 24px; font-weight: bold;
+            color: #e2e8f0; box-shadow: 0 0 15px rgba(248, 113, 113, 0.3);
+        }
+        .target-prompt span { color: #f87171; }
+        .shooter-type-input {
+            width: 100%; background: #1e293b; border: 2px solid #334155;
+            border-radius: 8px; padding: 15px; color: #e2e8f0;
+            font-family: 'Courier New', monospace; font-size: 20px; outline: none;
+            margin-top: 15px; text-align: center;
+        }
+        .shooter-type-input:focus { border-color: #34d399; }
+
+        /* =========================================
+           GAME 4: SYNTAX MATCH
+           ========================================= */
+        .memory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; max-width: 600px; margin: 0 auto; }
+        .memory-card {
+            background: #1e293b; border-radius: 10px; aspect-ratio: 1;
+            display: flex; justify-content: center; align-items: center;
+            font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold;
+            color: transparent; cursor: pointer; transition: transform 0.3s, background 0.3s;
+            user-select: none; border: 2px solid #334155;
+        }
+        .memory-card.flipped { background: #38bdf8; color: #020617; transform: rotateY(180deg); }
+        .memory-card.matched { background: #064e3b; color: #34d399; border-color: #34d399; transform: scale(0.95); cursor: default; }
+
+        /* =========================================
+           GAME 5: CODE QUEST
+           ========================================= */
+        .quest-container { display: flex; flex-direction: column; gap: 20px; }
+        .quest-prompt { background: #1e293b; border-left: 4px solid #38bdf8; padding: 20px; border-radius: 8px; }
+        .quest-prompt h3 { color: #38bdf8; margin-bottom: 10px; }
+        .quest-prompt p { color: #cbd5e1; font-size: 16px; line-height: 1.5; }
+        .quest-editor {
+            width: 100%; height: 150px; background: #020617; border: 1px solid #334155;
+            border-radius: 8px; color: #e2e8f0; font-family: 'Courier New', monospace;
+            font-size: 16px; padding: 15px; outline: none; resize: vertical;
+        }
+        .quest-editor:focus { border-color: #38bdf8; }
+        .quest-output {
+            background: #020617; border: 1px solid #334155; border-radius: 8px;
+            padding: 15px; font-family: 'Courier New', monospace; color: #64748b; min-height: 50px;
+        }
+        .quest-output.success { color: #34d399; border-color: #34d399; }
+        .quest-output.error { color: #f87171; border-color: #f87171; }
+
+        /* Utils */
+        .game-over-text { text-align: center; color: #38bdf8; font-size: 32px; font-weight: bold; margin: 20px 0; }
+        .center-btn { display: block; margin: 20px auto; padding: 12px 30px; font-size: 18px; }
+        
+        /* Tutorial Modal */
+        .tutorial-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;
+        }
+        .tutorial-content {
+            background: #0f172a; padding: 40px; border-radius: 12px; max-width: 600px;
+            border: 1px solid #38bdf8; box-shadow: 0 0 30px rgba(56, 189, 248, 0.3); text-align: center;
+        }
+        .tutorial-content h2 { color: #38bdf8; margin-bottom: 20px; font-size: 28px; }
+        .tutorial-content p { color: #cbd5e1; font-size: 16px; line-height: 1.6; margin-bottom: 15px; text-align: left; }
+        .tutorial-content ul { color: #cbd5e1; margin-left: 20px; margin-bottom: 20px; line-height: 1.6; text-align: left;}
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="components.html">Components</a>
+            <a href="learn.html">Learn</a>
+            <a href="play.html" style="color: #38bdf8;">Arcade</a>
+            <a href="explore.html">Explore</a>
+            <a href="about.html">About</a>
+            <a href="register.html">Register</a>
+            <a href="login.html">Login</a>
+        </nav>
+    </header>
+
+    <!-- TUTORIAL MODAL -->
+    <div class="tutorial-modal" id="tutorialModal">
+        <div class="tutorial-content">
+            <h2>Welcome to the Arcade! 🎮</h2>
+            <p>These games train your brain to remember syntax!</p>
+            <ul>
+                <li><strong>Syntax Driver:</strong> Type the code to accelerate your car.</li>
+                <li><strong>Syntax Shooter:</strong> Type the tag on the enemy to fire your laser.</li>
+                <li><strong>Code Quest:</strong> Write real code to solve the challenges.</li>
+            </ul>
+            <button class="button" onclick="closeTutorial()" style="margin-top: 20px;">Let's Go!</button>
+        </div>
+    </div>
+
+    <!-- MAIN ARCADE HUB -->
+    <div class="arcade-wrapper" id="arcadeHub">
+        <div class="arcade-header">
+            <h1>CodeWix <span>Arcade</span></h1>
+            <p>Level up your syntax skills with these coding mini-games.</p>
+            <button class="button ghost" style="margin-top: 15px;" onclick="openTutorial()">❓ How to Play</button>
+        </div>
+
+        <div class="game-grid">
+            <div class="game-card" onclick="launchGame('dash')">
+                <div class="game-icon">⌨️</div>
+                <h3>Code Dash</h3>
+                <p>How fast can you type complex syntax without making a single error?</p>
+            </div>
+
+            <div class="game-card" onclick="launchGame('driver')">
+                <div class="game-icon">🏎️</div>
+                <h3>Syntax Driver</h3>
+                <p>First-person driving. Type the code to accelerate and dodge bugs!</p>
+            </div>
+
+            <div class="game-card" onclick="launchGame('shooter')">
+                <div class="game-icon">🚀</div>
+                <h3>Syntax Shooter</h3>
+                <p>Type the HTML tags on falling enemies to blast them out of the sky.</p>
+            </div>
+
+            <div class="game-card" onclick="launchGame('memory')">
+                <div class="game-icon">🧠</div>
+                <h3>Syntax Match</h3>
+                <p>Flip the cards and match opening tags with their closing partners.</p>
+            </div>
+
+            <div class="game-card" onclick="launchGame('quest')">
+                <div class="game-icon">🧩</div>
+                <h3>Code Quest</h3>
+                <p>Write real JavaScript to pass the logic tests and advance!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACTIVE GAME AREA -->
+    <div class="arcade-wrapper">
+        <div id="activeGameContainer">
+            <button class="back-btn" onclick="exitGame()">← Back to Arcade</button>
+
+            <!-- GAME 1: CODE DASH -->
+            <div id="game-dash" class="game-view" style="display: none;">
+                <div class="game-title-bar"><h2>Code Dash</h2></div>
+                <div id="dashOver" class="game-over-text" style="display:none;">
+                    Time's Up! Final Score: <span id="dashFinalWpm">0</span> WPM
+                    <button class="button center-btn" onclick="startDash()">Play Again</button>
+                </div>
+                <div id="dashUI">
+                    <div class="dash-stats">
+                        <div class="dash-stat-box"><div class="label">Time Left</div><div class="value" id="dashTime">60s</div></div>
+                        <div class="dash-stat-box"><div class="label">WPM</div><div class="value" id="dashWpm">0</div></div>
+                        <div class="dash-stat-box"><div class="label">Accuracy</div><div class="value" id="dashAcc">100%</div></div>
+                    </div>
+                    <div class="dash-code-display" id="dashCode"></div>
+                    <input type="text" id="dashInput" class="dash-input" placeholder="Click here to start typing..." autocomplete="off" spellcheck="false" disabled>
+                    <button class="button center-btn" id="dashStartBtn" onclick="startDash()">Start Typing</button>
+                </div>
+            </div>
+
+            <!-- GAME 2: SYNTAX DRIVER (FIRST PERSON) -->
+            <div id="game-driver" class="game-view" style="display: none;">
+                <div class="game-title-bar">
+                    <h2>Syntax Driver</h2>
+                </div>
+                
+                <div id="driverContainer">
+                    <canvas id="driverCanvas" width="800" height="500"></canvas>
+                    
+                    <div class="driver-overlay">
+                        <div class="driver-prompt-box">
+                            <h3>Type this to accelerate:</h3>
+                            <div class="driver-code-prompt" id="driverPrompt">Press Start to begin</div>
+                        </div>
+                        
+                        <input type="text" id="driverInput" class="driver-input" placeholder="Type here..." autocomplete="off" spellcheck="false" disabled>
+                    </div>
+                </div>
+                <button class="button center-btn" id="driverStartBtn" onclick="startDriver()">Start Engine</button>
+            </div>
+
+            <!-- GAME 3: SYNTAX SHOOTER -->
+            <div id="game-shooter" class="game-view" style="display: none;">
+                <div class="game-title-bar">
+                    <h2>Syntax Shooter</h2>
+                </div>
+                <div class="shooter-hud">
+                    <span>Score: <span id="shooterScore" style="color:#34d399;">0</span></span>
+                    <span>Lives: <span id="shooterLives" style="color:#f87171;">❤️❤️❤️</span></span>
+                </div>
+                <div id="canvasContainer">
+                    <div class="target-prompt" id="shooterTargetPrompt" style="display:none;">TYPE: <span id="shooterTargetText"></span></div>
+                    <canvas id="shooterCanvas" width="600" height="400"></canvas>
+                </div>
+                <input type="text" id="shooterTypeInput" class="shooter-type-input" placeholder="Type tag here to shoot..." autocomplete="off" spellcheck="false" disabled>
+                <button class="button center-btn" onclick="initShooter()">Start Game</button>
+            </div>
+
+            <!-- GAME 4: SYNTAX MATCH -->
+            <div id="game-memory" class="game-view" style="display: none;">
+                <div class="game-title-bar"><h2>Syntax Match</h2></div>
+                <div class="game-over-text" id="memoryWinText" style="display:none;">
+                    🎉 You matched all the tags!
+                    <button class="button center-btn" onclick="startMemory()">Play Again</button>
+                </div>
+                <div class="memory-grid" id="memoryGrid"></div>
+            </div>
+
+            <!-- GAME 5: CODE QUEST -->
+            <div id="game-quest" class="game-view" style="display: none;">
+                <div class="game-title-bar"><h2>Code Quest</h2></div>
+                <div class="quest-container">
+                    <div class="quest-prompt">
+                        <h3 id="questTitle">Challenge</h3>
+                        <p id="questDesc">Description</p>
+                    </div>
+                    <textarea id="questCode" class="quest-editor" spellcheck="false" placeholder="Write your code here..."></textarea>
+                    <button class="button" style="width:100%;" onclick="submitQuest()">▶ Run & Submit Code</button>
+                    <div id="questOutput" class="quest-output">Output will appear here...</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <script>
+        // ======================================================================
+        // TUTORIAL LOGIC
+        // ======================================================================
+        if (localStorage.getItem('codewix_tutorial_seen') === 'true') {
+            document.getElementById('tutorialModal').style.display = 'none';
+        } else {
+            window.onload = () => document.getElementById('tutorialModal').style.display = 'flex';
+        }
+
+        function openTutorial() { document.getElementById('tutorialModal').style.display = 'flex'; }
+        function closeTutorial() {
+            document.getElementById('tutorialModal').style.display = 'none';
+            localStorage.setItem('codewix_tutorial_seen', 'true');
+        }
+
+        // ======================================================================
+        // ARCADE HUB LOGIC
+        // ======================================================================
+        function launchGame(gameId) {
+            document.getElementById('arcadeHub').style.display = 'none';
+            document.getElementById('activeGameContainer').style.display = 'block';
+            document.querySelectorAll('.game-view').forEach(el => el.style.display = 'none');
+            document.getElementById('game-' + gameId).style.display = 'block';
+
+            if (gameId === 'driver') initDriver();
+            if (gameId === 'shooter') initShooter();
+            if (gameId === 'memory') startMemory();
+            if (gameId === 'quest') loadQuest();
+        }
+
+        function exitGame() {
+            document.getElementById('arcadeHub').style.display = 'block';
+            document.getElementById('activeGameContainer').style.display = 'none';
+            
+            if (driverAnimationId) cancelAnimationFrame(driverAnimationId);
+            if (shooterAnimationId) cancelAnimationFrame(shooterAnimationId);
+            clearInterval(dashTimer);
+        }
+
+
+        // ======================================================================
+        // GAME 1: CODE DASH
+        // ======================================================================
+        const dashSnippets = [
+            'const add = (a, b) => a + b;', '<div class="container"></div>',
+            'function greet() { return "Hello"; }', 'body { background: #0f172a; }',
+            'let isReady = true;', 'if (x > 10) { console.log("Big"); }',
+            'const arr = [1, 2, 3, 4, 5];', 'document.getElementById("app");',
+            'for (let i = 0; i < 5; i++) { }', 'import React from "react";'
+        ];
+        let dashSnippet = "", dashStart = null, dashTimeLeft = 60, dashTimer = null, dashTyped = 0, dashCorrect = 0, dashPlaying = false;
+
+        function getDashSnippet() { return dashSnippets[Math.floor(Math.random() * dashSnippets.length)]; }
+        function renderDashCode() {
+            const display = document.getElementById('dashCode');
+            display.innerHTML = '';
+            const inputVal = document.getElementById('dashInput').value;
+            for (let i = 0; i < dashSnippet.length; i++) {
+                const span = document.createElement('span');
+                span.textContent = dashSnippet[i];
+                if (i < inputVal.length) span.className = inputVal[i] === dashSnippet[i] ? 'correct' : 'incorrect';
+                else if (i === inputVal.length) span.className = 'current';
+                else span.className = 'pending';
+                display.appendChild(span);
+            }
+        }
+        function startDash() {
+            dashPlaying = true; dashStart = Date.now(); dashTimeLeft = 60; dashTyped = 0; dashCorrect = 0; dashSnippet = getDashSnippet();
+            document.getElementById('dashTime').textContent = dashTimeLeft + 's';
+            document.getElementById('dashWpm').textContent = '0';
+            document.getElementById('dashAcc').textContent = '100%';
+            document.getElementById('dashOver').style.display = 'none';
+            document.getElementById('dashUI').style.display = 'block';
+            const input = document.getElementById('dashInput');
+            input.disabled = false; input.value = ''; input.focus();
+            renderDashCode(); clearInterval(dashTimer);
+            dashTimer = setInterval(() => {
+                dashTimeLeft--; document.getElementById('dashTime').textContent = dashTimeLeft + 's';
+                const elapsedMins = (Date.now() - dashStart) / 60000;
+                const wpm = Math.round((dashTyped / 5) / elapsedMins);
+                document.getElementById('dashWpm').textContent = isFinite(wpm) ? wpm : 0;
+                if (dashTimeLeft <= 0) {
+                    clearInterval(dashTimer); input.disabled = true; dashPlaying = false;
+                    document.getElementById('dashUI').style.display = 'none';
+                    document.getElementById('dashOver').style.display = 'block';
+                    document.getElementById('dashFinalWpm').textContent = isFinite(wpm) ? wpm : 0;
+                }
+            }, 1000);
+        }
+        document.getElementById('dashInput').addEventListener('input', function() {
+            if (!dashPlaying) return;
+            const val = this.value;
+            if (val.length > 0) {
+                dashTyped++;
+                if (val[val.length - 1] === dashSnippet[val.length - 1]) dashCorrect++;
+                document.getElementById('dashAcc').textContent = Math.round((dashCorrect / dashTyped) * 100) + '%';
+            }
+            renderDashCode();
+            if (val === dashSnippet) { dashSnippet = getDashSnippet(); this.value = ''; renderDashCode(); }
+        });
+        document.getElementById('dashInput').addEventListener('paste', e => e.preventDefault());
+
+
+        // ======================================================================
+        // GAME 2: SYNTAX DRIVER (First Person)
+        // ======================================================================
+        let driverCanvas, driverCtx, driverAnimationId;
+        let driverSpeed = 0, driverDist = 0, driverPlaying = false;
+        let driverCurrentPrompt = "", driverTypedText = "";
+        let roadOffset = 0;
+
+        const driverPrompts = [
+            "let x = 5;", "const y = true;", "<p>", "</p>", "if (a > b)", 
+            "{ }", "() =>", "console.log()", "return true;", "var name = 'JS';"
+        ];
+
+        function initDriver() {
+            driverCanvas = document.getElementById('driverCanvas');
+            driverCtx = driverCanvas.getContext('2d');
+            driverSpeed = 0; driverDist = 0; driverPlaying = false; roadOffset = 0;
+            document.getElementById('driverInput').disabled = true;
+            document.getElementById('driverInput').value = "";
+            document.getElementById('driverPrompt').innerHTML = "Press Start Engine to begin.";
+            document.getElementById('driverStartBtn').style.display = "block";
+            
+            if (driverAnimationId) cancelAnimationFrame(driverAnimationId);
+            drawDriverScene(); // Draw initial static screen
+        }
+
+        function startDriver() {
+            driverPlaying = true;
+            driverSpeed = 0; driverDist = 0;
+            document.getElementById('driverInput').disabled = false;
+            document.getElementById('driverInput').focus();
+            document.getElementById('driverInput').value = "";
+            document.getElementById('driverStartBtn').style.display = "none";
+            
+            nextDriverPrompt();
+            if (!driverAnimationId) driverLoop();
+        }
+
+        function nextDriverPrompt() {
+            driverTypedText = "";
+            document.getElementById('driverInput').value = "";
+            driverCurrentPrompt = driverPrompts[Math.floor(Math.random() * driverPrompts.length)];
+            
+            // Highlight the text to type clearly
+            document.getElementById('driverPrompt').innerHTML = `<span style="color:#34d399">${driverCurrentPrompt}</span>`;
+        }
+
+        document.getElementById('driverInput').addEventListener('input', function() {
+            if (!driverPlaying) return;
+            driverTypedText = this.value;
+
+            // Wrong key press
+            if (driverCurrentPrompt.indexOf(driverTypedText) !== 0) { 
+                driverSpeed = Math.max(0, driverSpeed - 30); // Hard brake
+                this.value = ""; 
+                driverTypedText = "";
+                driverCanvas.style.borderColor = "#f87171"; // Red flash
+                setTimeout(() => driverCanvas.style.borderColor = "#1e293b", 150);
+                return;
+            }
+
+            // Complete prompt
+            if (driverTypedText === driverCurrentPrompt) {
+                driverSpeed += 40; // Accelerate
+                if (driverSpeed > 220) driverSpeed = 220;
+                nextDriverPrompt();
+            }
+        });
+
+        function drawDriverScene() {
+            const w = driverCanvas.width;
+            const h = driverCanvas.height;
+            const horizon = h / 2.5;
+
+            // 1. Sky
+            const skyGrad = driverCtx.createLinearGradient(0, 0, 0, horizon);
+            skyGrad.addColorStop(0, '#020617');
+            skyGrad.addColorStop(1, '#0f172a');
+            driverCtx.fillStyle = skyGrad;
+            driverCtx.fillRect(0, 0, w, horizon);
+
+            // 2. Road
+            driverCtx.fillStyle = '#1e293b'; // Road color
+            driverCtx.beginPath();
+            driverCtx.moveTo(w / 2 - 30, horizon);
+            driverCtx.lineTo(w / 2 + 30, horizon);
+            driverCtx.lineTo(w, h);
+            driverCtx.lineTo(0, h);
+            driverCtx.fill();
+
+            // 3. Moving Road Lines (Perspective)
+            const numLines = 15;
+            const speedMult = driverSpeed / 50;
+            roadOffset = (roadOffset + speedMult) % 1; // 0 to 1
+
+            for (let i = 0; i < numLines; i++) {
+                // Calculate depth (z) from 1 to 0 (far to near)
+                let z = (i + roadOffset) / numLines;
+                // Non-linear perspective scale
+                let scale = z * z; 
+                
+                let y = horizon + scale * (h - horizon);
+                let lineW = scale * 40; // Line gets wider closer to us
+                let lineH = scale * 80; // Line gets longer
+                
+                // Don't draw if it overlaps dashboard
+                if (y > h - 120) continue; 
+
+                driverCtx.fillStyle = '#38bdf8';
+                driverCtx.fillRect(w / 2 - lineW / 2, y, lineW, lineH);
+            }
+
+            // 4. Dashboard (Interior of the car)
+            driverCtx.fillStyle = '#0f172a';
+            driverCtx.beginPath();
+            driverCtx.moveTo(0, h);
+            driverCtx.lineTo(0, h - 100);
+            driverCtx.quadraticCurveTo(w / 2, h - 50, w, h - 100);
+            driverCtx.lineTo(w, h);
+            driverCtx.fill();
+
+            // 5. Steering Wheel
+            driverCtx.strokeStyle = '#334155';
+            driverCtx.lineWidth = 20;
+            driverCtx.beginPath();
+            driverCtx.arc(w / 2, h - 10, 80, Math.PI, 2 * Math.PI);
+            driverCtx.stroke();
+
+            // 6. Speedometer HUD
+            driverCtx.fillStyle = '#38bdf8';
+            driverCtx.font = 'bold 36px Courier New';
+            driverCtx.textAlign = 'right';
+            driverCtx.fillText(`${Math.round(driverSpeed)} KM/H`, w - 30, h - 30);
+            
+            driverCtx.fillStyle = '#94a3b8';
+            driverCtx.font = '20px Courier New';
+            driverCtx.fillText(`${Math.round(driverDist)} m`, w - 30, h - 70);
+            driverCtx.textAlign = 'left'; // Reset
+        }
+
+        function driverLoop() {
+            if (!driverPlaying) {
+                drawDriverScene();
+                return; 
+            }
+
+            // Physics
+            driverSpeed *= 0.98; // Natural friction
+            if (driverSpeed < 1) driverSpeed = 0;
+            
+            driverDist += driverSpeed / 60; // Update distance based on speed
+
+            drawDriverScene();
+            driverAnimationId = requestAnimationFrame(driverLoop);
+        }
+
+
+        // ======================================================================
+        // GAME 3: SYNTAX SHOOTER
+        // ======================================================================
+        let shooterCanvas, shooterCtx, shooterAnimationId;
+        let playerX = 300;
+        let bullets = [], enemies = [];
+        let shooterScore = 0, shooterLives = 3, shooterGameOver = false;
+        let shooterPlaying = false;
+
+        const enemyTags = ["<div>", "<p>", "<a>", "<span>", "<h1>", "<ul>", "<li>", "<img>", "<br>"];
+
+        function initShooter() {
+            shooterCanvas = document.getElementById('shooterCanvas');
+            shooterCtx = shooterCanvas.getContext('2d');
+            shooterGameOver = false; shooterScore = 0; shooterLives = 3; bullets = []; enemies = [];
+            playerX = shooterCanvas.width / 2;
+            updateShooterUI();
+            
+            document.getElementById('shooterTypeInput').disabled = false;
+            document.getElementById('shooterTypeInput').value = "";
+            document.getElementById('shooterTypeInput').focus();
+            document.getElementById('shooterTargetPrompt').style.display = 'none';
+            shooterPlaying = true;
+
+            if (shooterAnimationId) cancelAnimationFrame(shooterAnimationId);
+            shooterLoop();
+        }
+
+        function updateShooterUI() {
+            document.getElementById('shooterScore').textContent = shooterScore;
+            let hearts = ''; for(let i=0; i<shooterLives; i++) hearts += '❤️';
+            document.getElementById('shooterLives').textContent = hearts || '💔';
+        }
+
+        document.getElementById('shooterTypeInput').addEventListener('input', function() {
+            if (!shooterPlaying) return;
+            const typed = this.value.trim();
+            
+            // Check if typed text matches the closest enemy
+            for(let i = 0; i < enemies.length; i++) {
+                if (enemies[i].tag === typed) {
+                    // Shoot it!
+                    bullets.push({ x: playerX, y: shooterCanvas.height - 20, target: enemies[i], speed: 20 });
+                    enemies.splice(i, 1);
+                    this.value = ""; // Clear input
+                    
+                    // Hide prompt, it will regenerate next frame
+                    document.getElementById('shooterTargetPrompt').style.display = 'none';
+                    break;
+                }
+            }
+        });
+
+        function shooterLoop() {
+            if (shooterGameOver || !shooterPlaying) return;
+            
+            shooterCtx.fillStyle = '#020617';
+            shooterCtx.fillRect(0, 0, shooterCanvas.width, shooterCanvas.height);
+
+            // Draw Player (Spaceship)
+            shooterCtx.fillStyle = '#38bdf8';
+            shooterCtx.beginPath();
+            shooterCtx.moveTo(playerX, shooterCanvas.height - 40);
+            shooterCtx.lineTo(playerX - 20, shooterCanvas.height - 10);
+            shooterCtx.lineTo(playerX + 20, shooterCanvas.height - 10);
+            shooterCtx.fill();
+
+            // Spawn Enemies
+            if (Math.random() < 0.02) { 
+                const tag = enemyTags[Math.floor(Math.random() * enemyTags.length)];
+                enemies.push({ x: Math.random() * (shooterCanvas.width - 80) + 40, y: -30, tag: tag, speed: 1 + Math.random() * 2 });
+            }
+
+            // Find closest enemy to show prompt
+            let closestEnemy = null;
+            let closestDist = Infinity;
+
+            // Draw Enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                e.y += e.speed;
+                
+                if (e.y > closestDist) continue; // Only track the lowest one
+                closestDist = e.y;
+                closestEnemy = e;
+                
+                // Draw Enemy Box
+                shooterCtx.fillStyle = '#1e293b';
+                shooterCtx.fillRect(e.x - 35, e.y - 15, 70, 30);
+                shooterCtx.strokeStyle = '#f87171';
+                shooterCtx.strokeRect(e.x - 35, e.y - 15, 70, 30);
+                
+                // Draw Text
+                shooterCtx.fillStyle = '#e2e8f0';
+                shooterCtx.font = '16px Courier New';
+                shooterCtx.textAlign = 'center';
+                shooterCtx.fillText(e.tag, e.x, e.y + 5);
+                shooterCtx.textAlign = 'left';
+
+                // Hit Player
+                if (e.y > shooterCanvas.height - 50 && e.x > playerX - 35 && e.x < playerX + 35) {
+                    enemies.splice(i, 1);
+                    shooterLives--;
+                    updateShooterUI();
+                    if (shooterLives <= 0) endShooter();
+                    continue;
+                }
+            }
+
+            // Update Target Prompt HUD
+            if (closestEnemy) {
+                document.getElementById('shooterTargetPrompt').style.display = 'block';
+                document.getElementById('shooterTargetText').textContent = closestEnemy.tag;
+            }
+
+            // Draw Bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i];
+                b.y -= b.speed;
+                shooterCtx.fillStyle = '#34d399';
+                shooterCtx.fillRect(b.x - 3, b.y, 6, 20);
+                
+                // Hit target
+                if (b.y < b.target.y + 15 && b.y > b.target.y - 15) {
+                    shooterScore += 100;
+                    updateShooterUI();
+                    bullets.splice(i, 1);
+                } else if (b.y < 0) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            shooterAnimationId = requestAnimationFrame(shooterLoop);
+        }
+
+        function endShooter() {
+            shooterGameOver = true;
+            shooterPlaying = false;
+            document.getElementById('shooterTypeInput').disabled = true;
+            document.getElementById('shooterTargetPrompt').style.display = 'none';
+            shooterCtx.fillStyle = 'rgba(0,0,0,0.8)';
+            shooterCtx.fillRect(0, 0, shooterCanvas.width, shooterCanvas.height);
+            shooterCtx.fillStyle = '#f87171';
+            shooterCtx.font = 'bold 48px Courier New';
+            shooterCtx.textAlign = 'center';
+            shooterCtx.fillText('GAME OVER', shooterCanvas.width/2, shooterCanvas.height/2 - 20);
+            shooterCtx.fillStyle = '#38bdf8';
+            shooterCtx.font = '18px Arial';
+            shooterCtx.fillText('Click anywhere to restart', shooterCanvas.width/2, shooterCanvas.height/2 + 40);
+            shooterCtx.textAlign = 'left';
+            shooterCanvas.onclick = () => { initShooter(); shooterCanvas.onclick = null; };
+        }
+
+
+        // ======================================================================
+        // GAME 4: SYNTAX MATCH
+        // ======================================================================
+        const tags = ['<div>', '</div>', '<p>', '</p>', '<a>', '</a>', '<span>', '</span>'];
+        let flippedCards = [], matchedPairs = 0, lockBoard = false;
+
+        function startMemory() {
+            const grid = document.getElementById('memoryGrid');
+            grid.innerHTML = ''; flippedCards = []; matchedPairs = 0; lockBoard = false;
+            document.getElementById('memoryWinText').style.display = 'none';
+            let deck = [...tags, ...tags].sort(() => Math.random() - 0.5);
+            deck.forEach(tag => {
+                const card = document.createElement('div');
+                card.className = 'memory-card'; card.dataset.value = tag; card.innerText = tag;
+                card.onclick = () => flipCard(card); grid.appendChild(card);
+            });
+        }
+        function flipCard(card) {
+            if (lockBoard || card.classList.contains('flipped') || card.classList.contains('matched')) return;
+            card.classList.add('flipped'); flippedCards.push(card);
+            if (flippedCards.length === 2) { lockBoard = true; checkMatch(); }
+        }
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+            const isMatch = card1.dataset.value.replace(/[<\/>]/g, '') === card2.dataset.value.replace(/[<\/>]/g, '');
+            if (isMatch && card1.dataset.value !== card2.dataset.value) {
+                card1.classList.add('matched'); card2.classList.add('matched'); matchedPairs++; flippedCards = []; lockBoard = false;
+                if (matchedPairs === tags.length) setTimeout(() => document.getElementById('memoryWinText').style.display = 'block', 500);
+            } else {
+                setTimeout(() => {
+                    card1.classList.remove('flipped'); card2.classList.remove('flipped');
+                    flippedCards = []; lockBoard = false;
+                }, 1000);
+            }
+        }
+
+
+        // ======================================================================
+        // GAME 5: CODE QUEST
+        // ======================================================================
+        const quests = [
+            {
+                title: "1. Variable Assignment",
+                desc: "Create a variable named <code>x</code> and set it to the number <code>10</code>.",
+                starter: "// Write your code here\n",
+                test: (code) => {
+                    try { eval(code); if (typeof x !== 'undefined' && x === 10) return { success: true, msg: "Success! x is 10." }; return { success: false, msg: "x is not defined or not equal to 10." }; } 
+                    catch(e) { return { success: false, msg: "Syntax Error: " + e.message }; }
+                }
+            },
+            {
+                title: "2. Function Creation",
+                desc: "Write a function called <code>add</code> that takes two numbers <code>(a, b)</code> and returns their sum.",
+                starter: "function add(a, b) {\n  // return a + b;\n}",
+                test: (code) => {
+                    try { eval(code); if (typeof add === 'function' && add(2,3) === 5) return { success: true, msg: "Success! add(2,3) returns 5." }; return { success: false, msg: "Function 'add' does not return the correct sum." }; } 
+                    catch(e) { return { success: false, msg: "Syntax Error: " + e.message }; }
+                }
+            },
+            {
+                title: "3. Array Methods",
+                desc: "Create an array called <code>colors</code> containing <code>'red'</code>, <code>'green'</code>, and <code>'blue'</code>. Then push <code>'yellow'</code> to the end of it.",
+                starter: "let colors = ['red', 'green', 'blue'];\n// write the push method here\n",
+                test: (code) => {
+                    try { eval(code); if (Array.isArray(colors) && colors.length === 4 && colors[3] === 'yellow') return { success: true, msg: "Success! colors has 4 items ending in yellow." }; return { success: false, msg: "colors array is not correct." }; } 
+                    catch(e) { return { success: false, msg: "Syntax Error: " + e.message }; }
+                }
+            }
+        ];
+        let currentQuestIndex = 0;
+
+        function loadQuest() {
+            currentQuestIndex = 0;
+            renderQuest();
+        }
+
+        function renderQuest() {
+            const q = quests[currentQuestIndex];
+            document.getElementById('questTitle').innerHTML = q.title;
+            document.getElementById('questDesc').innerHTML = q.desc;
+            document.getElementById('questCode').value = q.starter;
+            const output = document.getElementById('questOutput');
+            output.textContent = "Output will appear here...";
+            output.className = 'quest-output';
+        }
+
+        function submitQuest() {
+            const q = quests[currentQuestIndex];
+            const userCode = document.getElementById('questCode').value;
+            const output = document.getElementById('questOutput');
+
+            const result = q.test(userCode);
+
+            if (result.success) {
+                output.textContent = "✅ " + result.msg;
+                output.className = 'quest-output success';
+                
+                if (currentQuestIndex < quests.length - 1) {
+                    setTimeout(() => {
+                        currentQuestIndex++;
+                        renderQuest();
+                        output.textContent = "Output will appear here...";
+                        output.className = 'quest-output';
+                    }, 1500);
+                } else {
+                    output.textContent = "🎉 YOU WIN! You have completed all quests!";
+                }
+            } else {
+                output.textContent = "❌ " + result.msg;
+                output.className = 'quest-output error';
+            }
+        }
+    </script>
+</body>
+</html>

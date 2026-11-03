@@ -12,7 +12,7 @@ console.log('[CodeWix] components.js loaded');
   function buildPreviewDoc(componentCode) {
     return '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-      '<link rel="stylesheet" href="https://codewi.onrender.com/codewix-ui.css">' +
+      '<link rel="stylesheet" href="codewix-ui.css">' +
       '<style>body{padding:20px;background:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;margin:0;}</style>' +
       '</head><body>' + componentCode + '</body></html>';
   }
@@ -176,7 +176,7 @@ console.log('[CodeWix] components.js loaded');
     // ============ NAVIGATION ============
     { id:'nav-simple', title:'Dark Navbar', desc:'Top navigation with brand and links.', cat:'nav',
       code:`<nav class="cw-navbar">
-  <a href="#" class="cw-navbar-brand">MyBrand</a>
+  <a href="" class="cw-navbar-brand">MyBrand</a>
   <ul class="cw-navbar-nav">
     <li><a href="#" class="cw-navbar-link">Home</a></li>
     <li><a href="#" class="cw-navbar-link">Features</a></li>
