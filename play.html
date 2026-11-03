@@ -76,14 +76,21 @@
         .dash-stat-box { text-align: center; }
         .dash-stat-box .label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
         .dash-stat-box .value { font-size: 24px; font-weight: bold; color: #38bdf8; font-family: 'Courier New', monospace; }
+        
+        .type-label {
+            color: #f87171; font-weight: bold; font-size: 16px; text-transform: uppercase;
+            margin-bottom: 10px; display: block; letter-spacing: 1px;
+        }
+        
         .dash-code-display {
-            background: #020617; border: 1px solid #334155; border-radius: 12px;
-            padding: 30px; font-family: 'Courier New', monospace; font-size: 24px;
+            background: #020617; border: 2px solid #38bdf8; border-radius: 12px;
+            padding: 30px; font-family: 'Courier New', monospace; font-size: 26px;
             line-height: 1.6; margin-bottom: 20px; min-height: 150px;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
         }
         .dash-code-display .correct { color: #34d399; }
         .dash-code-display .incorrect { color: #f87171; background: rgba(248, 113, 113, 0.2); }
-        .dash-code-display .current { border-bottom: 2px solid #38bdf8; animation: blink 1s step-end infinite; }
+        .dash-code-display .current { border-bottom: 3px solid #38bdf8; animation: blink 1s step-end infinite; }
         .dash-code-display .pending { color: #64748b; }
         @keyframes blink { 50% { border-color: transparent; } }
         .dash-input {
@@ -106,25 +113,24 @@
         }
         
         .driver-prompt-box {
-            background: rgba(2, 6, 23, 0.85); border: 2px solid #38bdf8; border-radius: 12px;
-            padding: 15px 30px; text-align: center; pointer-events: auto;
-            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2); margin: 0 auto;
-            align-self: center;
+            background: rgba(2, 6, 23, 0.9); border: 3px solid #38bdf8; border-radius: 16px;
+            padding: 20px 40px; text-align: center; pointer-events: auto;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.4); margin: 0 auto;
+            align-self: center; margin-top: 30px;
         }
-        .driver-prompt-box h3 { color: #94a3b8; font-size: 14px; text-transform: uppercase; margin-bottom: 5px; }
+        .driver-prompt-box h3 { color: #f87171; font-size: 18px; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 2px;}
         .driver-code-prompt {
-            font-family: 'Courier New', monospace; font-size: 32px; font-weight: bold;
-            color: #e2e8f0; letter-spacing: 2px;
+            font-family: 'Courier New', monospace; font-size: 38px; font-weight: bold;
+            color: #34d399; letter-spacing: 3px;
         }
-        .driver-code-prompt .highlight { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
         
         .driver-input {
-            width: 100%; max-width: 500px; background: rgba(15, 23, 42, 0.9); border: 2px solid #38bdf8;
-            border-radius: 12px; padding: 15px; color: #34d399; font-family: 'Courier New', monospace;
-            font-size: 24px; outline: none; text-align: center; pointer-events: auto; align-self: center;
-            margin-bottom: 20px;
+            width: 100%; max-width: 500px; background: rgba(15, 23, 42, 0.95); border: 3px solid #34d399;
+            border-radius: 12px; padding: 15px; color: #e2e8f0; font-family: 'Courier New', monospace;
+            font-size: 26px; outline: none; text-align: center; pointer-events: auto; align-self: center;
+            margin-bottom: 20px; box-shadow: 0 0 20px rgba(52, 211, 153, 0.3);
         }
-        .driver-input:focus { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+        .driver-input:focus { border-color: #38bdf8; box-shadow: 0 0 20px rgba(56, 189, 248, 0.5); }
 
         /* =========================================
            GAME 3: SYNTAX SHOOTER
@@ -139,19 +145,19 @@
             font-family: 'Courier New', monospace; font-size: 20px; color: #38bdf8; font-weight: bold;
         }
         .target-prompt {
-            background: rgba(2, 6, 23, 0.85); border: 2px solid #f87171; border-radius: 8px;
-            padding: 10px 20px; text-align: center; position: absolute; top: 10px; left: 50%;
-            transform: translateX(-50%); font-family: 'Courier New', monospace; font-size: 24px; font-weight: bold;
-            color: #e2e8f0; box-shadow: 0 0 15px rgba(248, 113, 113, 0.3);
+            background: rgba(2, 6, 23, 0.95); border: 3px solid #f87171; border-radius: 12px;
+            padding: 15px 30px; text-align: center; position: absolute; top: 20px; left: 50%;
+            transform: translateX(-50%); font-family: 'Courier New', monospace; font-size: 28px; font-weight: bold;
+            color: #e2e8f0; box-shadow: 0 0 25px rgba(248, 113, 113, 0.5); z-index: 10;
         }
-        .target-prompt span { color: #f87171; }
+        .target-prompt span { color: #f87171; text-shadow: 0 0 10px #f87171; }
         .shooter-type-input {
-            width: 100%; background: #1e293b; border: 2px solid #334155;
+            width: 100%; background: #1e293b; border: 3px solid #38bdf8;
             border-radius: 8px; padding: 15px; color: #e2e8f0;
-            font-family: 'Courier New', monospace; font-size: 20px; outline: none;
-            margin-top: 15px; text-align: center;
+            font-family: 'Courier New', monospace; font-size: 24px; outline: none;
+            margin-top: 15px; text-align: center; box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
         }
-        .shooter-type-input:focus { border-color: #34d399; }
+        .shooter-type-input:focus { border-color: #34d399; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); }
 
         /* =========================================
            GAME 4: SYNTAX MATCH
@@ -194,15 +200,16 @@
         /* Tutorial Modal */
         .tutorial-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center;
         }
         .tutorial-content {
             background: #0f172a; padding: 40px; border-radius: 12px; max-width: 600px;
-            border: 1px solid #38bdf8; box-shadow: 0 0 30px rgba(56, 189, 248, 0.3); text-align: center;
+            border: 2px solid #38bdf8; box-shadow: 0 0 40px rgba(56, 189, 248, 0.4); text-align: center;
         }
-        .tutorial-content h2 { color: #38bdf8; margin-bottom: 20px; font-size: 28px; }
+        .tutorial-content h2 { color: #38bdf8; margin-bottom: 20px; font-size: 32px; }
         .tutorial-content p { color: #cbd5e1; font-size: 16px; line-height: 1.6; margin-bottom: 15px; text-align: left; }
-        .tutorial-content ul { color: #cbd5e1; margin-left: 20px; margin-bottom: 20px; line-height: 1.6; text-align: left;}
+        .tutorial-content ul { color: #cbd5e1; margin-left: 20px; margin-bottom: 20px; line-height: 1.8; text-align: left; font-size: 16px;}
+        .tutorial-content strong { color: #34d399; }
     </style>
 </head>
 <body>
@@ -225,13 +232,14 @@
     <div class="tutorial-modal" id="tutorialModal">
         <div class="tutorial-content">
             <h2>Welcome to the Arcade! 🎮</h2>
-            <p>These games train your brain to remember syntax!</p>
+            <p>These games train your brain to remember syntax while having fun!</p>
             <ul>
-                <li><strong>Syntax Driver:</strong> Type the code to accelerate your car.</li>
-                <li><strong>Syntax Shooter:</strong> Type the tag on the enemy to fire your laser.</li>
-                <li><strong>Code Quest:</strong> Write real code to solve the challenges.</li>
+                <li><strong>Syntax Driver:</strong> Type the code shown to accelerate. Mistakes = hard brakes!</li>
+                <li><strong>Syntax Shooter:</strong> Type the tag shown on the enemy to fire your laser.</li>
+                <li><strong>Code Quest:</strong> Write real JavaScript to solve the challenges.</li>
             </ul>
-            <button class="button" onclick="closeTutorial()" style="margin-top: 20px;">Let's Go!</button>
+            <p>Ready to level up?</p>
+            <button class="button" onclick="closeTutorial()" style="margin-top: 20px; font-size: 18px; padding: 15px 40px;">Let's Go!</button>
         </div>
     </div>
 
@@ -240,7 +248,7 @@
         <div class="arcade-header">
             <h1>CodeWix <span>Arcade</span></h1>
             <p>Level up your syntax skills with these coding mini-games.</p>
-            <button class="button ghost" style="margin-top: 15px;" onclick="openTutorial()">❓ How to Play</button>
+            <button class="button ghost" style="margin-top: 15px;" onclick="document.getElementById('tutorialModal').style.display='flex'">❓ How to Play</button>
         </div>
 
         <div class="game-grid">
@@ -294,6 +302,7 @@
                         <div class="dash-stat-box"><div class="label">WPM</div><div class="value" id="dashWpm">0</div></div>
                         <div class="dash-stat-box"><div class="label">Accuracy</div><div class="value" id="dashAcc">100%</div></div>
                     </div>
+                    <span class="type-label">TYPE THE CODE BELOW:</span>
                     <div class="dash-code-display" id="dashCode"></div>
                     <input type="text" id="dashInput" class="dash-input" placeholder="Click here to start typing..." autocomplete="off" spellcheck="false" disabled>
                     <button class="button center-btn" id="dashStartBtn" onclick="startDash()">Start Typing</button>
@@ -310,8 +319,8 @@
                     <canvas id="driverCanvas" width="800" height="500"></canvas>
                     
                     <div class="driver-overlay">
-                        <div class="driver-prompt-box">
-                            <h3>Type this to accelerate:</h3>
+                        <div class="driver-prompt-box" id="driverPromptBox">
+                            <h3>TYPE THIS TO ACCELERATE:</h3>
                             <div class="driver-code-prompt" id="driverPrompt">Press Start to begin</div>
                         </div>
                         
@@ -368,18 +377,61 @@
 
     <script>
         // ======================================================================
-        // TUTORIAL LOGIC
+        // FIREBASE & TUTORIAL LOGIC
         // ======================================================================
-        if (localStorage.getItem('codewix_tutorial_seen') === 'true') {
-            document.getElementById('tutorialModal').style.display = 'none';
+        const firebaseConfig = {
+            apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
+            authDomain: "codewix-16971.firebaseapp.com",
+            projectId: "codewix-16971",
+            storageBucket: "codewix-16971.firebasestorage.app",
+            messagingSenderId: "1060917593178",
+            appId: "1:1060917593178:web:8ce61640aa476bf135c463",
+            measurementId: "G-RPX2BV738C"
+        };
+
+        let auth = null, db = null, userRef = null;
+
+        if (typeof firebase !== 'undefined') {
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    userRef = db.collection('users').doc(user.uid);
+                    userRef.get().then((doc) => {
+                        // If they have never seen the tutorial, show it
+                        if (!doc.exists || !doc.data().tutorialSeen) {
+                            document.getElementById('tutorialModal').style.display = 'flex';
+                        } else {
+                            document.getElementById('tutorialModal').style.display = 'none';
+                        }
+                    }).catch(() => {
+                        // Fallback if Firestore fails
+                        if (localStorage.getItem('codewix_tutorial_seen') !== 'true') {
+                            document.getElementById('tutorialModal').style.display = 'flex';
+                        }
+                    });
+                } else {
+                    // Guest fallback to localStorage
+                    if (localStorage.getItem('codewix_tutorial_seen') !== 'true') {
+                        document.getElementById('tutorialModal').style.display = 'flex';
+                    }
+                }
+            });
         } else {
-            window.onload = () => document.getElementById('tutorialModal').style.display = 'flex';
+            // Absolute fallback if Firebase SDK fails to load
+            if (localStorage.getItem('codewix_tutorial_seen') !== 'true') {
+                window.onload = () => document.getElementById('tutorialModal').style.display = 'flex';
+            }
         }
 
-        function openTutorial() { document.getElementById('tutorialModal').style.display = 'flex'; }
         function closeTutorial() {
             document.getElementById('tutorialModal').style.display = 'none';
-            localStorage.setItem('codewix_tutorial_seen', 'true');
+            localStorage.setItem('codewix_tutorial_seen', 'true'); // Guest fallback
+            if (userRef) {
+                userRef.set({ tutorialSeen: true }, { merge: true }).catch(console.error);
+            }
         }
 
         // ======================================================================
@@ -514,7 +566,7 @@
             driverCurrentPrompt = driverPrompts[Math.floor(Math.random() * driverPrompts.length)];
             
             // Highlight the text to type clearly
-            document.getElementById('driverPrompt').innerHTML = `<span style="color:#34d399">${driverCurrentPrompt}</span>`;
+            document.getElementById('driverPrompt').innerHTML = `<span style="color:#34d399; font-size: 42px; text-shadow: 0 0 10px #34d399;">${driverCurrentPrompt}</span>`;
         }
 
         document.getElementById('driverInput').addEventListener('input', function() {
@@ -702,16 +754,17 @@
 
             // Find closest enemy to show prompt
             let closestEnemy = null;
-            let closestDist = Infinity;
+            let closestDist = -Infinity;
 
             // Draw Enemies
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let e = enemies[i];
                 e.y += e.speed;
                 
-                if (e.y > closestDist) continue; // Only track the lowest one
-                closestDist = e.y;
-                closestEnemy = e;
+                if (e.y > closestDist) { // Track the lowest (closest) one
+                    closestDist = e.y;
+                    closestEnemy = e;
+                }
                 
                 // Draw Enemy Box
                 shooterCtx.fillStyle = '#1e293b';
@@ -740,6 +793,8 @@
             if (closestEnemy) {
                 document.getElementById('shooterTargetPrompt').style.display = 'block';
                 document.getElementById('shooterTargetText').textContent = closestEnemy.tag;
+            } else {
+                document.getElementById('shooterTargetPrompt').style.display = 'none';
             }
 
             // Draw Bullets
