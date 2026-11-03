@@ -1612,3 +1612,44 @@ body.light-mode .code-window { background: #0f172a; }
     transition: transform 0.2s;
 }
 .theme-toggle-btn:hover { transform: scale(1.1); }
+
+/* =========================================
+   FOOTER LIVE STATUS WIDGET
+   ========================================= */
+.footer-status-widget {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e2e8f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: 15px;
+}
+
+.footer-status-widget:hover {
+    border-color: #38bdf8;
+    background: #1e293b;
+}
+
+.footer-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #64748b; /* Loading */
+}
+
+.footer-status-widget.up .footer-status-dot {
+    background: #34d399;
+    box-shadow: 0 0 8px #34d399;
+}
+
+.footer-status-widget.down .footer-status-dot {
+    background: #f87171;
+    box-shadow: 0 0 8px #f87171;
+}
