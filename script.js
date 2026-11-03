@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with AI Streaming & Error Parsing)
+// CodeWix — script.js (Full Master File with AI Streaming & Media Generation)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -1121,7 +1121,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // AI Assistant (MULTIMODAL + STREAMING)
+  // AI Assistant (MULTIMODAL + STREAMING + MEDIA GENERATION)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -1278,6 +1278,26 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
+    // 👇 INJECT IMAGE & VIDEO GENERATOR TOGGLES 👇
+    var mediaTogglesHTML = `
+      <label class="thinking-toggle" style="margin-left: 10px;">
+        <input type="checkbox" id="imageGenToggle">
+        <span class="toggle-slider" style="background: #f472b6;"></span>
+        🎨 Image Mode
+      </label>
+      <label class="thinking-toggle" style="margin-left: 10px;">
+        <input type="checkbox" id="videoGenToggle">
+        <span class="toggle-slider" style="background: #a78bfa;"></span>
+        🎬 Video Mode
+      </label>
+    `;
+    if (thinkingToggle && thinkingToggle.parentNode) {
+      thinkingToggle.parentNode.insertAdjacentHTML('beforeend', mediaTogglesHTML);
+    }
+    var imageGenToggle = $('imageGenToggle');
+    var videoGenToggle = $('videoGenToggle');
+    // 👆 -------------------------------- 👆
+
     var SYSTEM_PROMPT = {
       role: 'system',
       content: [
@@ -1295,7 +1315,8 @@ window.addEventListener('DOMContentLoaded', function () {
         '```',
         'If you do not provide a filename, CodeWix will default to index.html, style.css, and script.js.',
         '',
-        'Tone: encouraging, never condescending. Explain errors in plain English.'
+        'Tone: encouraging, never condescending. Explain errors in plain English.',
+        'NOTE: You cannot generate images or videos directly. If the user asks for an image, tell them to turn on the "🎨 Image Mode" toggle. If they ask for a video, tell them to turn on the "🎬 Video Mode" toggle!'
       ].join('\n')
     };
 
@@ -1625,6 +1646,98 @@ window.addEventListener('DOMContentLoaded', function () {
       function fb() { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); flash(); } catch (e) {} document.body.removeChild(ta); }
     });
 
+    // 👇 NEW: Generate Image Function 👇
+    async function generateImage(promptText) {
+      if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
+
+      var userDiv = appendMessage('user');
+      setUserMessage(userDiv, promptText);
+      
+      var assistantDiv = appendMessage('assistant');
+      var messageContent = assistantDiv.querySelector('.message-content');
+      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Drawing...</div>';
+      
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      try {
+        var idToken = await authUser.getIdToken();
+        var res = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ prompt: promptText })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Image generation failed');
+        }
+
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        
+        messageContent.innerHTML = `
+          <div class="text-part">Here is your generated image for: <strong>"${escapeHtml(promptText)}"</strong></div>
+          <div style="margin-top: 10px;"><img src="${objectUrl}" style="max-width:100%; border-radius:8px; border:2px solid #334155;" /></div>
+          <div style="margin-top: 10px; font-size: 12px; color: #64748b;">
+            <a href="${objectUrl}" target="_blank" style="color: #38bdf8;">Open Full Size ↗</a> | 
+            <a href="${objectUrl}" download="codewix-image.jpg" style="color: #38bdf8;">Download ⬇</a>
+          </div>
+        `;
+        
+        conversation.push({ role: 'user', content: promptText });
+        conversation.push({ role: 'assistant', content: `[Generated Image]` });
+        scheduleSave();
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      } catch (err) {
+        messageContent.innerHTML = '<div class="text-part" style="color: #f87171;">Error: ' + escapeHtml(err.message) + '</div>';
+      }
+    }
+    // 👆 ----------------------------- 👆
+
+    // 👇 NEW: Generate Video Function 👇
+    async function generateVideo(promptText) {
+      if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
+
+      var userDiv = appendMessage('user');
+      setUserMessage(userDiv, promptText);
+      
+      var assistantDiv = appendMessage('assistant');
+      var messageContent = assistantDiv.querySelector('.message-content');
+      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this may take up to a minute)...</div>';
+      
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      try {
+        var idToken = await authUser.getIdToken();
+        var res = await fetch('/api/generate-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ prompt: promptText })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Video generation failed');
+        }
+
+        if (!data.videoUrl) throw new Error('No video URL returned');
+
+        messageContent.innerHTML = `
+          <div class="text-part">Here is your generated video for: <strong>"${escapeHtml(promptText)}"</strong></div>
+          <div style="margin-top: 10px;"><video src="${data.videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
+        `;
+        
+        conversation.push({ role: 'user', content: promptText });
+        conversation.push({ role: 'assistant', content: `[Generated Video]` });
+        scheduleSave();
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      } catch (err) {
+        messageContent.innerHTML = '<div class="text-part" style="color: #f87171;">Error: ' + escapeHtml(err.message) + '</div>';
+      }
+    }
+    // 👆 ----------------------------- 👆
+
     async function sendToGroq(userText) {
       var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
       var showThinking = thinkingToggle ? thinkingToggle.checked : false;
@@ -1800,6 +1913,21 @@ window.addEventListener('DOMContentLoaded', function () {
     function handleSend() {
       var text = chatInput.value.trim();
       if (!text && pendingAttachments.length === 0) return;
+      
+      if (videoGenToggle && videoGenToggle.checked) {
+        generateVideo(text);
+        chatInput.value = ''; 
+        chatInput.style.height = 'auto'; 
+        return;
+      }
+
+      if (imageGenToggle && imageGenToggle.checked) {
+        generateImage(text);
+        chatInput.value = ''; 
+        chatInput.style.height = 'auto'; 
+        return;
+      }
+
       chatInput.value = ''; chatInput.style.height = 'auto'; sendToGroq(text);
     }
 
