@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Daily Curriculum: HTML -> CSS -> JS -> PHP -> Python)
+// CodeWix — script.js (Full Master File)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -118,6 +118,33 @@ window.addEventListener('DOMContentLoaded', function () {
     var array = new Uint8Array(binary.length);
     for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
     return new Blob([array], { type: mime });
+  }
+
+  // ======================================================================
+  // THEME TOGGLE (DARK / LIGHT MODE)
+  // ======================================================================
+  var savedTheme = localStorage.getItem('codewix_theme');
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-mode');
+  }
+
+  // Inject toggle button
+  var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
+  if (navMenu) {
+    var themeBtn = document.createElement('button');
+    themeBtn.className = 'theme-toggle-btn';
+    themeBtn.id = 'themeToggleBtn';
+    themeBtn.title = 'Toggle Dark/Light Mode';
+    themeBtn.innerHTML = document.body.classList.contains('light-mode') ? '🌙' : '☀️';
+    
+    themeBtn.addEventListener('click', function() {
+      document.body.classList.toggle('light-mode');
+      var isLight = document.body.classList.contains('light-mode');
+      localStorage.setItem('codewix_theme', isLight ? 'light' : 'dark');
+      themeBtn.innerHTML = isLight ? '🌙' : '☀️';
+    });
+    
+    navMenu.appendChild(themeBtn);
   }
 
   document.querySelectorAll('nav').forEach(function (nav) {
@@ -569,6 +596,21 @@ window.addEventListener('DOMContentLoaded', function () {
         files[activeFile] = codeEditor.value;
         markUnsaved();
       });
+    }
+
+    // Check for Remixed Project from localStorage
+    var remixId = localStorage.getItem('codewix_remix_project_id');
+    if (remixId && db && auth && auth.currentUser) {
+      localStorage.removeItem('codewix_remix_project_id');
+      db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(remixId).get()
+        .then(function(doc) {
+          if (doc.exists) {
+            var data = doc.data();
+            loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Remix', null);
+            showToast('Remix loaded successfully!', 'success');
+          }
+        })
+        .catch(function(err) { console.error('[Remix Load Error]', err); });
     }
 
     if (runCodeBtn) {
@@ -1102,7 +1144,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
     var API_URL = '/api/chat';
 
-    // 👇 INJECT UI FOR FILE UPLOADS 👇
     var attachInput = document.createElement('input');
     attachInput.type = 'file';
     attachInput.id = 'chatAttachInput';
@@ -1794,7 +1835,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Learn page (NEW DAILY SEQUENTIAL SYSTEM)
+  // Learn page (DAILY SEQUENTIAL SYSTEM)
   // ======================================================================
   var lessonTitle   = $('lessonTitle');
   var lessonBody    = $('lessonBody');
@@ -1912,14 +1953,13 @@ window.addEventListener('DOMContentLoaded', function () {
       return 1;
     }
 
-    // Calculate how many lessons are unlocked based on days since start
     function getUnlockedIndex() {
       if (!progressData.startDate) return 0;
       var start = new Date(progressData.startDate);
       var now = new Date(todayISO());
       var diffTime = Math.abs(now - start);
       var diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      return Math.min(diffDays, LESSONS.length - 1); // Unlocks 1 per day
+      return Math.min(diffDays, LESSONS.length - 1); 
     }
 
     async function loadProgress() {
@@ -2013,7 +2053,6 @@ window.addEventListener('DOMContentLoaded', function () {
         '</div>';
     }
 
-    // Attach click listener to lesson body
     lessonBody.addEventListener('click', function (e) {
       var copyBtn = e.target.closest('.copy-btn');
       if (copyBtn) {
@@ -2033,17 +2072,15 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // Render the initial UI
-    var todayIndex = getUnlockedIndex(); // Set today's lesson to the highest unlocked one
+    var todayIndex = getUnlockedIndex(); 
     renderLesson(todayIndex);
 
     var lessonListEl = $('lessonList');
     if (lessonListEl) {
-      lessonListEl.innerHTML = ''; // Clear previous
+      lessonListEl.innerHTML = ''; 
       var unlockedIdx = getUnlockedIndex();
       
       LESSONS.forEach(function (lesson, i) {
-        // 👇 ONLY SHOW UNLOCKED LESSONS 👇
         if (i > unlockedIdx) return;
 
         var card = document.createElement('button');
@@ -2065,7 +2102,6 @@ window.addEventListener('DOMContentLoaded', function () {
         loadProgress().then(function () {
           renderLesson(todayIndex);
           
-          // Rebuild sidebar with completed statuses
           if (lessonListEl) {
             lessonListEl.innerHTML = '';
             var uIdx = getUnlockedIndex();
@@ -2101,6 +2137,7 @@ window.addEventListener('DOMContentLoaded', function () {
       card.target = '_blank';
       card.className = 'site-card';
       var previewUrl = '/s/' + encodeURIComponent(site.slug);
+      
       card.innerHTML =
         '<div class="site-preview">' +
           '<iframe src="' + previewUrl + '" loading="lazy" sandbox="allow-scripts allow-modals" tabindex="-1"></iframe>' +
@@ -2112,6 +2149,7 @@ window.addEventListener('DOMContentLoaded', function () {
             '<a href="/u/' + encodeURIComponent(site.username) + '" class="site-author" onclick="event.stopPropagation();">@' + escapeHtml(site.username) + '</a>' +
             '<span>👁 ' + (site.views || 0) + '</span>' +
             '<span>' + (site.updatedAt ? formatDate(site.updatedAt) : '') + '</span>' +
+            '<button class="remix-btn" data-slug="' + escapeHtml(site.slug) + '">🍴 Remix</button>' +
           '</div>' +
         '</div>';
       return card;
@@ -2132,6 +2170,58 @@ window.addEventListener('DOMContentLoaded', function () {
       .catch(function (err) {
         exploreGrid.innerHTML = '<p class="explore-empty">Could not load projects: ' + escapeHtml(err.message) + '</p>';
       });
+
+    exploreGrid.addEventListener('click', async function(e) {
+      var remixBtn = e.target.closest('.remix-btn');
+      if (!remixBtn) return;
+      
+      e.preventDefault(); 
+      e.stopPropagation(); 
+
+      if (!auth || !auth.currentUser) {
+        showToast('Please log in to remix this project.', 'error');
+        setTimeout(function() { window.location.href = 'login.html'; }, 1000);
+        return;
+      }
+
+      var slug = remixBtn.getAttribute('data-slug');
+      var originalText = remixBtn.textContent;
+      remixBtn.textContent = '⏳ Cloning...';
+      remixBtn.classList.add('loading');
+
+      try {
+        var doc = await db.collection('published').doc(slug).get();
+        if (!doc.exists) throw new Error('Project not found.');
+        
+        var projectData = doc.data();
+        var files = projectData.files || {};
+
+        var newProject = {
+          name: 'Remix of ' + (projectData.projectName || 'Untitled'),
+          files: files,
+          activeFile: 'index.html',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        var newRef = await db.collection('users').doc(auth.currentUser.uid).collection('projects').add(newProject);
+
+        localStorage.setItem('codewix_remix_project_id', newRef.id);
+
+        remixBtn.textContent = '✓ Opening...';
+        showToast('Project cloned! Opening workspace...', 'success');
+        
+        setTimeout(function() {
+          window.location.href = 'dashboard.html';
+        }, 600);
+
+      } catch (err) {
+        console.error('[Remix Error]', err);
+        showToast('Failed to remix: ' + err.message, 'error');
+        remixBtn.textContent = originalText;
+        remixBtn.classList.remove('loading');
+      }
+    });
 
     if (auth) {
       auth.onAuthStateChanged(function (user) {

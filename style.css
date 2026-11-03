@@ -1543,3 +1543,72 @@ footer a:hover { color: #38bdf8; }
 .google-btn:hover {
     background: #f1f5f9;
 }
+
+/* =========================================
+   LIGHT MODE OVERRIDES
+   ========================================= */
+body.light-mode {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+/* Header & Nav */
+body.light-mode header {
+    background: #ffffff;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+}
+body.light-mode nav a { color: #0f172a; }
+body.light-mode nav a:hover { color: #0ea5e9; }
+body.light-mode .logo a { color: #0ea5e9; }
+
+/* Cards & Containers */
+body.light-mode .card, 
+body.light-mode .feature-card, 
+body.light-mode .cta-card,
+body.light-mode .form-container,
+body.light-mode .lesson-card-full,
+body.light-mode .publish-card {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+/* Text adjustments */
+body.light-mode h1, 
+body.light-mode h2, 
+body.light-mode h3, 
+body.light-mode .hero-copy h1,
+body.light-mode .section-head h2 {
+    color: #0f172a;
+}
+body.light-mode p, 
+body.light-mode .hero-copy p,
+body.light-mode .section-head p {
+    color: #475569;
+}
+
+/* Inputs */
+body.light-mode input, 
+body.light-mode textarea, 
+body.light-mode select {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+body.light-mode .input-group label { color: #64748b; }
+
+/* Code Blocks / IDE stay dark for contrast */
+body.light-mode .code-window { background: #0f172a; }
+
+/* The Toggle Button */
+.theme-toggle-btn {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+    margin-left: 15px;
+    transition: transform 0.2s;
+}
+.theme-toggle-btn:hover { transform: scale(1.1); }

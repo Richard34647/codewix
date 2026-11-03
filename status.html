@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Status | CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <style>
+        /* Specific styles for the status page */
+        .status-wrapper {
+            max-width: 800px;
+            margin: 120px auto 60px;
+            padding: 0 20px;
+            text-align: center;
+            flex: 1; /* Pushes footer to the bottom */
+        }
+        
+        .status-header h1 {
+            font-size: 36px;
+            color: #e2e8f0;
+            margin-bottom: 10px;
+        }
+        
+        .status-header h1 span {
+            color: #38bdf8;
+        }
+        
+        .status-header p {
+            color: #94a3b8;
+            margin-bottom: 40px;
+            font-size: 16px;
+        }
+
+        .status-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 50px 20px;
+            max-width: 500px;
+            margin: 0 auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 4px;
+            background: linear-gradient(90deg, #38bdf8, #34d399);
+        }
+
+        .status-card h2 {
+            color: #e2e8f0;
+            margin-bottom: 24px;
+            font-size: 22px;
+        }
+
+        .badge-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .status-note {
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 30px;
+        }
+
+        /* Adjust button for this specific page */
+        .status-fallback-btn {
+            display: inline-block;
+            background: transparent;
+            color: #38bdf8;
+            border: 1px solid #38bdf8;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .status-fallback-btn:hover {
+            background: rgba(56, 189, 248, 0.1);
+            color: #7dd3fc;
+            border-color: #7dd3fc;
+        }
+    </style>
+</head>
+<body style="display: flex; flex-direction: column; min-height: 100vh;">
+
+    <header>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="components.html">Components</a>
+            <a href="learn.html">Learn</a>
+            <a href="play.html">Arcade</a>
+            <a href="explore.html">Explore</a>
+            <a href="about.html">About</a>
+            <a href="register.html">Register</a>
+            <a href="login.html">Login</a>
+        </nav>
+    </header>
+
+    <div class="status-wrapper">
+        <div class="status-header">
+            <h1>System <span>Status</span></h1>
+            <p>Live uptime and incident reports for CodeWix services.</p>
+        </div>
+
+        <div class="status-card">
+            <h2>CodeWix Backend</h2>
+            
+            <div class="badge-container">
+                <!-- Official UptimeRobot Embeddable Badge -->
+                <iframe 
+                    src="https://badge.uptimerobot.com/psp/a62b149c02ed86d60563cb2bf7d3b6b9?style=logo&theme=dark" 
+                    title="codewi.onrender.com" 
+                    width="200" 
+                    height="40" 
+                    style="border:0; color-scheme:dark;">
+                </iframe>
+            </div>
+
+            <p class="status-note">
+                If the badge above shows <strong style="color: #f87171;">DOWN</strong>, our servers are currently experiencing an outage or waking up from sleep mode.
+            </p>
+
+            <!-- Fallback link to the full UptimeRobot page -->
+            <a href="https://stats.uptimerobot.com/VnQvfFSQgA" target="_blank" class="status-fallback-btn">
+                View Detailed Incident History ↗
+            </a>
+        </div>
+    </div>
+
+    <footer style="margin-top: auto;">
+        <p>© 2026 CodeWix — Learn to Code</p>
+        <a href="tos.html">Terms and Conditions</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="about.html">About Us</a>
+        <a href="contact.html">Contact Us</a>
+        <a href="status.html">System Status</a>
+    </footer>
+
+    <!-- Firebase & Scripts for Dark Mode Toggle -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
