@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Multimodal AI + Polyglot Execution + Google Auth)
+// CodeWix — script.js (Daily Curriculum: HTML -> CSS -> JS -> PHP -> Python)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -277,7 +277,6 @@ window.addEventListener('DOMContentLoaded', function () {
         auth.signInWithPopup(provider)
           .then(function (result) {
             var user = result.user;
-            // Google accounts are typically verified already
             if (!user.emailVerified) {
               return auth.signOut().then(function () {
                 showError(errBox, 'Please verify your Google email before logging in.');
@@ -624,7 +623,7 @@ window.addEventListener('DOMContentLoaded', function () {
               livePreviewFrame.srcdoc = finalOutput;
             }
             outputContainer.style.display = 'none';
-            showToast('Rendered PHP Output in Preview', 'success');
+            showToast('Rendered Output in Preview', 'success');
             return;
           }
 
@@ -1795,7 +1794,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Learn page
+  // Learn page (NEW DAILY SEQUENTIAL SYSTEM)
   // ======================================================================
   var lessonTitle   = $('lessonTitle');
   var lessonBody    = $('lessonBody');
@@ -1807,118 +1806,120 @@ window.addEventListener('DOMContentLoaded', function () {
   if (lessonTitle && lessonBody) {
     console.log('[CodeWix] Learn page detected');
 
+    // Sequential Curriculum: HTML -> CSS -> JS -> PHP -> Python
     var LESSONS = [
-      { title: 'Your First Variable', level: 'Beginner', lang: 'javascript',
-        concept: 'A variable is a labeled box where you store a value. Use <code>let</code> for values that change, <code>const</code> for values that don\'t.',
-        code: 'let name = "Alice";\nconst age = 25;\n\nconsole.log("Hi, " + name);\nconsole.log("You are " + age + " years old");',
-        exercise: 'Create a variable called <code>favoriteColor</code> set to your favorite color, then log it.',
-        hint: 'Use <code>let favoriteColor = "blue"; console.log(favoriteColor);</code>' },
-      { title: 'Understanding Data Types', level: 'Beginner', lang: 'javascript',
-        concept: 'JavaScript has: <code>string</code> (text), <code>number</code>, <code>boolean</code>, <code>null</code>, and <code>undefined</code>.',
-        code: 'let greeting = "hello";\nlet score = 42;\nlet isReady = true;\n\nconsole.log(typeof greeting);\nconsole.log(typeof score);',
-        exercise: 'Create one variable of each type and log its <code>typeof</code>.',
-        hint: 'Use <code>console.log(typeof myVar);</code>' },
-      { title: 'Making Decisions with if/else', level: 'Beginner', lang: 'javascript',
-        concept: '<code>if</code> runs code when a condition is true. Use <code>else</code> and <code>else if</code> for other cases.',
-        code: 'let temp = 18;\n\nif (temp > 25) {\n  console.log("Hot!");\n} else if (temp > 15) {\n  console.log("Mild");\n} else {\n  console.log("Jacket");\n}',
-        exercise: 'Write an if/else that logs "pass" if a score is 60+, "fail" otherwise.',
-        hint: '<code>let score = 75; if (score >= 60) { console.log("pass"); } else { console.log("fail"); }</code>' },
-      { title: 'Repeating Things with Loops', level: 'Beginner', lang: 'javascript',
-        concept: 'A <code>for</code> loop repeats code. Syntax: <code>for (let i = 0; i &lt; limit; i++)</code>.',
-        code: 'for (let i = 1; i <= 5; i++) {\n  console.log("Number " + i);\n}',
-        exercise: 'Print even numbers from 2 to 20.',
-        hint: '<code>for (let i = 2; i &lt;= 20; i += 2)</code>' },
-      { title: 'Writing Functions', level: 'Beginner', lang: 'javascript',
-        concept: 'A function is reusable code. Define with <code>function name(params) { ... }</code>.',
-        code: 'function add(a, b) {\n  return a + b;\n}\n\nconsole.log(add(2, 3));',
-        exercise: 'Write <code>square(n)</code> that returns n*n.',
-        hint: '<code>function square(n) { return n * n; }</code>' },
-      { title: 'Working with Arrays', level: 'Beginner', lang: 'javascript',
-        concept: 'An array holds a list. Access by index (0-based). Use <code>push</code>, <code>pop</code>, <code>length</code>.',
-        code: 'let fruits = ["apple", "banana", "cherry"];\n\nconsole.log(fruits[0]);\nconsole.log(fruits.length);\nfruits.push("date");',
-        exercise: 'Create an array of 5 numbers, log the sum of first + last.',
-        hint: '<code>let nums = [10, 20, 30, 40, 50]; console.log(nums[0] + nums[nums.length - 1]);</code>' },
-      { title: 'Objects: Grouping Data', level: 'Beginner', lang: 'javascript',
-        concept: 'Objects store data by name. Access with dot notation: <code>obj.key</code>.',
-        code: 'let user = {\n  name: "Alice",\n  age: 25\n};\n\nconsole.log(user.name);\nuser.age = 26;',
-        exercise: 'Create a <code>book</code> with title, author, year. Log the title.',
-        hint: '<code>let book = { title: "1984", author: "Orwell", year: 1949 }; console.log(book.title);</code>' },
-      { title: 'HTML Structure', level: 'Beginner', lang: 'html',
-        concept: 'Every page has <code>doctype</code>, <code>html</code>, <code>head</code>, <code>body</code>.',
-        code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My Page</title>\n  </head>\n  <body>\n    <h1>Hello!</h1>\n    <p>Text here.</p>\n  </body>\n</html>',
-        exercise: 'Make a page with an h1 and two paragraphs.',
-        hint: 'Add <code>&lt;p&gt;First&lt;/p&gt;&lt;p&gt;Second&lt;/p&gt;</code> in body.' },
-      { title: 'CSS Selectors', level: 'Beginner', lang: 'css',
-        concept: 'CSS targets elements with selectors: <code>tag</code>, <code>.class</code>, <code>#id</code>.',
-        code: 'body {\n  background: #0f172a;\n  color: white;\n}\n\n.title {\n  font-size: 32px;\n}',
-        exercise: 'Write CSS to make all buttons green.',
-        hint: '<code>button { color: green; }</code>' },
-      { title: 'Layout with Flexbox', level: 'Intermediate', lang: 'css',
-        concept: 'Apply <code>display: flex</code> to a parent, then control with <code>justify-content</code> and <code>align-items</code>.',
-        code: '.container {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 20px;\n}',
-        exercise: 'Center a div both ways in a full-page container.',
-        hint: 'Use <code>display: flex; justify-content: center; align-items: center; height: 100vh;</code>' },
-      { title: 'CSS Grid Basics', level: 'Intermediate', lang: 'css',
-        concept: 'Grid for 2D layouts. Define columns with <code>grid-template-columns</code>.',
-        code: '.grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr 1fr;\n  gap: 16px;\n}',
-        exercise: 'Make a 2-column grid with 1fr each and 12px gap.',
-        hint: '<code>display: grid; grid-template-columns: 1fr 1fr; gap: 12px;</code>' },
-      { title: 'Changing the Page with JavaScript', level: 'Intermediate', lang: 'javascript',
-        concept: 'The DOM is your page from JS. Use <code>document.getElementById</code> to find elements.',
-        code: 'let h = document.getElementById("title");\nh.textContent = "Updated!";\nh.style.color = "#38bdf8";',
-        exercise: 'Change element with id "demo" to say "Hello, DOM!".',
-        hint: '<code>document.getElementById("demo").textContent = "Hello, DOM!";</code>' },
-      { title: 'Listening for Events', level: 'Intermediate', lang: 'javascript',
-        concept: 'Attach listeners with <code>addEventListener</code>.',
-        code: 'let btn = document.getElementById("myButton");\nbtn.addEventListener("click", function () {\n  alert("Clicked!");\n});',
-        exercise: 'Make a button change its own text to "Clicked".',
-        hint: '<code>btn.addEventListener("click", () => btn.textContent = "Clicked");</code>' },
-      { title: 'Async and Await', level: 'Advanced', lang: 'javascript',
-        concept: '<code>async</code> lets you use <code>await</code> to wait for promises.',
-        code: 'async function load() {\n  try {\n    let res = await fetch("https://api.example.com/data");\n    let json = await res.json();\n    console.log(json);\n  } catch (err) {\n    console.error(err);\n  }\n}',
-        exercise: 'Write an async function that fetches a URL and returns JSON.',
-        hint: '<code>async function get(url) { let r = await fetch(url); return r.json(); }</code>' },
-      { title: 'The Fetch API', level: 'Advanced', lang: 'javascript',
-        concept: 'Fetch makes HTTP requests. Always check <code>response.ok</code>.',
-        code: 'async function getTodo() {\n  let res = await fetch("https://jsonplaceholder.typicode.com/todos/1");\n  if (!res.ok) throw new Error("HTTP " + res.status);\n  return await res.json();\n}',
-        exercise: 'Fetch users from jsonplaceholder and log the first one.',
-        hint: 'Use fetch + res.json() then log result[0].' },
-      { title: 'Try/Catch for Errors', level: 'Intermediate', lang: 'javascript',
-        concept: 'Wrap risky code in <code>try</code> and handle with <code>catch</code>.',
-        code: 'try {\n  JSON.parse("{ invalid }");\n} catch (err) {\n  console.error("Failed:", err.message);\n}',
-        exercise: 'Try/catch dividing 10 by 0, log "cannot divide by zero" if Infinity.',
-        hint: 'Check <code>if (!isFinite(result)) throw new Error("cannot divide by zero");</code>' },
-      { title: 'Classes and Objects', level: 'Advanced', lang: 'javascript',
-        concept: 'A class is a blueprint for objects with methods.',
-        code: 'class Dog {\n  constructor(name) {\n    this.name = name;\n  }\n  bark() {\n    return this.name + " says Woof!";\n  }\n}\n\nlet rex = new Dog("Rex");\nconsole.log(rex.bark());',
-        exercise: 'Write a <code>Rectangle</code> class with width, height, and <code>area()</code>.',
-        hint: '<code>area() { return this.width * this.height; }</code>' },
-      { title: 'Local Storage', level: 'Intermediate', lang: 'javascript',
-        concept: 'localStorage persists data on the user\'s browser. Values must be strings.',
-        code: 'localStorage.setItem("theme", "dark");\nlet theme = localStorage.getItem("theme");\nconsole.log(theme);',
-        exercise: 'Save a counter that increments each page load.',
-        hint: '<code>let n = +localStorage.getItem("n") || 0; localStorage.setItem("n", n + 1);</code>' },
-      { title: 'Working with JSON', level: 'Intermediate', lang: 'javascript',
-        concept: 'Convert between objects and JSON with <code>JSON.stringify</code> and <code>JSON.parse</code>.',
-        code: 'let obj = { name: "Alice", age: 25 };\nlet text = JSON.stringify(obj);\nconsole.log(text);\nlet parsed = JSON.parse(text);\nconsole.log(parsed.name);',
-        exercise: 'Convert an array of movies to JSON and back.',
-        hint: '<code>let json = JSON.stringify(movies); let back = JSON.parse(json);</code>' }
+      // --- HTML ---
+      { title: 'HTML: Page Structure', level: 'Beginner', lang: 'html',
+        concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.',
+        code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>',
+        exercise: 'Create an HTML page with an <code>h1</code> that says "I am learning" and a <code>p</code> that says "HTML is fun".',
+        hint: 'Use <code>&lt;h1&gt;I am learning&lt;/h1&gt;</code>' },
+      { title: 'HTML: Links and Images', level: 'Beginner', lang: 'html',
+        concept: 'Use the <code>&lt;a&gt;</code> tag for links and the <code>&lt;img&gt;</code> tag for images. Images use <code>src</code> and links use <code>href</code>.',
+        code: '<h2>My Favorite Site</h2>\n<a href="https://google.com">Go to Google</a>\n<br><br>\n<img src="https://via.placeholder.com/150" alt="Placeholder Image">',
+        exercise: 'Create a link to your favorite website and an image of a cat.',
+        hint: 'Use <code>&lt;a href="url"&gt;Text&lt;/a&gt;</code>' },
+      { title: 'HTML: Lists', level: 'Beginner', lang: 'html',
+        concept: 'Use <code>&lt;ul&gt;</code> for unordered (bullet) lists and <code>&lt;ol&gt;</code> for ordered (numbered) lists. Inside them, use <code>&lt;li&gt;</code> for each item.',
+        code: '<ul>\n  <li>Apples</li>\n  <li>Bananas</li>\n  <li>Cherries</li>\n</ul>',
+        exercise: 'Make an ordered list of your top 3 favorite movies.',
+        hint: 'Use <code>&lt;ol&gt;</code> and <code>&lt;li&gt;</code>' },
+
+      // --- CSS ---
+      { title: 'CSS: Basics and Selectors', level: 'Beginner', lang: 'css',
+        concept: 'CSS changes how HTML looks. You target elements using selectors (like <code>body</code> or <code>.my-class</code>) and change properties like <code>color</code> and <code>background</code>.',
+        code: 'body {\n  background-color: #0f172a;\n  color: white;\n  font-family: Arial, sans-serif;\n}\n\nh1 {\n  color: #38bdf8;\n}',
+        exercise: 'Change the background of the body to black, and make all h1 tags red.',
+        hint: 'Use <code>background-color: black;</code>' },
+      { title: 'CSS: Classes and IDs', level: 'Beginner', lang: 'css',
+        concept: 'Classes start with a dot (<code>.class</code>) and can be used multiple times. IDs start with a hash (<code>#id</code>) and must be unique.',
+        code: '.text-red {\n  color: red;\n}\n\n#main-header {\n  font-size: 32px;\n}',
+        exercise: 'Create a class called <code>.highlight</code> that gives an element a yellow background.',
+        hint: 'Use <code>.highlight { background-color: yellow; }</code>' },
+      { title: 'CSS: Flexbox Layout', level: 'Intermediate', lang: 'css',
+        concept: 'Flexbox is for aligning items. Apply <code>display: flex;</code> to a container to align its children easily.',
+        code: '.container {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  height: 100vh;\n}',
+        exercise: 'Create a flex container that spaces items evenly using <code>justify-content: space-between;</code>.',
+        hint: 'Use <code>display: flex;</code>' },
+
+      // --- JavaScript ---
+      { title: 'JS: Variables & Data Types', level: 'Beginner', lang: 'javascript',
+        concept: 'Use <code>let</code> for variables that change and <code>const</code> for constants. JS has strings, numbers, and booleans.',
+        code: 'let name = "Alice";\nconst age = 25;\nlet isStudent = true;\n\nconsole.log(name, age, isStudent);',
+        exercise: 'Create a variable called <code>score</code> set to 100.',
+        hint: '<code>let score = 100;</code>' },
+      { title: 'JS: Functions', level: 'Beginner', lang: 'javascript',
+        concept: 'Functions are reusable blocks of code. Define them with the <code>function</code> keyword and call them by their name.',
+        code: 'function greet(name) {\n  return "Hello, " + name + "!";\n}\n\nconsole.log(greet("World"));',
+        exercise: 'Write a function called <code>add</code> that takes two numbers and returns their sum.',
+        hint: '<code>function add(a, b) { return a + b; }</code>' },
+      { title: 'JS: DOM Manipulation', level: 'Intermediate', lang: 'javascript',
+        concept: 'You can change HTML using JavaScript. <code>document.getElementById()</code> finds an element, and <code>.innerText</code> changes its text.',
+        code: '// Assuming HTML has: <h1 id="title">Hello</h1>\nlet heading = document.getElementById("title");\nheading.innerText = "Changed by JS!";\nheading.style.color = "red";',
+        exercise: 'Change the background color of the body using JS: <code>document.body.style.backgroundColor = "black";</code>',
+        hint: 'Select body with <code>document.body</code>' },
+
+      // --- PHP ---
+      { title: 'PHP: Introduction & Echo', level: 'Beginner', lang: 'php',
+        concept: 'PHP is a server-side language. Code goes inside <code>&lt;?php ... ?&gt;</code>. Use <code>echo</code> to print text.',
+        code: '<?php\necho "Hello, PHP!";\n$name = "Alice";\necho "<br>Welcome, $name";\n?>',
+        exercise: 'Create a PHP script that echoes "My first PHP script".',
+        hint: '<code>&lt;?php echo "My first PHP script"; ?&gt;</code>' },
+      { title: 'PHP: Variables & Math', level: 'Beginner', lang: 'php',
+        concept: 'PHP variables start with a <code>$</code>. You can do math just like in JavaScript.',
+        code: '<?php\n$price = 10;\n$tax = 2;\n$total = $price + $tax;\necho "Total is: $total";\n?>',
+        exercise: 'Calculate the area of a rectangle (width = 5, height = 10) and echo the result.',
+        hint: '<code>$area = 5 * 10; echo $area;</code>' },
+      { title: 'PHP: Arrays', level: 'Intermediate', lang: 'php',
+        concept: 'Arrays hold multiple values. You can access them by their index (starting at 0).',
+        code: '<?php\n$colors = array("Red", "Green", "Blue");\necho $colors[0]; // Outputs: Red\n?>',
+        exercise: 'Create an array of 3 animals and echo the second one.',
+        hint: '<code>echo $animals[1];</code>' },
+
+      // --- Python ---
+      { title: 'Python: Hello World', level: 'Beginner', lang: 'python',
+        concept: 'Python is famous for being readable. No semicolons needed! Just use <code>print()</code> to output text.',
+        code: 'print("Hello, World!")\nname = "Alice"\nprint(f"Welcome, {name}")',
+        exercise: 'Print your name using the <code>print()</code> function.',
+        hint: 'print("Your Name")' },
+      { title: 'Python: Lists & Loops', level: 'Beginner', lang: 'python',
+        concept: 'A list holds multiple items. A <code>for</code> loop goes through each item in the list.',
+        code: 'fruits = ["apple", "banana", "cherry"]\nfor fruit in fruits:\n    print(fruit)',
+        exercise: 'Create a list of numbers and loop through them to print each one.',
+        hint: 'for num in my_list:' },
+      { title: 'Python: Functions', level: 'Intermediate', lang: 'python',
+        concept: 'Define a function using <code>def</code>. Indentation (spaces) is extremely important in Python.',
+        code: 'def greet(name):\n    return "Hello, " + name\n\nresult = greet("Python")\nprint(result)',
+        exercise: 'Create a function called <code>multiply(a, b)</code> that returns the product.',
+        hint: 'def multiply(a, b): return a * b' }
     ];
 
-    var progressData = { completed: {}, streak: 1 };
+    var progressData = { completed: {}, streak: 1, startDate: null };
     var authUserL = null;
 
     function progressDocRef() {
       if (!db || !authUserL) return null;
       return db.collection('users').doc(authUserL.uid).collection('progress').doc('state');
     }
+    
     function todayISO() { return new Date().toISOString().slice(0, 10); }
     function yesterdayISO() { var d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+    
     function computeStreak(last, cur) {
       var t = todayISO(), y = yesterdayISO();
       if (last === t) return cur || 1;
       if (last === y) return (cur || 1) + 1;
       return 1;
+    }
+
+    // Calculate how many lessons are unlocked based on days since start
+    function getUnlockedIndex() {
+      if (!progressData.startDate) return 0;
+      var start = new Date(progressData.startDate);
+      var now = new Date(todayISO());
+      var diffTime = Math.abs(now - start);
+      var diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return Math.min(diffDays, LESSONS.length - 1); // Unlocks 1 per day
     }
 
     async function loadProgress() {
@@ -1927,11 +1928,23 @@ window.addEventListener('DOMContentLoaded', function () {
         var doc = await ref.get();
         if (doc.exists) {
           var d = doc.data() || {};
-          progressData = { completed: d.completed || {}, streak: computeStreak(d.lastVisit || '', d.streak || 1), lastVisit: todayISO() };
+          var sd = d.startDate || todayISO();
+          progressData = { 
+              completed: d.completed || {}, 
+              streak: computeStreak(d.lastVisit || '', d.streak || 1), 
+              lastVisit: todayISO(),
+              startDate: sd
+          };
+          if (!d.startDate) await ref.set({ startDate: sd }, { merge: true });
         } else {
-          progressData = { completed: {}, streak: 1, lastVisit: todayISO() };
+          progressData = { completed: {}, streak: 1, lastVisit: todayISO(), startDate: todayISO() };
+          await ref.set({ 
+              completed: {}, 
+              streak: 1, 
+              lastVisit: progressData.lastVisit,
+              startDate: progressData.startDate
+          }, { merge: true });
         }
-        await ref.set({ completed: progressData.completed, streak: progressData.streak, lastVisit: progressData.lastVisit }, { merge: true });
         renderProgressUI();
       } catch (err) { console.warn('[CodeWix] progress load failed:', err); }
     }
@@ -1943,6 +1956,7 @@ window.addEventListener('DOMContentLoaded', function () {
       try { await ref.set({ completed: progressData.completed }, { merge: true }); showToast('Completed ✔', 'success'); }
       catch (err) { showToast('Save failed', 'error'); }
     }
+    
     async function markIncomplete(idx) {
       delete progressData.completed[idx];
       renderProgressUI();
@@ -1960,17 +1974,22 @@ window.addEventListener('DOMContentLoaded', function () {
       if (streakLabel) { streakLabel.textContent = '🔥 ' + progressData.streak + '-day streak'; streakLabel.style.display = 'inline-block'; }
     }
 
-    function getTodayLessonIndex() {
-      var now = new Date();
-      var start = new Date(now.getFullYear(), 0, 0);
-      return Math.floor((now - start) / 86400000) % LESSONS.length;
-    }
-
     function renderLesson(idx) {
+      var unlockedIdx = getUnlockedIndex();
+      
+      if (idx > unlockedIdx) {
+        lessonTitle.textContent = "🔒 Locked";
+        if (lessonDayLbl) lessonDayLbl.textContent = 'Come back tomorrow!';
+        lessonBody.innerHTML = '<p style="text-align:center; color:#94a3b8;">You have completed all available lessons for today. Come back tomorrow to unlock the next one!</p>';
+        return;
+      }
+
       var lesson = LESSONS[idx]; if (!lesson) return;
       lessonTitle.textContent = lesson.title;
       if (lessonDayLbl) lessonDayLbl.textContent = 'Day ' + (idx + 1) + ' of ' + LESSONS.length;
+      
       var isDone = !!progressData.completed[idx];
+      
       lessonBody.innerHTML =
         '<div class="lesson-meta">' +
           '<span class="lesson-level level-' + lesson.level.toLowerCase() + '">' + lesson.level + '</span>' +
@@ -1994,6 +2013,7 @@ window.addEventListener('DOMContentLoaded', function () {
         '</div>';
     }
 
+    // Attach click listener to lesson body
     lessonBody.addEventListener('click', function (e) {
       var copyBtn = e.target.closest('.copy-btn');
       if (copyBtn) {
@@ -2003,6 +2023,7 @@ window.addEventListener('DOMContentLoaded', function () {
         else { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); flash(); } catch (e) {} document.body.removeChild(ta); }
         return;
       }
+      
       var compBtn = e.target.closest('#completeBtn');
       if (compBtn) {
         var idx = parseInt(compBtn.getAttribute('data-index'), 10);
@@ -2012,12 +2033,19 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    var todayIndex = getTodayLessonIndex();
+    // Render the initial UI
+    var todayIndex = getUnlockedIndex(); // Set today's lesson to the highest unlocked one
     renderLesson(todayIndex);
 
     var lessonListEl = $('lessonList');
     if (lessonListEl) {
+      lessonListEl.innerHTML = ''; // Clear previous
+      var unlockedIdx = getUnlockedIndex();
+      
       LESSONS.forEach(function (lesson, i) {
+        // 👇 ONLY SHOW UNLOCKED LESSONS 👇
+        if (i > unlockedIdx) return;
+
         var card = document.createElement('button');
         card.type = 'button';
         card.className = 'lesson-card' + (i === todayIndex ? ' today' : '') + (progressData.completed[i] ? ' completed' : '');
@@ -2036,11 +2064,24 @@ window.addEventListener('DOMContentLoaded', function () {
         authUserL = user;
         loadProgress().then(function () {
           renderLesson(todayIndex);
-          document.querySelectorAll('.lesson-card').forEach(function (c, i) {
-            c.classList.toggle('completed', !!progressData.completed[i]);
-            var n = c.querySelector('.lesson-card-num');
-            if (n) n.textContent = progressData.completed[i] ? '✓' : (i + 1);
-          });
+          
+          // Rebuild sidebar with completed statuses
+          if (lessonListEl) {
+            lessonListEl.innerHTML = '';
+            var uIdx = getUnlockedIndex();
+            LESSONS.forEach(function (lesson, i) {
+              if (i > uIdx) return;
+              var card = document.createElement('button');
+              card.type = 'button';
+              card.className = 'lesson-card' + (i === todayIndex ? ' today' : '') + (progressData.completed[i] ? ' completed' : '');
+              card.innerHTML = '<div class="lesson-card-num">' + (progressData.completed[i] ? '✓' : (i + 1)) + '</div>' +
+                '<div class="lesson-card-info"><h4>' + escapeHtml(lesson.title) + '</h4>' +
+                '<p>' + lesson.level + ' · ' + lesson.lang + '</p></div>' +
+                (i === todayIndex ? '<span class="today-badge">Today</span>' : '');
+              card.addEventListener('click', function () { renderLesson(i); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+              lessonListEl.appendChild(card);
+            });
+          }
         });
       });
     }
