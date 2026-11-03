@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with AI Streaming)
+// CodeWix — script.js (Full Master File with AI Streaming & Error Parsing)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -1726,14 +1726,27 @@ window.addEventListener('DOMContentLoaded', function () {
         });
 
         if (response.status === 429) {
-          messageContent.innerHTML = '<div class="text-part" style="color:#fbbf24;">⚠️ ' + escapeHtml((await response.json()).error || 'Daily limit reached.') + '</div>';
+          let errMsg = 'Daily limit reached.';
+          try { const d = await response.json(); errMsg = d.error || errMsg; } catch(e) {}
+          messageContent.innerHTML = '<div class="text-part" style="color:#fbbf24;">⚠️ ' + escapeHtml(errMsg) + '</div>';
           conversation.pop(); setStatus('Limit reached'); setLoading(false); return;
         }
         if (response.status === 401) {
           messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please refresh.</div>';
           conversation.pop(); setStatus('Session expired'); setLoading(false); return;
         }
-        if (!response.ok) throw new Error('HTTP ' + response.status);
+        
+        // 👇 NEW: Catch the real error message 👇
+        if (!response.ok) {
+          let errMsg = 'HTTP ' + response.status;
+          try {
+            const errData = await response.json();
+            if (errData && errData.error) {
+              errMsg = typeof errData.error === 'object' ? JSON.stringify(errData.error) : errData.error;
+            }
+          } catch (e) {}
+          throw new Error(errMsg);
+        }
 
         // STREAMING LOGIC
         const reader = response.body.getReader();
@@ -1776,7 +1789,8 @@ window.addEventListener('DOMContentLoaded', function () {
 
       } catch (err) {
         console.error('[CodeWix] chat error:', err);
-        messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(err.message) + '</div>';
+        var displayErr = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+        messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(displayErr) + '</div>';
         conversation.pop(); setStatus('Failed');
       } finally {
         setLoading(false); chatContainer.scrollTop = chatContainer.scrollHeight; chatInput.focus();
