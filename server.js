@@ -1,11 +1,32 @@
-require('dotenv').config();
-const express = require('express');
 const path = require('path');
-const admin = require('firebase-admin');
-const emailjs = require('@emailjs/nodejs');
-const { exec } = require('child_process'); // 👈 Enables local Python execution
 const fs = require('fs');
 const os = require('os');
+const { exec } = require('child_process');
+
+// 1. Load .env file (Robust loader: checks app dir, then cwd, then exe dir)
+const envPaths = [
+  path.join(__dirname, '.env'),
+  path.join(process.cwd(), '.env'),
+  path.join(path.dirname(process.execPath), '.env')
+];
+
+let envLoaded = false;
+for (const p of envPaths) {
+  if (fs.existsSync(p)) {
+    require('dotenv').config({ path: p });
+    console.log(`[Env] ✅ Loaded environment variables from: ${p}`);
+    envLoaded = true;
+    break;
+  }
+}
+if (!envLoaded) {
+  require('dotenv').config(); // fallback
+  console.warn('[Env] ⚠️ WARNING: .env file not found. Auth and AI may fail.');
+}
+
+const express = require('express');
+const admin = require('firebase-admin');
+const emailjs = require('@emailjs/nodejs');
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -13,16 +34,21 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 
-// ---- Firebase Admin init --------------------------------------------------
+// ==========================================
+// FIREBASE ADMIN INITIALIZATION
+// ==========================================
 try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({ 
-      credential: admin.credential.cert(sa), 
-      storageBucket: 'codewix-16971.firebasestorage.app' 
+  const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
+  
+  if (fs.existsSync(serviceAccountPath)) {
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: 'codewix-16971.firebasestorage.app'
     });
-    console.log('[Firebase Admin] initialized via FIREBASE_SERVICE_ACCOUNT');
-  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    console.log('✅ [Firebase Admin] Initialized via firebase-service-account.json');
+  } 
+  else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId:   process.env.FIREBASE_PROJECT_ID,
@@ -31,33 +57,33 @@ try {
       }),
       storageBucket: 'codewix-16971.firebasestorage.app'
     });
-    console.log('[Firebase Admin] initialized via split env vars');
-  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    admin.initializeApp({ 
-      credential: admin.credential.applicationDefault(), 
-      storageBucket: 'codewix-16971.firebasestorage.app' 
-    });
-    console.log('[Firebase Admin] initialized via GOOGLE_APPLICATION_CREDENTIALS');
-  } else {
-    console.warn('[Firebase Admin] No credentials found.');
+    console.log('✅ [Firebase Admin] Initialized via .env variables');
+  } 
+  else {
+    console.warn('❌ [Firebase Admin] No credentials found.');
   }
-} catch (err) { 
-  console.error('[Firebase Admin] init failed:', err.message); 
+} catch (err) {
+  console.error('❌ [Firebase Admin] Init failed:', err.message);
 }
 
+// ==========================================
+// EMAILJS INITIALIZATION
+// ==========================================
 let emailjsReady = false;
 if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
-  emailjs.init({ 
-    publicKey: process.env.EMAILJS_PUBLIC_KEY, 
-    privateKey: process.env.EMAILJS_PRIVATE_KEY 
+  emailjs.init({
+    publicKey:  process.env.EMAILJS_PUBLIC_KEY,
+    privateKey: process.env.EMAILJS_PRIVATE_KEY,
   });
   emailjsReady = true;
-  console.log('[EmailJS] initialized');
+  console.log('✅ [EmailJS] Initialized');
 }
 
 app.use(express.json({ limit: '5mb' }));
 
-// ---- Helpers --------------------------------------------------------------
+// ==========================================
+// HELPERS & MIDDLEWARE
+// ==========================================
 function rewritePublishedLinks(html, slug) {
   if (!html) return '';
   return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
@@ -77,21 +103,19 @@ function resolveAssetUrls(html, files) {
   });
 }
 
-// ---- Auth middleware ------------------------------------------------------
 async function requireAuth(req, res, next) {
-  if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured.' });
+  if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured. Check server logs.' });
   const header = req.headers.authorization || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return res.status(401).json({ error: 'Missing auth token.' });
-  try { 
-    req.user = await admin.auth().verifyIdToken(idToken); 
-    next(); 
-  } catch (err) { 
-    return res.status(401).json({ error: 'Invalid auth token.' }); 
+  try {
+    req.user = await admin.auth().verifyIdToken(idToken);
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid auth token.' });
   }
 }
 
-// ---- Rate limit -----------------------------------------------------------
 async function checkRateLimit(req, res, next) {
   const uid = req.user.uid;
   const today = new Date().toISOString().slice(0, 10);
@@ -99,32 +123,92 @@ async function checkRateLimit(req, res, next) {
   try {
     const doc = await ref.get();
     const count = doc.exists ? (doc.data().count || 0) : 0;
-    if (count >= RATE_LIMIT_PER_DAY) return res.status(429).json({ error: 'Daily limit reached.' });
-    req.rateLimitRef = ref; 
-    req.rateLimitCount = count; 
+    if (count >= RATE_LIMIT_PER_DAY) {
+      return res.status(429).json({
+        error: 'Daily limit reached. You have used ' + count + ' of ' + RATE_LIMIT_PER_DAY + ' AI messages today.',
+        limit: RATE_LIMIT_PER_DAY, used: count, remaining: 0, date: today
+      });
+    }
+    req.rateLimitRef = ref;
+    req.rateLimitCount = count;
     next();
   } catch (err) { next(); }
 }
 
 function incrementUsage(ref, currentCount) {
-  ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true }).catch(() => {});
+  ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true })
+    .catch(function (err) { console.error('[rate] increment failed:', err.message); });
 }
+
+// ==========================================
+// ROUTES
+// ==========================================
+
+// ---- API: Rate limit status ----------------------------------------------
+app.get('/api/rate-limit-status', requireAuth, async (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const ref = admin.firestore().collection('users').doc(req.user.uid).collection('usage').doc(today);
+  try {
+    const doc = await ref.get();
+    const used = doc.exists ? (doc.data().count || 0) : 0;
+    res.json({ limit: RATE_LIMIT_PER_DAY, used, remaining: Math.max(0, RATE_LIMIT_PER_DAY - used), date: today });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- API: Uptime Status Proxy (For the Status Page) ----------------------
+app.get('/api/uptime-status', async (req, res) => {
+  const apiKey = process.env.UPTIMEROBOT_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'UptimeRobot API key not configured.' });
+
+  try {
+    const response = await fetch('https://api.uptimerobot.com/v2/getMonitors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, format: 'json' })
+    });
+    
+    const data = await response.json();
+    
+    if (data.stat === 'ok' && data.monitors && data.monitors.length > 0) {
+      // UptimeRobot statuses: 0=paused, 1=not checked yet, 2=up, 8=seems down, 9=down
+      const monitorStatus = data.monitors[0].status;
+      const isUp = monitorStatus === 2;
+      res.json({ status: isUp ? 'up' : 'down' });
+    } else {
+      res.json({ status: 'unknown' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reach UptimeRobot: ' + err.message });
+  }
+});
 
 // ---- API: Groq chat proxy -------------------------------------------------
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Server is missing GROQ_API_KEY.' });
+  const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array is required.' });
+  }
   try {
+    const body = {
+      model: model || 'openai/gpt-oss-120b',
+      messages: messages,
+      temperature: typeof temperature === 'number' ? temperature : 0.7,
+      max_completion_tokens: max_completion_tokens || 2048
+    };
+    if (reasoning_effort) body.reasoning_effort = reasoning_effort;
+
     const groqRes = await fetch(GROQ_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(body)
     });
     const data = await groqRes.json();
     if (!groqRes.ok) return res.status(groqRes.status).json(data);
     incrementUsage(req.rateLimitRef, req.rateLimitCount);
     res.json(data);
-  } catch (err) { 
-    res.status(502).json({ error: 'Failed to reach Groq: ' + err.message }); 
+  } catch (err) {
+    res.status(502).json({ error: 'Failed to reach Groq: ' + err.message });
   }
 });
 
@@ -135,35 +219,29 @@ app.post('/api/run', requireAuth, async (req, res) => {
 
   const lang = language.toLowerCase();
 
-  // 1. RUN PYTHON LOCALLY (Supports Selenium)
+  // 1. RUN PYTHON LOCALLY
   if (lang === 'py' || lang === 'python') {
     const tempFile = path.join(os.tmpdir(), `script_${Date.now()}.py`);
     fs.writeFileSync(tempFile, code);
+    
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
 
-    exec(`python3 ${tempFile}`, { timeout: 120000 }, (error, stdout, stderr) => {
+    exec(`${pythonCmd} "${tempFile}"`, { timeout: 120000 }, (error, stdout, stderr) => {
       try { fs.unlinkSync(tempFile); } catch (e) {}
       
       let finalErr = stderr;
       if (error) {
-        if (error.killed) {
-          finalErr = "❌ PROCESS KILLED: The script took too long (exceeded 2 minutes) or ran out of memory (Render 512MB limit).";
-        } else if (!stderr && !stdout) {
-          finalErr = "❌ SERVER KILLED PROCESS: Likely Out of Memory (OOM). Headless Chrome needs more than 512MB RAM to load Instagram.";
-        } else {
-          finalErr = error.message;
-        }
+        if (error.killed) finalErr = "❌ PROCESS KILLED: The script took too long (exceeded 2 minutes).";
+        else if (!stderr && !stdout) finalErr = "❌ SERVER KILLED PROCESS: Likely Out of Memory or Python is not installed.";
+        else finalErr = error.message;
       }
 
-      res.json({
-        output: stdout || '',
-        stderr: finalErr || '',
-        code: error ? 1 : 0
-      });
+      res.json({ output: stdout || '', stderr: finalErr || '', code: error ? 1 : 0 });
     });
     return;
   }
 
-  // 2. OTHER LANGUAGES (PHP, C++, Java via Judge0)
+  // 2. OTHER LANGUAGES VIA JUDGE0
   const langMap = { 
     'php': 68, 'js': 63, 'javascript': 63, 'cpp': 54, 'c++': 54, 'c': 50, 
     'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 
@@ -173,8 +251,7 @@ app.post('/api/run', requireAuth, async (req, res) => {
 
   try {
     const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ language_id: langId, source_code: code })
     });
     const data = await response.json();
@@ -183,12 +260,10 @@ app.post('/api/run', requireAuth, async (req, res) => {
       stderr: data.stderr || data.compile_output || '', 
       code: data.status ? data.status.id : 0 
     });
-  } catch (err) { 
-    res.status(500).json({ error: 'Execution engine failed: ' + err.message }); 
-  }
+  } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
 });
 
-// ---- API: Publish (atomic slug reservation) ------------------------------
+// ---- API: Publish --------------------------------------------------------
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
@@ -224,12 +299,8 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
   try {
     const ref = admin.firestore().collection('published').doc(req.body.slug);
     const doc = await ref.get();
-    if (doc.exists && doc.data().uid === req.user.uid) { 
-      await ref.delete(); 
-      res.json({ ok: true }); 
-    } else {
-      res.status(403).json({ error: 'Not your site.' });
-    }
+    if (doc.exists && doc.data().uid === req.user.uid) { await ref.delete(); res.json({ ok: true }); }
+    else res.status(403).json({ error: 'Not your site.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
