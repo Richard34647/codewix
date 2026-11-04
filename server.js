@@ -14,7 +14,7 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
-// 👇 HARDCODED NGROK URL
+// ⚠️ PASTE YOUR NGROK URL HERE
 const LOCAL_AI_URL = 'https://cobweb-rind-flier.ngrok-free.dev'; 
 
 // ==========================================
@@ -100,9 +100,9 @@ function incrementUsage(ref, currentCount) {
   ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true }).catch(() => {});
 }
 
-// ---- API: Get Local AI URL -----------------------------------------------
-app.get('/api/config', (req, res) => {
-  res.json({ localAiUrl: LOCAL_AI_URL });
+// ---- API: Get Local AI Config (Returns URL and Premium Status) ------------
+app.get('/api/config', requireAuth, (req, res) => {
+  res.json({ localAiUrl: LOCAL_AI_URL, isPremium: req.isPremium });
 });
 
 // ==========================================
@@ -197,7 +197,7 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Run Code (Python Locally, Others via Judge0) --------------------
+// ---- API: Run Code -------------------------------------------------------
 app.post('/api/run', requireAuth, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
@@ -345,7 +345,6 @@ app.get('/s/:slug/:filename', async (req, res, next) => {
 
 app.get('/u/:username', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ---- Fallbacks ------------------------------------------------------------
 app.use('/api', (req, res) => res.status(404).json({ error: 'Unknown API route.' }));
 app.use(express.static(path.join(__dirname)));
 app.use((req, res) => {
