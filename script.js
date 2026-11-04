@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - No Placeholders)
+// CodeWix — script.js (Direct ngrok Connection)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -101,15 +101,6 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.readAsDataURL(file);
     });
   }
-  function dataUrlToBlob(dataUrl) {
-    var parts = dataUrl.split(',');
-    var mimeMatch = parts[0].match(/:(.*?);/);
-    var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-    var binary = atob(parts[1]);
-    var array = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
-    return new Blob([array], { type: mime });
-  }
 
   // ======================================================================
   // THEME TOGGLE, UPGRADE POPUP & ADMIN BUTTON INJECTION
@@ -208,7 +199,7 @@ window.addEventListener('DOMContentLoaded', function () {
   if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
 
   // ======================================================================
-  // Register
+  // Register & Login
   // ======================================================================
   if ($('registerForm')) {
     $('registerForm').addEventListener('submit', function (e) {
@@ -252,9 +243,6 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // ======================================================================
-  // Login
-  // ======================================================================
   if ($('loginForm')) {
     var pendingVerificationEmail = null;
     $('loginForm').addEventListener('submit', function (e) {
@@ -314,192 +302,20 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Google Auth & Forgot Password
-  // ======================================================================
-  function handleGoogleAuth(buttonId, errBoxId) {
-    if ($(buttonId)) {
-      $(buttonId).addEventListener('click', function () {
-        var errBox = $(errBoxId); hideError(errBox);
-        if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
-        var provider = new firebase.auth.GoogleAuthProvider();
-        auth.signInWithPopup(provider)
-          .then(function (result) {
-            var user = result.user;
-            if (!user.emailVerified) return auth.signOut().then(function () { showError(errBox, 'Please verify your Google email first.'); });
-            window.location.href = 'dashboard.html';
-          })
-          .catch(function (error) { if (error.code !== 'auth/popup-closed-by-user') showError(errBox, error.message); });
-      });
-    }
-  }
-  handleGoogleAuth('googleLoginBtn', 'errorBox');
-  handleGoogleAuth('googleRegisterBtn', 'errorBox');
-
-  if ($('forgotForm')) {
-    $('forgotForm').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var email = $('email').value.trim();
-      var errBox = $('errorBox'), okBox = $('successBox');
-      hideError(errBox); if (okBox) okBox.style.display = 'none';
-      if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
-      var submitBtn = $('forgotForm').querySelector('button[type="submit"]');
-      var orig = submitBtn ? submitBtn.textContent : 'Send Reset Link';
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
-
-      auth.sendPasswordResetEmail(email, { url: window.location.origin + '/login.html?reset=success', handleCodeInApp: false })
-        .then(function () { if (okBox) { okBox.textContent = 'If an account exists for ' + email + ', we sent a reset link.'; okBox.style.display = 'block'; } })
-        .catch(function (err) { if (err.code === 'auth/user-not-found') { if (okBox) { okBox.textContent = 'If an account exists for ' + email + ', we sent a reset link.'; okBox.style.display = 'block'; } return; } showError(errBox, err.message); })
-        .finally(function () { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } });
-    });
-  }
-
-  // ======================================================================
-  // Sandbox IDE (Full implementation replacing the placeholder)
-  // ======================================================================
-  var cm = null;
-  var codeEditor = null;
-
-  (function initCodeMirror() {
-    var sourceEl = $('codeEditorSource');
-    if (!sourceEl || typeof CodeMirror === 'undefined') return;
-    cm = CodeMirror.fromTextArea(sourceEl, {
-      theme: 'dracula', lineNumbers: true, mode: 'htmlmixed', indentUnit: 2, tabSize: 2,
-      extraKeys: { 'Ctrl-Space': 'autocomplete', 'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } }
-    });
-    cm.on('inputRead', function (editor, change) { if (change.text && /[<>\/=.:"\-]/.test(change.text[0])) { if (!editor.state.completionActive) editor.showHint({ completeSingle: false }); } });
-    codeEditor = {
-      get value() { return cm.getValue(); }, set value(v) { cm.setValue(v == null ? '' : String(v)); },
-      addEventListener: function (evt, fn) { if (evt === 'input' || evt === 'change') cm.on('change', function () { fn(); }); },
-      focus: function () { cm.focus(); }, _cm: cm
-    };
-    window.__codewixSetEditorMode = function (filename) {
-      if (!cm) return; var mode = 'htmlmixed'; var lower = (filename || '').toLowerCase();
-      if (lower.endsWith('.css')) mode = 'css'; else if (lower.endsWith('.js')) mode = 'javascript';
-      else if (lower.endsWith('.py')) mode = 'python'; else if (lower.endsWith('.cpp') || lower.endsWith('.c') || lower.endsWith('.java')) mode = 'text/x-c++src';
-      else if (lower.endsWith('.go')) mode = 'go'; else if (lower.endsWith('.rs')) mode = 'rust'; else if (lower.endsWith('.php')) mode = 'php'; else if (lower.endsWith('.rb')) mode = 'ruby';
-      cm.setOption('mode', mode);
-    };
-  })();
-
-  var livePreviewFrame = $('livePreviewFrame');
-  var files = { 'index.html': '<h1>Hello World</h1>', 'style.css': 'h1 { color: #38bdf8; }', 'script.js': 'console.log("Hello from CodeWix!");' };
-  var currentFile = 'index.html';
-
-  function updatePreview() {
-    if (!livePreviewFrame) return;
-    var html = files['index.html'] || '';
-    var css = files['style.css'] || '';
-    var js = files['script.js'] || '';
-    var doc = livePreviewFrame.contentDocument || livePreviewFrame.contentWindow.document;
-    doc.open();
-    doc.write(`<html><head><style>${css}</style></head><body>${html}<script>${js}<\/script></body></html>`);
-    doc.close();
-  }
-
-  function loadFile(filename) {
-    currentFile = filename;
-    if (codeEditor) codeEditor.value = files[filename] || '';
-    if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(filename);
-    document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
-    var activeEl = document.querySelector(`.file-item[data-file="${filename}"]`);
-    if (activeEl) activeEl.classList.add('active');
-  }
-
-  // Bind IDE events if they exist
-  if ($('runBtn')) $('runBtn').addEventListener('click', updatePreview);
-  if ($('saveBtn')) $('saveBtn').addEventListener('click', () => {
-    if (codeEditor) files[currentFile] = codeEditor.value;
-    localStorage.setItem('codewix_files', JSON.stringify(files));
-    showToast('Project saved!');
-    updatePreview();
-  });
-  
-  // Load saved files
-  var savedFiles = localStorage.getItem('codewix_files');
-  if (savedFiles) { try { files = JSON.parse(savedFiles); } catch(e){} }
-  loadFile('index.html');
-  updatePreview();
-
-  // ======================================================================
-  // AI Assistant (MULTIMODAL + STREAMING + MEDIA GENERATION)
+  // AI Assistant (Direct ngrok connection)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
   var sendBtn            = $('sendBtn');
-  var modelSelect        = $('modelSelect');
-  var chatStatus         = $('chatStatus');
-  var modelIndicator     = $('modelIndicator');
   var thinkingToggle     = $('thinkingToggle');
-  var newChatBtn         = $('newChatBtn');
-  var historyBtn         = $('historyBtn');
-  var historyModal       = $('historyModal');
-  var historyListBox     = $('historyListContainer');
-  var closeHistoryBtn    = $('closeHistoryModalBtn');
-  var chatTitleBar       = $('chatTitleBar');
-  var currentChatTitleEl = $('currentChatTitle');
 
   if (chatContainer && chatInput && sendBtn) {
     console.log('[CodeWix] AI Assistant detected');
-
-    if (navMenu && !isUserPremium && !isUserAdmin) {
-      var upBtn = document.createElement('a');
-      upBtn.href = 'upgrade.html';
-      upBtn.id = 'upgradeNavBtn';
-      upBtn.innerHTML = '⭐ Upgrade';
-      upBtn.style.cssText = 'background:#fbbf24;color:#020617;padding:6px 12px;border-radius:6px;font-weight:bold;margin-left:10px;text-decoration:none;';
-      navMenu.appendChild(upBtn);
-    }
-
-    var API_URL = '/api/chat';
-
-    var attachInput = document.createElement('input');
-    attachInput.type = 'file'; attachInput.id = 'chatAttachInput';
-    attachInput.style.display = 'none'; attachInput.multiple = true;
-    document.body.appendChild(attachInput);
-
+    
     var attachBtn = document.createElement('button');
     attachBtn.id = 'chatAttachBtn'; attachBtn.type = 'button'; attachBtn.innerHTML = '📎';
     attachBtn.style.cssText = 'background:transparent;border:none;font-size:20px;cursor:pointer;padding:0 8px;color:#cbd5e1;';
     if (sendBtn.parentNode) sendBtn.parentNode.insertBefore(attachBtn, sendBtn);
-
-    var attachPreview = document.createElement('div');
-    attachPreview.id = 'chatAttachPreview';
-    attachPreview.style.cssText = 'display:none;padding:8px;background:#0f172a;border-bottom:1px solid #334155;border-radius:8px 8px 0 0;display:flex;gap:8px;flex-wrap:wrap;';
-    if (chatInput.parentNode) chatInput.parentNode.insertBefore(attachPreview, chatInput);
-
-    var pendingAttachments = [];
-    attachBtn.addEventListener('click', function() { attachInput.click(); });
-    attachInput.addEventListener('change', async function() {
-      var files = Array.from(this.files);
-      for (var file of files) {
-        if (file.type.startsWith('video/')) { showToast('Videos not supported here.', 'error'); continue; }
-        if (file.size > 4 * 1024 * 1024) { showToast('Max 4MB', 'error'); continue; }
-        var isImage = file.type.startsWith('image/');
-        try {
-          var data = isImage ? await resizeImage(file, 1024, 1024) : await readFileAsText(file);
-          pendingAttachments.push({ name: file.name, type: isImage ? 'image' : 'text', data: data });
-          renderAttachPreview();
-        } catch (err) { showToast('Failed to read file', 'error'); }
-      }
-      this.value = '';
-    });
-
-    function renderAttachPreview() {
-      attachPreview.innerHTML = '';
-      if (pendingAttachments.length === 0) { attachPreview.style.display = 'none'; return; }
-      attachPreview.style.display = 'flex';
-      pendingAttachments.forEach(function(att, idx) {
-        var chip = document.createElement('div');
-        chip.style.cssText = 'display:flex;align-items:center;gap:4px;background:#1e293b;border:1px solid #334155;border-radius:16px;padding:4px 10px;font-size:12px;color:#f8fafc;';
-        if (att.type === 'image') { var img = document.createElement('img'); img.src = att.data; img.style.cssText = 'width:24px;height:24px;object-fit:cover;border-radius:4px;'; chip.appendChild(img); }
-        var nameSpan = document.createElement('span'); nameSpan.textContent = att.name; chip.appendChild(nameSpan);
-        var removeBtn = document.createElement('button'); removeBtn.type = 'button'; removeBtn.innerHTML = '✕';
-        removeBtn.style.cssText = 'background:none;border:none;color:#f87171;cursor:pointer;font-weight:bold;padding:0 4px;';
-        removeBtn.onclick = function() { pendingAttachments.splice(idx, 1); renderAttachPreview(); };
-        chip.appendChild(removeBtn);
-        attachPreview.appendChild(chip);
-      });
-    }
 
     var mediaTogglesHTML = `
       <label class="thinking-toggle" style="margin-left: 10px;">
@@ -515,61 +331,12 @@ window.addEventListener('DOMContentLoaded', function () {
     var imageGenToggle = $('imageGenToggle');
     var videoGenToggle = $('videoGenToggle');
 
-    var upgradePopupHTML = `
-      <div id="upgradePopupModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(2,6,23,0.9); z-index:99999; justify-content:center; align-items:center; backdrop-filter:blur(5px);">
-        <div style="background:#1e293b; border:2px solid #fbbf24; border-radius:16px; padding:40px; max-width:450px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.5);">
-          <div style="font-size:50px; margin-bottom:10px;">🚀</div>
-          <h2 style="color:#fbbf24; margin-bottom:15px;">Upgrade to Premium</h2>
-          <p style="color:#cbd5e1; font-size:15px; line-height:1.6; margin-bottom:20px;">
-            Unlock the full power of CodeWix AI!<br>
-            Get <strong>10-second videos</strong> (instead of 5s), high-quality images, and unlimited intense coding assistance.
-          </p>
-          <a href="upgrade.html" class="button" style="display:block; width:100%; background:#fbbf24; color:#020617; padding:14px; border-radius:8px; font-weight:bold; text-decoration:none; margin-bottom:10px;">⭐ Upgrade for $5/month</a>
-          <button onclick="document.getElementById('upgradePopupModal').style.display='none'" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:14px;">Maybe later</button>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', upgradePopupHTML);
-    window.showUpgradePopup = function() { document.getElementById('upgradePopupModal').style.display = 'flex'; };
+    var conversation = [];
+    var authUser = null;
 
-    var SYSTEM_PROMPT = {
-      role: 'system',
-      content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. Tone: encouraging, never condescending. ALWAYS wrap code in triple-backticks.\n\nNOTE: You cannot generate images/videos directly. Tell them to use the "🎨 Image Mode" or "🎬 Video Mode" toggles!'
-    };
-
-    var conversation = [SYSTEM_PROMPT];
-    var currentChatId = null, currentChatTitle = '', saveTimer = null, authUser = null, currentUserName = 'User';
-
-    function getUsername() { if (authUser) { if (authUser.displayName) return authUser.displayName; if (authUser.email) return authUser.email.split('@')[0]; } return 'User'; }
-    function chatsCollection() { return (!db || !authUser) ? null : db.collection('users').doc(authUser.uid).collection('chats'); }
-    function updateTitleBar() { if (chatTitleBar && currentChatTitleEl) chatTitleBar.style.display = currentChatTitle ? 'flex' : 'none'; if(currentChatTitle) currentChatTitleEl.textContent = currentChatTitle; }
-    function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveChatNow, 700); }
-
-    async function saveChatNow() {
-      if (!authUser || !db) return;
-      var msgs = conversation.filter(m => m.role !== 'system');
-      if (!msgs.length) return;
-      var col = chatsCollection(); if (!col) return;
-      var firstUser = msgs.find(m => m.role === 'user');
-      var title = currentChatTitle;
-      if (!title && firstUser) {
-        var textToUse = typeof firstUser.content === 'string' ? firstUser.content : (firstUser.content.find(c=>c.type==='text') || {text:'[Attachment]'}).text;
-        title = textToUse.replace(/\s+/g, ' ').trim().substring(0, 48) + (textToUse.length > 48 ? '…' : '');
-      }
-      if (!title) title = 'New Chat';
-
-      var sanitizedMsgs = msgs.map(m => {
-        if (Array.isArray(m.content)) return { role: m.role, content: m.content.map(p => p.type === 'image_url' ? { type: 'text', text: '[Image]' } : p) };
-        return m;
-      });
-
-      var payload = { title: title, messages: sanitizedMsgs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-      try {
-        if (currentChatId) await col.doc(currentChatId).update(payload);
-        else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); var ref = await col.add(payload); currentChatId = ref.id; }
-        currentChatTitle = title; updateTitleBar();
-      } catch (err) {}
-    }
+    if (auth) auth.onAuthStateChanged(user => {
+      if (user) { authUser = user; }
+    });
 
     function appendMessage(role) {
       var div = document.createElement('div');
@@ -579,70 +346,89 @@ window.addEventListener('DOMContentLoaded', function () {
       return div;
     }
 
-    function setUserMessage(div, content) {
-      var html = '';
-      if (typeof content === 'string') html = '<div class="text-part">' + escapeHtml(content).replace(/\n/g, '<br>') + '</div>';
-      else if (Array.isArray(content)) {
-        content.forEach(part => {
-          if (part.type === 'text' && part.text.indexOf('--- File:') === -1) html += '<div class="text-part">' + escapeHtml(part.text).replace(/\n/g, '<br>') + '</div>';
-          else if (part.type === 'image_url') html += '<div style="margin-top:8px;"><img src="' + part.image_url.url + '" style="max-width:200px;border-radius:8px;border:1px solid #334155;"/></div>';
+    async function generateVideo(promptText) {
+      if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
+
+      var userDiv = appendMessage('user'); 
+      userDiv.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(promptText) + '</div>';
+      
+      var assistantDiv = appendMessage('assistant');
+      var messageContent = assistantDiv.querySelector('.message-content');
+      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
+
+      try {
+        // 1. Get the ngrok URL from Render
+        const configRes = await fetch('/api/config');
+        const configData = await configRes.json();
+        const localAiUrl = configData.localAiUrl;
+        
+        if (!localAiUrl || localAiUrl === 'YOUR_NGROK_URL_HERE') throw new Error('Local AI URL is not configured.');
+
+        // 2. Start the job directly on your laptop (with ngrok bypass header)
+        var res = await fetch(`${localAiUrl}/generate`, {
+          method: 'POST', 
+          headers: { 
+            'Content-Type': 'application/json', 
+            'ngrok-skip-browser-warning': 'true' 
+          },
+          body: JSON.stringify({ prompt: promptText })
         });
-      }
-      div.querySelector('.message-content').innerHTML = html;
-    }
 
-    function setAssistantMessage(div, content, reasoning) {
-      var html = '';
-      if (reasoning) html += '<details class="reasoning-section"><summary>Thinking</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>';
-      var parts = String(content).split(/```/);
-      for (var i = 0; i < parts.length; i++) {
-        if (i % 2 === 0) {
-          if (parts[i]) html += '<div class="text-part">' + escapeHtml(parts[i]).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>') + '</div>';
-        } else {
-          var body = parts[i], lang = 'code', filename = null, nl = body.indexOf('\n');
-          if (nl !== -1) {
-            var match = body.substring(0, nl).trim().match(/^([a-zA-Z0-9_-]+)(?:\s+(?:filename=["']?([^"'\s]+)["']?|([^"'\s]+)))?$/);
-            if (match) { lang = match[1]; filename = match[2] || match[3]; body = body.substring(nl + 1); }
+        const startData = await res.json();
+        if (!res.ok) throw new Error(startData.error || 'Failed to start');
+        const jobId = startData.job_id;
+
+        // 3. Poll your laptop directly
+        let attempts = 0;
+        let consecutiveErrors = 0;
+        const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes
+
+        const pollInterval = setInterval(async () => {
+          attempts++;
+          if (attempts > maxAttempts) {
+            clearInterval(pollInterval);
+            messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: Generation timed out.</div>`;
+            return;
           }
-          html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '" ' + (filename ? 'data-filename="' + escapeHtml(filename) + '"' : '') + '>' +
-            '<div class="code-header"><span class="code-lang">' + escapeHtml(filename || lang) + '</span><div class="code-actions">' +
-            '<button type="button" class="publish-ai-btn">🚀 Publish</button><button type="button" class="send-to-editor-btn">⚡ Send to Editor</button>' +
-            '<button type="button" class="download-code-btn">⬇</button><button type="button" class="copy-btn">Copy</button></div></div>' +
-            '<pre><code>' + escapeHtml(body.replace(/\n$/, '')) + '</code></pre></div>';
-        }
-      }
-      div.querySelector('.message-content').innerHTML = html;
-    }
 
-    function setLoading(l) {
-      sendBtn.disabled = l; chatInput.disabled = l; attachBtn.disabled = l;
-      sendBtn.textContent = l ? 'Thinking…' : 'Send';
-    }
-
-    if (auth) auth.onAuthStateChanged(user => {
-      if (user) {
-        authUser = user; currentUserName = getUsername();
-        var col = chatsCollection(); if (!col) return;
-        col.orderBy('updatedAt', 'desc').limit(1).get().then(snap => {
-          if (snap.empty) {
-            conversation = [SYSTEM_PROMPT];
-            chatContainer.innerHTML = '<div class="chat-message assistant-message"><div class="message-role">Assistant</div><div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! Ask me anything.</div></div></div>';
-          } else {
-            var doc = snap.docs[0]; currentChatId = doc.id; currentChatTitle = doc.data().title;
-            conversation = [SYSTEM_PROMPT].concat(doc.data().messages || []);
-            updateTitleBar(); chatContainer.innerHTML = '';
-            conversation.filter(m => m.role !== 'system').forEach(m => {
-              if (m.role === 'user') setUserMessage(appendMessage('user'), m.content);
-              else setAssistantMessage(appendMessage('assistant'), m.content);
+          try {
+            const statusRes = await fetch(`${localAiUrl}/status/${jobId}`, {
+              headers: { 'ngrok-skip-browser-warning': 'true' }
             });
+            const statusData = await statusRes.json();
+            consecutiveErrors = 0;
+
+            if (statusData.status === 'completed') {
+              clearInterval(pollInterval);
+              const videoUrl = `${localAiUrl}/video/${jobId}?ngrok-skip-browser-warning=true`;
+              messageContent.innerHTML = `
+                <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
+                <div style="margin-top: 10px;"><video src="${videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
+              `;
+            } else if (statusData.status === 'failed') {
+              clearInterval(pollInterval);
+              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(statusData.error)}</div>`;
+            }
+          } catch (pollErr) {
+            console.error("Polling error:", pollErr);
+            consecutiveErrors++;
+            if (consecutiveErrors >= 10) {
+              clearInterval(pollInterval);
+              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Connection lost after multiple retries.</div>`;
+            }
           }
-        });
+        }, 5000);
+
+      } catch (err) {
+        messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`;
       }
-    });
+    }
 
     async function generateImage(promptText) {
       if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
-      var userDiv = appendMessage('user'); setUserMessage(userDiv, promptText);
+      var userDiv = appendMessage('user'); 
+      userDiv.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(promptText) + '</div>';
+      
       var assistantDiv = appendMessage('assistant');
       var messageContent = assistantDiv.querySelector('.message-content');
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Drawing...</div>';
@@ -659,191 +445,29 @@ window.addEventListener('DOMContentLoaded', function () {
         messageContent.innerHTML = `<div class="text-part">Here is your image: <strong>"${escapeHtml(promptText)}"</strong></div>
           <div style="margin-top: 10px;"><img src="${objectUrl}" style="max-width:100%; border-radius:8px; border:2px solid #334155;" /></div>
           <div style="margin-top: 10px; font-size: 12px;"><a href="${objectUrl}" target="_blank" style="color:#38bdf8;">Open Full Size ↗</a> | <a href="${objectUrl}" download="codewix.jpg" style="color:#38bdf8;">Download ⬇</a></div>`;
-        conversation.push({ role: 'user', content: promptText }, { role: 'assistant', content: `[Image]` }); scheduleSave();
       } catch (err) { messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`; }
-    }
-
-    async function generateVideo(promptText) {
-      if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
-
-      var userDiv = appendMessage('user'); setUserMessage(userDiv, promptText);
-      var assistantDiv = appendMessage('assistant');
-      var messageContent = assistantDiv.querySelector('.message-content');
-      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video...</div>';
-
-      try {
-        var idToken = await authUser.getIdToken();
-        var res = await fetch('/api/generate-video', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({ prompt: promptText })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Video failed');
-        if (!data.videoUrl) throw new Error('No video URL returned');
-
-        messageContent.innerHTML = `
-          <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
-          <div style="margin-top: 10px;"><video src="${data.videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
-        `;
-
-        conversation.push({ role: 'user', content: promptText }, { role: 'assistant', content: `[Video]` }); scheduleSave();
-      } catch (err) {
-        messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`;
-      }
-    }
-
-    async function sendToGroq(userText) {
-      var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
-      var hasImages = pendingAttachments.some(a => a.type === 'image');
-      if (hasImages && !model.includes('vision')) {
-        model = 'meta-llama/llama-4-scout-17b-16e-instruct';
-        if (modelSelect) modelSelect.value = model;
-      }
-
-      var dynamicSystemPrompt = { role: 'system', content: SYSTEM_PROMPT.content + '\n\nBegin EVERY response with: "Dear ' + getUsername() + ', "' };
-      if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
-
-      var userContentPayload = userText;
-      if (pendingAttachments.length > 0) {
-        userContentPayload = [{ type: 'text', text: userText }];
-        pendingAttachments.forEach(att => {
-          if (att.type === 'image') userContentPayload.push({ type: 'image_url', image_url: { url: att.data } });
-          else userContentPayload[0].text += '\n\n--- File: ' + att.name + ' ---\n' + att.data;
-        });
-      }
-
-      conversation.push({ role: 'user', content: userContentPayload });
-      var userDiv = appendMessage('user'); setUserMessage(userDiv, userContentPayload); scheduleSave();
-      pendingAttachments = []; renderAttachPreview();
-
-      var assistantDiv = appendMessage('assistant');
-      var messageContent = assistantDiv.querySelector('.message-content');
-      messageContent.innerHTML = '<div class="text-part streaming-text"></div>';
-      var textEl = messageContent.querySelector('.streaming-text');
-
-      setLoading(true);
-
-      try {
-        var idToken = await authUser.getIdToken();
-        var messagesToSend = hasImages
-          ? conversation.filter(m => m.role !== 'system').map((m, i, arr) => i === arr.length - 1 ? { role: 'user', content: typeof m.content === 'string' ? dynamicSystemPrompt.content + '\n\n' + m.content : m.content.map(p => p.type === 'text' ? { type: 'text', text: dynamicSystemPrompt.content + '\n\n' + p.text } : p) } : m)
-          : [dynamicSystemPrompt].concat(conversation.filter(m => m.role !== 'system'));
-
-        var response = await fetch(API_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({ model: model, messages: messagesToSend, temperature: 0.7, max_completion_tokens: 2048 })
-        });
-
-        if (!response.ok) { let d; try { d = await response.json(); } catch(e){}; throw new Error(d?.error || 'HTTP ' + response.status); }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let reply = '', done = false, buffer = '';
-
-        while (!done) {
-          const { value, done: readerDone } = await reader.read();
-          done = readerDone;
-          if (value) {
-            buffer += decoder.decode(value, { stream: true });
-            let lines = buffer.split('\n'); buffer = lines.pop();
-            for (let line of lines) {
-              if (line.trim().startsWith('data: ')) {
-                const dataStr = line.trim().slice(6);
-                if (dataStr === '[DONE]') continue;
-                try {
-                  const delta = JSON.parse(dataStr).choices[0].delta;
-                  if (delta && delta.content) {
-                    reply += delta.content;
-                    textEl.innerHTML = escapeHtml(reply).replace(/\n/g, '<br>');
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                  }
-                } catch (e) {}
-              }
-            }
-          }
-        }
-        setAssistantMessage(assistantDiv, reply, '');
-        conversation.push({ role: 'assistant', content: reply }); scheduleSave();
-      } catch (err) {
-        messageContent.innerHTML = `<div class="text-part" style="color:#f87171;">Error: ${escapeHtml(err.message)}</div>`;
-        conversation.pop();
-      } finally { setLoading(false); chatInput.focus(); }
     }
 
     function handleSend() {
       var text = chatInput.value.trim();
-      if (!text && pendingAttachments.length === 0) return;
+      if (!text) return;
       
       if (videoGenToggle && videoGenToggle.checked) generateVideo(text);
       else if (imageGenToggle && imageGenToggle.checked) generateImage(text);
-      else sendToGroq(text);
+      else {
+        // Basic chat fallback if neither toggle is on
+        var userDiv = appendMessage('user');
+        userDiv.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(text) + '</div>';
+        var assistantDiv = appendMessage('assistant');
+        assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part">Please turn on 🎨 Image Mode or 🎬 Video Mode to use the AI features.</div>';
+      }
       
-      chatInput.value = ''; chatInput.style.height = 'auto';
+      chatInput.value = ''; 
+      chatInput.style.height = 'auto';
     }
 
     sendBtn.addEventListener('click', handleSend);
     chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
-    chatInput.addEventListener('input', function () { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px'; });
-
-    if (newChatBtn) newChatBtn.addEventListener('click', async function () {
-      clearTimeout(saveTimer); await saveChatNow();
-      currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT];
-      chatContainer.innerHTML = ''; updateTitleBar();
-      pendingAttachments = []; renderAttachPreview();
-      showToast('New chat');
-    });
-  }
-
-  // ======================================================================
-  // Learn, Explore, Profile, Publish logic (Full implementation)
-  // ======================================================================
-  
-  // Explore Page Logic
-  if ($('exploreGrid')) {
-    fetch('/api/explore').then(r => r.json()).then(data => {
-      if (data.sites) {
-        $('exploreGrid').innerHTML = data.sites.map(site => `
-          <div class="site-card">
-            <h3>${escapeHtml(site.projectName || site.slug)}</h3>
-            <p>${escapeHtml(site.description || 'No description.')}</p>
-            <a href="/s/${site.slug}" target="_blank" class="button">Visit Site</a>
-          </div>
-        `).join('');
-      }
-    }).catch(err => console.error('Explore error:', err));
-  }
-
-  // Publish Page Logic
-  if ($('publishForm')) {
-    $('publishForm').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      var btn = this.querySelector('button[type="submit"]');
-      var orig = btn.textContent;
-      btn.disabled = true; btn.textContent = 'Publishing...';
-      
-      try {
-        var idToken = await authUser.getIdToken();
-        var res = await fetch('/api/publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify({
-            slug: $('publishSlug').value.trim(),
-            projectName: $('publishName').value.trim(),
-            description: $('publishDesc').value.trim(),
-            files: JSON.parse(localStorage.getItem('codewix_files') || '{}')
-          })
-        });
-        var data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to publish');
-        showToast('Successfully published to ' + data.fullUrl);
-        if ($('publishResult')) $('publishResult').innerHTML = `<a href="${data.url}" target="_blank">${data.fullUrl}</a>`;
-      } catch (err) {
-        showError($('publishError'), err.message);
-      } finally {
-        btn.disabled = false; btn.textContent = orig;
-      }
-    });
   }
 
 }); // end DOMContentLoaded
