@@ -13,7 +13,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
-const AGNES_API_KEY = process.env.AGNES_API_KEY;
+const KINOVI_API_KEY = process.env.KINOVI_API_KEY; // Kinovi API Key
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -190,49 +190,46 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Agnes Video 2.5 - Current Model) ------------
+// ---- API: Video Generation (Kinovi AI - Free Tier) ----------------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  if (!AGNES_API_KEY) {
-    return res.status(500).json({ error: 'AGNES_API_KEY is not configured on the server.' });
+  if (!KINOVI_API_KEY) {
+    return res.status(500).json({ error: 'KINOVI_API_KEY is not configured on the server.' });
   }
 
-  // Use the current recommended model
-  const VIDEO_MODEL = 'agnes-video-2.5';
+  // Use a supported text-to-video model
+  const MODEL_ID = 'wan3.0-text-to-video';
 
   try {
     // Step 1: Create the video generation task
-    const createResponse = await fetch('https://apihub.agnes-ai.com/v1/videos', {
+    const createResponse = await fetch('https://kinovi.ai/api/v1/jobs/createTask', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${AGNES_API_KEY}`,
+        'Authorization': `Bearer ${KINOVI_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: VIDEO_MODEL,
+        model: MODEL_ID,
         prompt: prompt,
-        seconds: "5",      // 2.5 series expects a string for duration
-        mode: "text",      // Standard text-to-video mode
-        size: "720P",      // Supported resolution
-        aspect_ratio: "16:9"
+        // Add other parameters as needed (e.g., duration, aspect_ratio)
       })
     });
 
     if (!createResponse.ok) {
       const errorBody = await createResponse.text();
-      throw new Error(`Agnes AI Task Creation Failed: ${errorBody}`);
+      throw new Error(`Kinovi Task Creation Failed: ${errorBody}`);
     }
 
     const createData = await createResponse.json();
-    const videoId = createData.video_id || createData.id || createData.task_id;
+    const taskId = createData.data?.taskId || createData.taskId || createData.id;
 
-    if (!videoId) {
-      throw new Error('Agnes AI did not return a video_id. Response: ' + JSON.stringify(createData));
+    if (!taskId) {
+      throw new Error('Kinovi did not return a taskId. Response: ' + JSON.stringify(createData));
     }
 
-    console.log(`[Agnes] Video task created: ${videoId}. Polling for result...`);
+    console.log(`[Kinovi] Video task created: ${taskId}. Polling for result...`);
 
     // Step 2: Poll for the result (max 30 attempts, 2 seconds apart)
     let videoUrl = null;
@@ -242,32 +239,30 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise(resolve => setTimeout(resolve, pollInterval));
 
-      const pollResponse = await fetch(
-        `https://apihub.agnes-ai.com/agnesapi?video_id=${videoId}&model_name=${VIDEO_MODEL}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${AGNES_API_KEY}`
-          }
+      const pollResponse = await fetch(`https://kinovi.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+        headers: {
+          'Authorization': `Bearer ${KINOVI_API_KEY}`
         }
-      );
+      });
 
       if (!pollResponse.ok) {
-        console.warn(`[Agnes] Poll attempt ${attempt + 1} failed with status ${pollResponse.status}`);
+        console.warn(`[Kinovi] Poll attempt ${attempt + 1} failed with status ${pollResponse.status}`);
         continue;
       }
 
       const pollData = await pollResponse.json();
 
-      if (pollData.status === 'completed') {
-        videoUrl = pollData.url;
+      // Check the task status
+      if (pollData.data?.status === 'success' || pollData.status === 'success') {
+        videoUrl = pollData.data?.videoUrl || pollData.data?.video?.url || pollData.videoUrl;
         if (!videoUrl) {
-          throw new Error('Agnes AI task completed but no video URL was provided.');
+          throw new Error('Kinovi task completed but no video URL was provided.');
         }
         break;
       }
 
-      if (pollData.status === 'failed') {
-        throw new Error(`Agnes AI task failed: ${pollData.error || 'Unknown error'}`);
+      if (pollData.data?.status === 'fail' || pollData.status === 'fail') {
+        throw new Error(`Kinovi task failed: ${pollData.data?.error || 'Unknown error'}`);
       }
     }
 
@@ -282,7 +277,7 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[Agnes] video failed:', err.message);
+    console.error('[Kinovi] video failed:', err.message);
     res.status(500).json({ error: 'Failed to generate video: ' + err.message });
   }
 });
