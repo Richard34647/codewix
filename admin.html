@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <style>
+        .admin-container { max-width: 800px; margin: 120px auto 60px; padding: 20px; }
+        .admin-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 30px; margin-bottom: 20px; }
+        .request-row { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #334155; }
+        .request-row:last-child { border-bottom: none; }
+        .admin-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #020617; color: white; margin-bottom: 10px; }
+        .admin-btn { background: #10b981; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
+        <nav><a href="dashboard.html">Workspace</a></nav>
+    </header>
+
+    <div class="admin-container" id="adminContent" style="display: none;">
+        <h1 style="color: #38bdf8; margin-bottom: 20px;">Admin Dashboard</h1>
+
+        <!-- Pending Requests -->
+        <div class="admin-card">
+            <h2>Pending Upgrade Requests</h2>
+            <div id="requestsList"><p>Loading requests...</p></div>
+        </div>
+
+        <!-- Manual Upgrade Form -->
+        <div class="admin-card">
+            <h2>Manual Upgrade</h2>
+            <p style="color: #94a3b8; font-size: 14px; margin-bottom: 10px;">Enter a user's email to instantly upgrade them.</p>
+            <input type="email" id="manualEmail" class="admin-input" placeholder="user@example.com">
+            <button onclick="upgradeManual()" class="admin-btn">Upgrade User</button>
+        </div>
+    </div>
+
+    <div id="unauthorized" style="display: none; text-align: center; margin-top: 100px;">
+        <h2 style="color: #f87171;">Access Denied</h2>
+        <p>You do not have permission to view this page.</p>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
+            authDomain: "codewix-16971.firebaseapp.com",
+            projectId: "codewix-16971",
+            storageBucket: "codewix-16971.firebasestorage.app",
+            messagingSenderId: "1060917593178",
+            appId: "1:1060917593178:web:8ce61640aa476bf135c463"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        const ADMIN_EMAIL = 'wilcox889@gmail.com'; // 👈 Make sure this is YOUR email
+
+        auth.onAuthStateChanged(async (user) => {
+            if (user && user.email === ADMIN_EMAIL) {
+                document.getElementById('adminContent').style.display = 'block';
+                loadRequests();
+            } else {
+                document.getElementById('unauthorized').style.display = 'block';
+            }
+        });
+
+        async function loadRequests() {
+            const list = document.getElementById('requestsList');
+            const snap = await db.collection('upgrade_requests').where('status', '==', 'pending').get();
+            
+            if (snap.empty) { list.innerHTML = '<p style="color: #64748b;">No pending requests.</p>'; return; }
+            
+            list.innerHTML = '';
+            snap.forEach(doc => {
+                const data = doc.data();
+                const row = document.createElement('div');
+                row.className = 'request-row';
+                row.innerHTML = `
+                    <div>
+                        <strong>${data.email}</strong><br>
+                        <span style="font-size: 12px; color: #64748b;">${data.currency} ${data.amount}</span>
+                    </div>
+                    <button class="admin-btn" onclick="upgradeUser('${data.email}')">Upgrade</button>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        async function upgradeUser(email) {
+            await processUpgrade(email);
+        }
+
+        async function upgradeManual() {
+            const email = document.getElementById('manualEmail').value.trim();
+            if (!email) return alert('Enter an email');
+            await processUpgrade(email);
+        }
+
+        async function processUpgrade(email) {
+            try {
+                const token = await auth.currentUser.getIdToken();
+                const res = await fetch('/api/admin/upgrade-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ targetEmail: email })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                alert(data.message);
+                loadRequests(); // Refresh list
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
