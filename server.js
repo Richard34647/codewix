@@ -14,13 +14,37 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
-// ---- Firebase Admin init --------------------------------------------------
+// ==========================================
+// BULLETPROOF FIREBASE INITIALIZATION
+// ==========================================
+console.log('\n=============================================');
+console.log('🔍 LOOKING FOR FIREBASE CREDENTIALS...');
+console.log('=============================================\n');
+
 try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({ credential: admin.credential.cert(sa), storageBucket: 'codewix-16971.firebasestorage.app' });
-    console.log('✅ [Firebase Admin] Initialized via FIREBASE_SERVICE_ACCOUNT');
-  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+  const localPath = path.join(__dirname, 'firebase-service-account.json');
+  const renderSecretPath = '/etc/secrets/firebase-service-account.json';
+  
+  if (fs.existsSync(renderSecretPath)) {
+    // Method 1: Render Secret File
+    const serviceAccount = JSON.parse(fs.readFileSync(renderSecretPath, 'utf8'));
+    admin.initializeApp({ 
+      credential: admin.credential.cert(serviceAccount), 
+      storageBucket: 'codewix-16971.firebasestorage.app' 
+    });
+    console.log('✅ [Firebase Admin] Initialized via Render Secret File (/etc/secrets/)');
+  } 
+  else if (fs.existsSync(localPath)) {
+    // Method 2: Local JSON file (For Desktop app)
+    const serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+    admin.initializeApp({ 
+      credential: admin.credential.cert(serviceAccount), 
+      storageBucket: 'codewix-16971.firebasestorage.app' 
+    });
+    console.log('✅ [Firebase Admin] Initialized via local JSON file');
+  } 
+  else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+    // Method 3: Split Environment Variables
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
@@ -29,11 +53,15 @@ try {
       }),
       storageBucket: 'codewix-16971.firebasestorage.app'
     });
-    console.log('✅ [Firebase Admin] Initialized via split env vars');
-  } else {
-    console.warn('❌ [Firebase Admin] No credentials found.');
+    console.log('✅ [Firebase Admin] Initialized via environment variables');
+  } 
+  else {
+    console.error('❌ [Firebase Admin] CRITICAL ERROR: No credentials found!');
+    console.error('Make sure the Secret File is named exactly: firebase-service-account.json');
   }
-} catch (err) { console.error('❌ [Firebase Admin] init failed:', err.message); }
+} catch (err) { 
+  console.error('❌ [Firebase Admin] init failed:', err.message); 
+}
 
 let emailjsReady = false;
 if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
@@ -65,7 +93,9 @@ function resolveAssetUrls(html, files) {
 }
 
 async function requireAuth(req, res, next) {
-  if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured.' });
+  if (!admin.apps.length) {
+    return res.status(500).json({ error: 'Auth not configured. Missing Firebase credentials on server.' });
+  }
   const header = req.headers.authorization || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return res.status(401).json({ error: 'Missing auth token.' });
@@ -104,7 +134,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
       messages: messages,
       temperature: typeof temperature === 'number' ? temperature : 0.7,
       max_completion_tokens: max_completion_tokens || 2048,
-      stream: true // ENABLE STREAMING
+      stream: true
     };
     if (reasoning_effort) body.reasoning_effort = reasoning_effort;
 
@@ -344,10 +374,14 @@ app.get('/u/:username', (req, res) => res.sendFile(path.join(__dirname, 'profile
 
 // ---- 🔥 DEBUG ROUTE (To find your missing files) 🔥 -----------------------
 app.get('/debug-files', (req, res) => {
-  const files = fs.readdirSync(__dirname);
+  const localFiles = fs.readdirSync(__dirname);
+  let secretFiles = [];
+  try { secretFiles = fs.readdirSync('/etc/secrets'); } catch (e) {}
+  
   res.json({ 
-    message: "Here is exactly what Render sees in the root folder:",
-    files: files
+    message: "Here is exactly what Render sees:",
+    local_project_folder: localFiles,
+    render_secrets_folder: secretFiles
   });
 });
 
