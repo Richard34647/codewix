@@ -14,7 +14,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
-const FAL_VIDEO_MODEL = 'minimax/h3-max/text-to-video';
+const FAL_VIDEO_MODEL = 'minimax/h3-max/text-to-video'; // 👈 Declared ONLY ONCE here
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -193,7 +193,6 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
 
 // ---- API: Video Generation (fal.ai) ---------------------------------------
 // Free users: 5s. Premium/admin: 10s.
-const FAL_VIDEO_MODEL = 'fal-ai/minimax/h3-max/text-to-video';
 
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
@@ -233,6 +232,9 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     res.json({ videoUrl, duration: videoDuration, isPremium: req.isPremium || isAdmin });
   } catch (err) {
     console.error('[fal] video failed:', err?.message || err);
+    // Log the full error object to see the exact reason for a 403
+    console.error('[fal] Full error object:', err); 
+
     const msg = /balance|credit|402/i.test(err?.message || '')
       ? 'Video service is out of credits. Please contact the admin.'
       : 'Failed to generate video: ' + (err?.message || 'unknown');
