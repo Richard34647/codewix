@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with ngrok Blob Fix)
+// CodeWix — script.js (Full Master File with Premium Frame Logic)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -376,7 +376,7 @@ window.addEventListener('DOMContentLoaded', function () {
   updatePreview();
 
   // ======================================================================
-  // AI Assistant (Direct ngrok connection with Blob fix)
+  // AI Assistant (Premium Frame Logic)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -431,25 +431,36 @@ window.addEventListener('DOMContentLoaded', function () {
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
 
       try {
-        const configRes = await fetch('/api/config');
+        // 1. Fetch Config to check Premium Status
+        var idToken = await authUser.getIdToken();
+        const configRes = await fetch('/api/config', {
+          headers: { 'Authorization': 'Bearer ' + idToken }
+        });
         const configData = await configRes.json();
         const localAiUrl = configData.localAiUrl;
+        const isPremium = configData.isPremium;
         
         if (!localAiUrl) throw new Error('Local AI URL is not configured.');
 
+        // 2. Set Frames based on status (8 frames = 1s, 24 frames = 3s)
+        const numFrames = isPremium ? 24 : 8; 
+        console.log(`User is ${isPremium ? 'Premium' : 'Free'}. Requesting ${numFrames} frames.`);
+
+        // 3. Start the job
         var res = await fetch(`${localAiUrl}/generate`, {
           method: 'POST', 
           headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-          body: JSON.stringify({ prompt: promptText })
+          body: JSON.stringify({ prompt: promptText, num_frames: numFrames })
         });
 
         const startData = await res.json();
         if (!res.ok) throw new Error(startData.error || 'Failed to start');
         const jobId = startData.job_id;
 
+        // 4. Poll for results
         let attempts = 0;
         let consecutiveErrors = 0;
-        const maxAttempts = 60;
+        const maxAttempts = 120; // 10 minutes max wait
 
         const pollInterval = setInterval(async () => {
           attempts++;
@@ -470,7 +481,6 @@ window.addEventListener('DOMContentLoaded', function () {
               clearInterval(pollInterval);
               messageContent.innerHTML = '<div class="text-part">Downloading video...</div>';
               
-              // Fetch the video as a Blob to bypass the ngrok HTML warning page
               const videoRes = await fetch(`${localAiUrl}/video/${jobId}`, {
                 headers: { 'ngrok-skip-browser-warning': 'true' }
               });
