@@ -14,9 +14,6 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
-// ⚠️ PASTE YOUR CURRENT NGROK URL HERE (No trailing slash)
-const LOCAL_AI_URL = 'https://cobweb-rind-flier.ngrok-free.dev'; 
-
 // ==========================================
 // FIREBASE INITIALIZATION
 // ==========================================
@@ -54,7 +51,7 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
   console.log('✅ [EmailJS] Initialized');
 }
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // ---- Helpers & Auth Middleware ---------------------------------------------
 function rewritePublishedLinks(html, slug) {
@@ -100,35 +97,52 @@ function incrementUsage(ref, currentCount) {
   ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true }).catch(() => {});
 }
 
-// ---- API: Get Local AI Config (Returns URL and Premium Status) ------------
-app.get('/api/config', requireAuth, (req, res) => {
-  res.json({ localAiUrl: LOCAL_AI_URL, isPremium: req.isPremium });
-});
-
 // ==========================================
-// ADMIN UPGRADE ROUTE
+// ADMIN ROUTES (Manage Users)
 // ==========================================
-app.post('/api/admin/upgrade-user', requireAuth, async (req, res) => {
-  const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
-  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized. Admin only.' });
+const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
 
-  const { targetEmail } = req.body;
-  if (!targetEmail) return res.status(400).json({ error: 'Target email is required.' });
-
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
   try {
-    const userRecord = await admin.auth().getUserByEmail(targetEmail);
-    await admin.auth().setCustomUserClaims(userRecord.uid, { premium: true });
-
-    const requests = await admin.firestore().collection('upgrade_requests').where('email', '==', targetEmail).where('status', '==', 'pending').get();
-    const batch = admin.firestore().batch();
-    requests.forEach(doc => batch.update(doc.ref, { status: 'completed' }));
-    await batch.commit();
-
-    res.json({ ok: true, message: `Successfully upgraded ${targetEmail} to Premium!` });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const listUsersResult = await admin.auth().listUsers(1000);
+    const users = listUsersResult.users.map(userRecord => ({
+      uid: userRecord.uid,
+      email: userRecord.email,
+      displayName: userRecord.displayName || 'No Name',
+      lastSignIn: userRecord.metadata.lastSignInTime,
+      premium: userRecord.customClaims?.premium === true
+    }));
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ---- API: Groq chat proxy (STREAMING) ------------------------------------
+app.post('/api/admin/update-user', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
+  const { uid, action } = req.body;
+  
+  try {
+    if (action === 'toggle-premium') {
+      const userRecord = await admin.auth().getUser(uid);
+      const isPremium = userRecord.customClaims?.premium === true;
+      await admin.auth().setCustomUserClaims(uid, { premium: !isPremium });
+      res.json({ ok: true, message: `Premium status toggled to ${!isPremium}` });
+    } else if (action === 'delete') {
+      await admin.auth().deleteUser(uid);
+      res.json({ ok: true, message: 'User deleted successfully' });
+    } else {
+      res.status(400).json({ error: 'Invalid action' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// GENERAL ROUTES
+// ==========================================
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Server is missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
@@ -172,7 +186,6 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
-// ---- API: Image Generation ------------------------------------------------
 app.post('/api/generate-image', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
@@ -197,7 +210,6 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Run Code -------------------------------------------------------
 app.post('/api/run', requireAuth, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
@@ -230,12 +242,11 @@ app.post('/api/run', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
 });
 
-// ---- API: Publish --------------------------------------------------------
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
   if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) return res.status(400).json({ error: 'Invalid slug.' });
-
+  
   const pubRef = admin.firestore().collection('published').doc(slug);
   try {
     const result = await admin.firestore().runTransaction(async (tx) => {
@@ -255,7 +266,6 @@ app.post('/api/publish', requireAuth, async (req, res) => {
   }
 });
 
-// ---- API: Unpublish -------------------------------------------------------
 app.post('/api/unpublish', requireAuth, async (req, res) => {
   try {
     const ref = admin.firestore().collection('published').doc(req.body.slug);
@@ -265,7 +275,6 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- API: My published sites ---------------------------------------------
 app.get('/api/my-published', requireAuth, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').where('uid', '==', req.user.uid).orderBy('updatedAt', 'desc').get();
@@ -275,7 +284,6 @@ app.get('/api/my-published', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- API: Explore ---------------------------------------------------------
 app.get('/api/explore', async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').orderBy('updatedAt', 'desc').limit(60).get();
@@ -285,7 +293,6 @@ app.get('/api/explore', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- API: User profile ----------------------------------------------------
 app.get('/api/user/:username', async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').where('username', '==', req.params.username).orderBy('updatedAt', 'desc').get();
@@ -295,7 +302,6 @@ app.get('/api/user/:username', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- API: Send verification email ----------------------------------------
 app.post('/api/send-verification-email', async (req, res) => {
   if (!emailjsReady) return res.status(500).json({ error: 'EmailJS not configured.' });
   try {
@@ -305,7 +311,6 @@ app.post('/api/send-verification-email', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- API: Contact form ----------------------------------------------------
 app.post('/api/contact', async (req, res) => {
   if (!emailjsReady) return res.status(500).json({ error: 'EmailJS not configured.' });
   try {
@@ -314,7 +319,6 @@ app.post('/api/contact', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- Routes: /s/:slug, /s/:slug/:filename, /u/:username ------------------
 app.get('/s/:slug', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
