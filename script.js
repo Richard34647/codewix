@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with 15-Minute Premium Logic)
+// CodeWix — script.js (Full Master File with Admin & Lessons)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -40,35 +40,14 @@ window.addEventListener('DOMContentLoaded', function () {
     var t = document.createElement('div');
     t.className = 'toast ' + (type || '');
     t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1e293b;color:#fff;padding:12px 24px;border-radius:8px;z-index:99999;box-shadow:0 10px 20px rgba(0,0,0,0.5);border-left:4px solid ' + (type === 'error' ? '#ef4444' : '#38bdf8');
     document.body.appendChild(t);
-    setTimeout(function () { t.classList.add('show'); }, 10);
-    setTimeout(function () {
-      t.classList.remove('show');
-      setTimeout(function () { document.body.removeChild(t); }, 300);
-    }, 2400);
+    setTimeout(function () { t.remove(); }, 3000);
   }
   function formatDate(ts) {
     if (!ts) return '';
     var d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleDateString();
-  }
-  function downloadBlob(blob, filename) {
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-  }
-  function extensionForLang(lang) {
-    var map = {
-      'javascript':'js','js':'js','jsx':'jsx','typescript':'ts','ts':'ts','tsx':'tsx',
-      'python':'py','py':'py','html':'html','xml':'html','css':'css','scss':'scss',
-      'json':'json','yaml':'yml','yml':'yml','bash':'sh','sh':'sh','shell':'sh',
-      'sql':'sql','java':'java','c':'c','cpp':'cpp','csharp':'cs','cs':'cs','go':'go',
-      'rust':'rs','php':'php','ruby':'rb','swift':'swift','kotlin':'kt',
-      'markdown':'md','md':'md','text':'txt','plaintext':'txt'
-    };
-    return map[String(lang).toLowerCase()] || 'txt';
   }
   function readFileAsText(file) {
     return new Promise(function (resolve, reject) {
@@ -78,51 +57,21 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.readAsText(file);
     });
   }
-  function resizeImage(file, maxWidth, maxHeight) {
-    return new Promise(function(resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var img = new Image();
-        img.onload = function() {
-          var width = img.width;
-          var height = img.height;
-          if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
-          if (height > maxHeight) { width = Math.round((width * maxHeight) / height); height = maxHeight; }
-          var canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          var ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
-        };
-        img.onerror = reject;
-        img.src = e.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-  function dataUrlToBlob(dataUrl) {
-    var parts = dataUrl.split(',');
-    var mimeMatch = parts[0].match(/:(.*?);/);
-    var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-    var binary = atob(parts[1]);
-    var array = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
-    return new Blob([array], { type: mime });
-  }
 
-  // ======================================================================
-  // THEME TOGGLE, UPGRADE POPUP & ADMIN BUTTON INJECTION
-  // ======================================================================
+  var path = location.pathname.toLowerCase();
+  var isAdminPage = path.includes('admin.html');
   var ADMIN_EMAIL = 'wilcoxr889@gmail.com';
   var isUserPremium = false;
   var isUserAdmin = false;
 
+  // ======================================================================
+  // THEME TOGGLE & ADMIN NAV BUTTON
+  // ======================================================================
   var savedTheme = localStorage.getItem('codewix_theme');
   if (savedTheme === 'light') document.body.classList.add('light-mode');
 
   var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
-  if (navMenu) {
+  if (navMenu && !isAdminPage) {
     var themeBtn = document.createElement('button');
     themeBtn.className = 'theme-toggle-btn';
     themeBtn.id = 'themeToggleBtn';
@@ -134,56 +83,30 @@ window.addEventListener('DOMContentLoaded', function () {
       themeBtn.innerHTML = isLight ? '🌙' : '☀️';
     });
     navMenu.appendChild(themeBtn);
-
-    var popupHTML = `
-      <div id="upgradePopup" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(2,6,23,0.85); z-index:9999; justify-content:center; align-items:center; backdrop-filter:blur(4px);">
-        <div style="background:#1e293b; border:1px solid #334155; border-radius:16px; padding:40px; max-width:500px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.5); position:relative;">
-          <button onclick="document.getElementById('upgradePopup').style.display='none'" style="position:absolute; top:15px; right:20px; background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer;">&times;</button>
-          <div style="font-size:48px; margin-bottom:15px;">🚀</div>
-          <h2 style="color:#38bdf8; margin-bottom:10px;">Unlock CodeWix Premium</h2>
-          <p style="color:#cbd5e1; margin-bottom:20px; font-size:16px;">You are currently on the free plan.</p>
-          <ul style="text-align:left; color:#cbd5e1; margin-bottom:30px; line-height:1.8; padding-left:20px;">
-            <li><strong style="color:#fff;">Unlimited AI Coding:</strong> Chat without daily limits.</li>
-            <li><strong style="color:#fff;">Extended Video Generation:</strong> Create longer videos.</li>
-            <li><strong style="color:#fff;">Priority Image Rendering:</strong> Faster generation with premium models.</li>
-          </ul>
-          <a href="upgrade.html" style="display:block; width:100%; padding:14px; background:#fbbf24; color:#020617; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">Upgrade for $5/month</a>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', popupHTML);
-
-    if (auth) {
-      auth.onAuthStateChanged(async function(user) {
-        if (!user) return;
-        const tokenResult = await user.getIdTokenResult();
-        isUserPremium = tokenResult.claims.premium === true;
-        isUserAdmin = user.email === ADMIN_EMAIL;
-
-        if (isUserAdmin && !document.getElementById('adminNavBtn')) {
-          var adminBtn = document.createElement('a');
-          adminBtn.href = 'admin.html';
-          adminBtn.id = 'adminNavBtn';
-          adminBtn.innerHTML = '👑 Admin';
-          adminBtn.style.cssText = 'background:#38bdf8;color:#020617;padding:6px 12px;border-radius:6px;font-weight:bold;margin-left:10px;text-decoration:none;';
-          navMenu.appendChild(adminBtn);
-        }
-      });
-    }
   }
 
-  document.querySelectorAll('nav').forEach(function (nav) {
-    if (!nav.querySelector('a[href="learn.html"]') && !nav.classList.contains('studio-nav')) {
-      var a = document.createElement('a');
-      a.href = 'learn.html'; a.textContent = 'Learn';
-      var home = nav.querySelector('a[href="index.html"]');
-      if (home && home.nextSibling) nav.insertBefore(a, home.nextSibling);
-      else nav.appendChild(a);
-    }
-  });
+  if (auth) {
+    auth.onAuthStateChanged(async function(user) {
+      if (!user) return;
+      const tokenResult = await user.getIdTokenResult();
+      isUserPremium = tokenResult.claims.premium === true;
+      isUserAdmin = user.email === ADMIN_EMAIL;
 
-  var path = location.pathname.toLowerCase();
-  var protectedPages = ['dashboard.html', 'ai-assistance.html', 'learn.html', 'publish.html'];
+      if (isUserAdmin && navMenu && !document.getElementById('adminNavBtn') && !isAdminPage) {
+        var adminBtn = document.createElement('a');
+        adminBtn.href = 'admin.html';
+        adminBtn.id = 'adminNavBtn';
+        adminBtn.innerHTML = '👑 Admin';
+        adminBtn.style.cssText = 'background:#38bdf8;color:#020617;padding:6px 12px;border-radius:6px;font-weight:bold;margin-left:10px;text-decoration:none;';
+        navMenu.appendChild(adminBtn);
+      }
+    });
+  }
+
+  // ======================================================================
+  // PROTECTED ROUTES
+  // ======================================================================
+  var protectedPages = ['dashboard.html', 'ai-assistance.html', 'learn.html', 'publish.html', 'admin.html'];
   var onProtectedPage = protectedPages.some(function (p) { return path.indexOf(p) !== -1; });
 
   if (auth && onProtectedPage) {
@@ -196,6 +119,11 @@ window.addEventListener('DOMContentLoaded', function () {
       }
       if ($('dashUser'))  $('dashUser').textContent  = user.email.split('@')[0];
       if ($('userEmail')) $('userEmail').textContent = user.email;
+      
+      // Admin security check
+      if (isAdminPage && user.email !== ADMIN_EMAIL) {
+        location.replace('dashboard.html');
+      }
     });
   }
 
@@ -208,7 +136,154 @@ window.addEventListener('DOMContentLoaded', function () {
   if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
 
   // ======================================================================
-  // Register & Login
+  // ADMIN DASHBOARD LOGIC
+  // ======================================================================
+  if (isAdminPage) {
+    document.querySelectorAll('.nav-btn[data-target]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+        
+        e.target.classList.add('active');
+        var targetId = e.target.getAttribute('data-target');
+        $(targetId).classList.add('active');
+
+        if (targetId === 'dashboard') loadStats();
+        if (targetId === 'users') loadUsers();
+        if (targetId === 'lessons') loadLessons();
+      });
+    });
+
+    var getToken = async () => await auth.currentUser.getIdToken();
+
+    var loadStats = async () => {
+      try {
+        const res = await fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + await getToken() } });
+        if (!res.ok) throw new Error('Failed to load stats');
+        const data = await res.json();
+        $('statUsers').textContent = data.totalUsers;
+        $('statPremium').textContent = data.premiumUsers;
+        $('statProjects').textContent = data.totalProjects;
+        $('statLessons').textContent = data.totalLessons;
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    var loadUsers = async () => {
+      try {
+        const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + await getToken() } });
+        const data = await res.json();
+        
+        const tbody = $('adminUsersTable').querySelector('tbody');
+        tbody.innerHTML = data.users.map(user => `
+          <tr>
+            <td>${escapeHtml(user.email)}</td>
+            <td>${escapeHtml(user.displayName)}</td>
+            <td><span class="badge ${user.premium ? 'premium' : 'free'}">${user.premium ? 'Premium' : 'Free'}</span></td>
+            <td>
+              <button class="btn btn-primary toggle-premium-btn" data-uid="${user.uid}">Toggle Pro</button>
+              <button class="btn btn-danger delete-user-btn" data-uid="${user.uid}">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    var loadLessons = async () => {
+      try {
+        const res = await fetch('/api/lessons');
+        const data = await res.json();
+        
+        const tbody = $('adminLessonsTable').querySelector('tbody');
+        tbody.innerHTML = data.lessons.map(lesson => `
+          <tr>
+            <td>${escapeHtml(lesson.title)}</td>
+            <td>${escapeHtml(lesson.difficulty)}</td>
+            <td>${lesson.createdAt ? new Date(lesson.createdAt._seconds * 1000).toLocaleDateString() : 'Just now'}</td>
+            <td><button class="btn btn-danger delete-lesson-btn" data-id="${lesson.id}">Delete</button></td>
+          </tr>
+        `).join('');
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    document.addEventListener('click', async (e) => {
+      if (e.target.classList.contains('toggle-premium-btn')) {
+        const uid = e.target.getAttribute('data-uid');
+        e.target.disabled = true;
+        await fetch('/api/admin/update-user', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() },
+          body: JSON.stringify({ uid, action: 'toggle-premium' })
+        });
+        loadUsers();
+      }
+      if (e.target.classList.contains('delete-user-btn')) {
+        if(!confirm('Delete this user permanently?')) return;
+        const uid = e.target.getAttribute('data-uid');
+        e.target.disabled = true;
+        await fetch('/api/admin/update-user', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() },
+          body: JSON.stringify({ uid, action: 'delete' })
+        });
+        loadUsers();
+      }
+      if (e.target.classList.contains('delete-lesson-btn')) {
+        if(!confirm('Delete this lesson?')) return;
+        const id = e.target.getAttribute('data-id');
+        e.target.disabled = true;
+        await fetch('/api/admin/lessons/' + id, {
+          method: 'DELETE', headers: { 'Authorization': 'Bearer ' + await getToken() }
+        });
+        loadLessons();
+      }
+    });
+
+    if ($('saveLessonBtn')) {
+      $('saveLessonBtn').addEventListener('click', async () => {
+        const title = $('lessonTitle').value;
+        const description = $('lessonDesc').value;
+        const difficulty = $('lessonDiff').value;
+        const content = $('lessonContent').value;
+
+        if (!title || !content) return showToast('Title and Content are required.', 'error');
+
+        $('saveLessonBtn').disabled = true;
+        $('saveLessonBtn').textContent = 'Saving...';
+
+        await fetch('/api/admin/lessons', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() },
+          body: JSON.stringify({ title, description, difficulty, content })
+        });
+
+        $('lessonTitle').value = ''; $('lessonDesc').value = ''; $('lessonContent').value = '';
+        $('saveLessonBtn').disabled = false;
+        $('saveLessonBtn').textContent = 'Save Lesson';
+        showToast('Lesson added successfully!');
+        loadLessons();
+      });
+    }
+
+    loadStats();
+  }
+
+  // ======================================================================
+  // PUBLIC LEARN PAGE LOGIC
+  // ======================================================================
+  if ($('learnGrid')) {
+    fetch('/api/lessons').then(r => r.json()).then(data => {
+      if (data.lessons) {
+        $('learnGrid').innerHTML = data.lessons.map(lesson => `
+          <div class="lesson-card" style="background:#1e293b; padding:20px; border-radius:12px; margin-bottom:15px;">
+            <h3 style="color:#38bdf8; margin-bottom:10px;">${escapeHtml(lesson.title)}</h3>
+            <span style="background:#0f172a; padding:4px 8px; border-radius:4px; font-size:12px;">${escapeHtml(lesson.difficulty)}</span>
+            <p style="color:#cbd5e1; margin:10px 0;">${escapeHtml(lesson.description || '')}</p>
+            <button onclick="alert('Lesson content viewer coming soon!')" class="btn btn-primary">Read Lesson</button>
+          </div>
+        `).join('');
+      }
+    });
+  }
+
+  // ======================================================================
+  // REGISTER & LOGIN
   // ======================================================================
   if ($('registerForm')) {
     $('registerForm').addEventListener('submit', function (e) {
@@ -311,7 +386,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Sandbox IDE
+  // SANDBOX IDE
   // ======================================================================
   var cm = null;
   var codeEditor = null;
@@ -376,7 +451,7 @@ window.addEventListener('DOMContentLoaded', function () {
   updatePreview();
 
   // ======================================================================
-  // AI Assistant (15-Minute Premium Logic)
+  // AI ASSISTANT (CHAT & IMAGE)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -396,18 +471,11 @@ window.addEventListener('DOMContentLoaded', function () {
         <input type="checkbox" id="imageGenToggle">
         <span class="toggle-slider" style="background: #f472b6;"></span> 🎨 Image Mode
       </label>
-      <label class="thinking-toggle" style="margin-left: 10px;">
-        <input type="checkbox" id="videoGenToggle">
-        <span class="toggle-slider" style="background: #a78bfa;"></span> 🎬 Video Mode
-      </label>
     `;
     if (thinkingToggle && thinkingToggle.parentNode) thinkingToggle.parentNode.insertAdjacentHTML('beforeend', mediaTogglesHTML);
     var imageGenToggle = $('imageGenToggle');
-    var videoGenToggle = $('videoGenToggle');
 
-    var conversation = [];
     var authUser = null;
-
     if (auth) auth.onAuthStateChanged(user => {
       if (user) { authUser = user; }
     });
@@ -418,97 +486,6 @@ window.addEventListener('DOMContentLoaded', function () {
       div.innerHTML = '<div class="message-role">' + (role === 'user' ? 'You' : 'Assistant') + '</div><div class="message-content"></div>';
       chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight;
       return div;
-    }
-
-    async function generateVideo(promptText) {
-      if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
-
-      var userDiv = appendMessage('user'); 
-      userDiv.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(promptText) + '</div>';
-      
-      var assistantDiv = appendMessage('assistant');
-      var messageContent = assistantDiv.querySelector('.message-content');
-      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
-
-      try {
-        var idToken = await authUser.getIdToken();
-        const configRes = await fetch('/api/config', {
-          headers: { 'Authorization': 'Bearer ' + idToken }
-        });
-        const configData = await configRes.json();
-        const localAiUrl = configData.localAiUrl;
-        const isPremium = configData.isPremium;
-        
-        if (!localAiUrl) throw new Error('Local AI URL is not configured.');
-
-        // 7200 frames = 900 seconds = 15 minutes
-        const numFrames = isPremium ? 7200 : 8; 
-        console.log(`User is ${isPremium ? 'Premium' : 'Free'}. Requesting ${numFrames} frames.`);
-
-        var res = await fetch(`${localAiUrl}/generate`, {
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-          body: JSON.stringify({ prompt: promptText, num_frames: numFrames })
-        });
-
-        const startData = await res.json();
-        if (!res.ok) throw new Error(startData.error || 'Failed to start');
-        const jobId = startData.job_id;
-
-        let attempts = 0;
-        let consecutiveErrors = 0;
-        // 12 hours max wait time (12 * 60 * 60 / 5 seconds = 8640 attempts)
-        const maxAttempts = 8640; 
-
-        const pollInterval = setInterval(async () => {
-          attempts++;
-          if (attempts > maxAttempts) {
-            clearInterval(pollInterval);
-            messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: Generation timed out after 12 hours.</div>`;
-            return;
-          }
-
-          try {
-            const statusRes = await fetch(`${localAiUrl}/status/${jobId}`, {
-              headers: { 'ngrok-skip-browser-warning': 'true' }
-            });
-            const statusData = await statusRes.json();
-            consecutiveErrors = 0;
-
-            if (statusData.status === 'completed') {
-              clearInterval(pollInterval);
-              messageContent.innerHTML = '<div class="text-part">Downloading video...</div>';
-              
-              const videoRes = await fetch(`${localAiUrl}/video/${jobId}`, {
-                headers: { 'ngrok-skip-browser-warning': 'true' }
-              });
-              
-              if (!videoRes.ok) throw new Error('Failed to download video from laptop');
-              
-              const blob = await videoRes.blob();
-              const videoUrl = URL.createObjectURL(blob);
-              
-              messageContent.innerHTML = `
-                <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
-                <div style="margin-top: 10px;"><video src="${videoUrl}" controls autoplay loop style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
-              `;
-            } else if (statusData.status === 'failed') {
-              clearInterval(pollInterval);
-              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(statusData.error)}</div>`;
-            }
-          } catch (pollErr) {
-            console.error("Polling error:", pollErr);
-            consecutiveErrors++;
-            if (consecutiveErrors >= 10) {
-              clearInterval(pollInterval);
-              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Connection lost after multiple retries.</div>`;
-            }
-          }
-        }, 5000);
-
-      } catch (err) {
-        messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`;
-      }
     }
 
     async function generateImage(promptText) {
@@ -535,18 +512,67 @@ window.addEventListener('DOMContentLoaded', function () {
       } catch (err) { messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`; }
     }
 
+    async function sendToGroq(userText) {
+      var userDiv = appendMessage('user'); 
+      userDiv.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(userText).replace(/\n/g, '<br>') + '</div>';
+      
+      var assistantDiv = appendMessage('assistant');
+      var messageContent = assistantDiv.querySelector('.message-content');
+      messageContent.innerHTML = '<div class="text-part streaming-text"></div>';
+      var textEl = messageContent.querySelector('.streaming-text');
+
+      sendBtn.disabled = true; chatInput.disabled = true; sendBtn.textContent = 'Thinking…';
+
+      try {
+        var idToken = await authUser.getIdToken();
+        var response = await fetch('/api/chat', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({ messages: [{ role: 'user', content: userText }], temperature: 0.7, max_completion_tokens: 2048 })
+        });
+
+        if (!response.ok) { let d; try { d = await response.json(); } catch(e){}; throw new Error(d?.error || 'HTTP ' + response.status); }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let reply = '', done = false, buffer = '';
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            buffer += decoder.decode(value, { stream: true });
+            let lines = buffer.split('\n'); buffer = lines.pop();
+            for (let line of lines) {
+              if (line.trim().startsWith('data: ')) {
+                const dataStr = line.trim().slice(6);
+                if (dataStr === '[DONE]') continue;
+                try {
+                  const delta = JSON.parse(dataStr).choices[0].delta;
+                  if (delta && delta.content) {
+                    reply += delta.content;
+                    textEl.innerHTML = escapeHtml(reply).replace(/\n/g, '<br>');
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+        }
+        // Simplified code block rendering for chat
+        messageContent.innerHTML = '<div class="text-part">' + escapeHtml(reply).replace(/\n/g, '<br>').replace(/```([\s\S]*?)```/g, '<pre style="background:#0f172a;padding:10px;border-radius:4px;overflow-x:auto;"><code>$1</code></pre>') + '</div>';
+      } catch (err) {
+        messageContent.innerHTML = `<div class="text-part" style="color:#f87171;">Error: ${escapeHtml(err.message)}</div>`;
+      } finally { 
+        sendBtn.disabled = false; chatInput.disabled = false; sendBtn.textContent = 'Send'; chatInput.focus(); 
+      }
+    }
+
     function handleSend() {
       var text = chatInput.value.trim();
       if (!text) return;
       
-      if (videoGenToggle && videoGenToggle.checked) generateVideo(text);
-      else if (imageGenToggle && imageGenToggle.checked) generateImage(text);
-      else {
-        var userDiv = appendMessage('user');
-        userDiv.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(text) + '</div>';
-        var assistantDiv = appendMessage('assistant');
-        assistantDiv.querySelector('.message-content').innerHTML = '<div class="text-part">Please turn on 🎨 Image Mode or 🎬 Video Mode to use the AI features.</div>';
-      }
+      if (imageGenToggle && imageGenToggle.checked) generateImage(text);
+      else sendToGroq(text);
       
       chatInput.value = ''; 
       chatInput.style.height = 'auto';
@@ -557,20 +583,20 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Learn, Explore, Profile, Publish logic
+  // EXPLORE & PUBLISH PAGES
   // ======================================================================
   if ($('exploreGrid')) {
     fetch('/api/explore').then(r => r.json()).then(data => {
       if (data.sites) {
         $('exploreGrid').innerHTML = data.sites.map(site => `
-          <div class="site-card">
-            <h3>${escapeHtml(site.projectName || site.slug)}</h3>
-            <p>${escapeHtml(site.description || 'No description.')}</p>
-            <a href="/s/${site.slug}" target="_blank" class="button">Visit Site</a>
+          <div class="site-card" style="background:#1e293b; padding:20px; border-radius:12px; margin-bottom:15px;">
+            <h3 style="color:#38bdf8;">${escapeHtml(site.projectName || site.slug)}</h3>
+            <p style="color:#cbd5e1;">${escapeHtml(site.description || 'No description.')}</p>
+            <a href="/s/${site.slug}" target="_blank" class="btn btn-primary" style="display:inline-block; margin-top:10px; text-decoration:none;">Visit Site</a>
           </div>
         `).join('');
       }
-    }).catch(err => console.error('Explore error:', err));
+    });
   }
 
   if ($('publishForm')) {
