@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with Premium Frame Logic)
+// CodeWix — script.js (Full Master File with 15-Minute Premium Logic)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -144,7 +144,7 @@ window.addEventListener('DOMContentLoaded', function () {
           <p style="color:#cbd5e1; margin-bottom:20px; font-size:16px;">You are currently on the free plan.</p>
           <ul style="text-align:left; color:#cbd5e1; margin-bottom:30px; line-height:1.8; padding-left:20px;">
             <li><strong style="color:#fff;">Unlimited AI Coding:</strong> Chat without daily limits.</li>
-            <li><strong style="color:#fff;">Extended Video Generation:</strong> Create 10-second videos (Free is limited to 5s).</li>
+            <li><strong style="color:#fff;">Extended Video Generation:</strong> Create longer videos.</li>
             <li><strong style="color:#fff;">Priority Image Rendering:</strong> Faster generation with premium models.</li>
           </ul>
           <a href="upgrade.html" style="display:block; width:100%; padding:14px; background:#fbbf24; color:#020617; text-decoration:none; border-radius:8px; font-weight:bold; font-size:16px;">Upgrade for $5/month</a>
@@ -376,7 +376,7 @@ window.addEventListener('DOMContentLoaded', function () {
   updatePreview();
 
   // ======================================================================
-  // AI Assistant (Premium Frame Logic)
+  // AI Assistant (15-Minute Premium Logic)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -431,7 +431,6 @@ window.addEventListener('DOMContentLoaded', function () {
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
 
       try {
-        // 1. Fetch Config to check Premium Status
         var idToken = await authUser.getIdToken();
         const configRes = await fetch('/api/config', {
           headers: { 'Authorization': 'Bearer ' + idToken }
@@ -442,11 +441,10 @@ window.addEventListener('DOMContentLoaded', function () {
         
         if (!localAiUrl) throw new Error('Local AI URL is not configured.');
 
-        // 2. Set Frames based on status (8 frames = 1s, 24 frames = 3s)
-        const numFrames = isPremium ? 24 : 8; 
+        // 7200 frames = 900 seconds = 15 minutes
+        const numFrames = isPremium ? 7200 : 8; 
         console.log(`User is ${isPremium ? 'Premium' : 'Free'}. Requesting ${numFrames} frames.`);
 
-        // 3. Start the job
         var res = await fetch(`${localAiUrl}/generate`, {
           method: 'POST', 
           headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
@@ -457,16 +455,16 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!res.ok) throw new Error(startData.error || 'Failed to start');
         const jobId = startData.job_id;
 
-        // 4. Poll for results
         let attempts = 0;
         let consecutiveErrors = 0;
-        const maxAttempts = 120; // 10 minutes max wait
+        // 12 hours max wait time (12 * 60 * 60 / 5 seconds = 8640 attempts)
+        const maxAttempts = 8640; 
 
         const pollInterval = setInterval(async () => {
           attempts++;
           if (attempts > maxAttempts) {
             clearInterval(pollInterval);
-            messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: Generation timed out.</div>`;
+            messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: Generation timed out after 12 hours.</div>`;
             return;
           }
 
