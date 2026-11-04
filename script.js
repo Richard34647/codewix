@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Resilient Polling for Free Tunnels)
+// CodeWix — script.js (Full Master File - Stable Mock Video)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -635,74 +635,25 @@ window.addEventListener('DOMContentLoaded', function () {
       var userDiv = appendMessage('user'); setUserMessage(userDiv, promptText);
       var assistantDiv = appendMessage('assistant');
       var messageContent = assistantDiv.querySelector('.message-content');
-      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
+      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video...</div>';
 
       try {
-        const configRes = await fetch('/api/config');
-        const configData = await configRes.json();
-        const localAiUrl = configData.localAiUrl;
-        
-        if (!localAiUrl) throw new Error('Local AI URL is not configured.');
-
-        var res = await fetch(`${localAiUrl}/generate`, {
-          method: 'POST', 
-          headers: { 
-            'Content-Type': 'application/json', 
-            'Bypass-Tunnel-Reminder': 'true' 
-          },
+        var idToken = await authUser.getIdToken();
+        var res = await fetch('/api/generate-video', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
           body: JSON.stringify({ prompt: promptText })
         });
 
-        const startData = await res.json();
-        if (!res.ok) throw new Error(startData.error || 'Failed to start');
-        const jobId = startData.job_id;
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Video failed');
+        if (!data.videoUrl) throw new Error('No video URL returned');
 
-        let attempts = 0;
-        let consecutiveErrors = 0; // NEW: Track consecutive errors
-        const maxAttempts = 120;
+        messageContent.innerHTML = `
+          <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
+          <div style="margin-top: 10px;"><video src="${data.videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
+        `;
 
-        const pollInterval = setInterval(async () => {
-          attempts++;
-          if (attempts > maxAttempts) {
-            clearInterval(pollInterval);
-            messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: Generation timed out.</div>`;
-            return;
-          }
-
-          try {
-            const statusRes = await fetch(`${localAiUrl}/status/${jobId}`, {
-              headers: { 'Bypass-Tunnel-Reminder': 'true' }
-            });
-            
-            if (!statusRes.ok) throw new Error('Status fetch failed');
-            const statusData = await statusRes.json();
-            
-            consecutiveErrors = 0; // Reset errors on success
-
-            if (statusData.status === 'completed') {
-              clearInterval(pollInterval);
-              const videoUrl = `${localAiUrl}/video/${jobId}?Bypass-Tunnel-Reminder=true`;
-              messageContent.innerHTML = `
-                <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
-                <div style="margin-top: 10px;"><video src="${videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
-              `;
-              conversation.push({ role: 'user', content: promptText }, { role: 'assistant', content: `[Video]` }); scheduleSave();
-            } else if (statusData.status === 'failed') {
-              clearInterval(pollInterval);
-              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(statusData.error)}</div>`;
-            }
-          } catch (pollErr) {
-            console.error("Polling error:", pollErr);
-            consecutiveErrors++;
-            
-            // Only give up if the tunnel fails 10 times IN A ROW
-            if (consecutiveErrors >= 10) {
-              clearInterval(pollInterval);
-              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Connection lost after multiple retries. The tunnel may have dropped.</div>`;
-            }
-          }
-        }, 5000);
-
+        conversation.push({ role: 'user', content: promptText }, { role: 'assistant', content: `[Video]` }); scheduleSave();
       } catch (err) {
         messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`;
       }
