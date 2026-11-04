@@ -225,6 +225,12 @@ app.get('/api/video-status/:jobId', requireAuth, async (req, res) => {
 
     if (!response.ok) throw new Error(`Local API Error: ${response.status}`);
     const data = await response.json();
+    
+    // If it's done, give the frontend the direct URL to the video
+    if (data.status === 'completed') {
+      data.videoUrl = `${LOCAL_AI_URL}/video/${jobId}`;
+    }
+    
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: 'Failed to check status: ' + err.message });
