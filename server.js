@@ -54,31 +54,18 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
 app.use(express.json({ limit: '10mb' }));
 
 // ---- Helpers & Auth Middleware ---------------------------------------------
-function rewritePublishedLinks(html, slug) {
-  if (!html) return '';
-  return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
-    if (url.startsWith('/s/') || url.startsWith('/api/')) return match;
-    if (url.startsWith('/')) return attr + '=' + quote + '/s/' + slug + url + quote;
-    return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
-  });
-}
-
-function resolveAssetUrls(html, files) {
-  if (!html) return '';
-  return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) {
-    if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match;
-    var key = 'asset:' + url;
-    if (files[key]) return attr + '=' + quote + files[key] + quote;
-    return match;
-  });
-}
-
 async function requireAuth(req, res, next) {
   if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured.' });
   const header = req.headers.authorization || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return res.status(401).json({ error: 'Missing auth token.' });
   try { req.user = await admin.auth().verifyIdToken(idToken); req.isPremium = req.user.premium === true; next(); } catch (err) { return res.status(401).json({ error: 'Invalid auth token.' }); }
+}
+
+async function requireAdmin(req, res, next) {
+  const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized. Admin only.' });
+  next();
 }
 
 async function checkRateLimit(req, res, next) {
@@ -98,12 +85,27 @@ function incrementUsage(ref, currentCount) {
 }
 
 // ==========================================
-// ADMIN ROUTES (Manage Users)
+// ADMIN ROUTES
 // ==========================================
-const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
+app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const usersList = await admin.auth().listUsers(1000);
+    const projectsSnap = await admin.firestore().collection('published').get();
+    const lessonsSnap = await admin.firestore().collection('lessons').get();
+    
+    let premiumCount = 0;
+    usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
 
-app.get('/api/admin/users', requireAuth, async (req, res) => {
-  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
+    res.json({
+      totalUsers: usersList.users.length,
+      premiumUsers: premiumCount,
+      totalProjects: projectsSnap.size,
+      totalLessons: lessonsSnap.size
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const listUsersResult = await admin.auth().listUsers(1000);
     const users = listUsersResult.users.map(userRecord => ({
@@ -114,30 +116,54 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
       premium: userRecord.customClaims?.premium === true
     }));
     res.json({ users });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/update-user', requireAuth, async (req, res) => {
-  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
+app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) => {
   const { uid, action } = req.body;
-  
   try {
     if (action === 'toggle-premium') {
       const userRecord = await admin.auth().getUser(uid);
       const isPremium = userRecord.customClaims?.premium === true;
       await admin.auth().setCustomUserClaims(uid, { premium: !isPremium });
-      res.json({ ok: true, message: `Premium status toggled to ${!isPremium}` });
+      res.json({ ok: true, message: `Premium status toggled.` });
     } else if (action === 'delete') {
       await admin.auth().deleteUser(uid);
-      res.json({ ok: true, message: 'User deleted successfully' });
+      res.json({ ok: true, message: 'User deleted.' });
     } else {
       res.status(400).json({ error: 'Invalid action' });
     }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ---- Lessons Management --------------------------------------------------
+app.get('/api/lessons', async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get();
+    const lessons = [];
+    snap.forEach(doc => lessons.push({ id: doc.id, ...doc.data() }));
+    res.json({ lessons });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/lessons', requireAuth, requireAdmin, async (req, res) => {
+  const { title, description, content, difficulty } = req.body;
+  if (!title || !content) return res.status(400).json({ error: 'Title and content required.' });
+  
+  try {
+    const ref = await admin.firestore().collection('lessons').add({
+      title, description, content, difficulty,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.json({ ok: true, id: ref.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await admin.firestore().collection('lessons').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
@@ -317,34 +343,6 @@ app.post('/api/contact', async (req, res) => {
     await emailjs.send(process.env.EMAILJS_SERVICE_ID, process.env.EMAILJS_CONTACT_TEMPLATE_ID, { from_name: req.body.name, reply_to: req.body.email, subject: req.body.subject, message: req.body.message, to_email: 'codewix@proton.me' });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/s/:slug', async (req, res, next) => {
-  if (!admin.apps.length) return next();
-  try {
-    const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
-    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
-    const files = doc.data().files || {};
-    doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
-    let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (doc.data().projectName || req.params.slug) + '</title><style>' + (files['style.css'] || '') + '</style></head><body>' + rewritePublishedLinks(rawHtml, req.params.slug) + '<script>' + (files['script.js'] || '') + '<\/script></body></html>';
-    res.send(html);
-  } catch (err) { next(); }
-});
-
-app.get('/s/:slug/:filename', async (req, res, next) => {
-  if (!admin.apps.length) return next();
-  try {
-    const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
-    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
-    const files = doc.data().files || {};
-    const file = files[req.params.filename];
-    if (!file) return res.status(404).sendFile(path.join(__dirname, '404.html'));
-    const ext = path.extname(req.params.filename).toLowerCase();
-    let finalContent = file;
-    if (ext === '.html' || ext === '.htm') finalContent = rewritePublishedLinks(resolveAssetUrls(file, files), req.params.slug);
-    res.type({ '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' }[ext] || 'text/plain').send(finalContent);
-  } catch (err) { next(); }
 });
 
 app.get('/u/:username', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
