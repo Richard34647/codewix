@@ -13,7 +13,9 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
-const LOCAL_AI_URL = process.env.LOCAL_AI_URL; // E.g., https://swift-buttons-trade.loca.lt
+
+// 👇 HARDCODE YOUR LOCALTUNNEL URL HERE
+const LOCAL_AI_URL = 'https://swift-buttons-trade.loca.lt'; 
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -97,6 +99,11 @@ async function checkRateLimit(req, res, next) {
 function incrementUsage(ref, currentCount) {
   ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true }).catch(() => {});
 }
+
+// ---- API: Get Local AI URL (Phonebook) -----------------------------------
+app.get('/api/config', (req, res) => {
+  res.json({ localAiUrl: LOCAL_AI_URL || '' });
+});
 
 // ==========================================
 // ADMIN UPGRADE ROUTE
@@ -188,53 +195,6 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
     const buffer = await response.arrayBuffer();
     res.set('Content-Type', 'image/jpeg').send(Buffer.from(buffer));
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
-});
-
-// ---- API: Start Video Generation (Asynchronous) -------------------------
-app.post('/api/generate-video', requireAuth, async (req, res) => {
-  const { prompt } = req.body;
-  if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
-  if (!LOCAL_AI_URL) return res.status(500).json({ error: 'LOCAL_AI_URL is not configured.' });
-
-  try {
-    const response = await fetch(`${LOCAL_AI_URL}/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Bypass-Tunnel-Reminder': 'true' },
-      body: JSON.stringify({ prompt: prompt })
-    });
-
-    if (!response.ok) throw new Error(`Local API Error: ${response.status}`);
-    const data = await response.json();
-    
-    res.json({ jobId: data.job_id });
-  } catch (err) {
-    console.error('[Local AI] start failed:', err.message);
-    res.status(500).json({ error: 'Failed to start video generation: ' + err.message });
-  }
-});
-
-// ---- API: Check Video Generation Status ---------------------------------
-app.get('/api/video-status/:jobId', requireAuth, async (req, res) => {
-  const { jobId } = req.params;
-  if (!LOCAL_AI_URL) return res.status(500).json({ error: 'LOCAL_AI_URL is not configured.' });
-
-  try {
-    const response = await fetch(`${LOCAL_AI_URL}/status/${jobId}`, {
-      headers: { 'Bypass-Tunnel-Reminder': 'true' }
-    });
-
-    if (!response.ok) throw new Error(`Local API Error: ${response.status}`);
-    const data = await response.json();
-    
-    // If it's done, give the frontend the direct URL to the video
-    if (data.status === 'completed') {
-      data.videoUrl = `${LOCAL_AI_URL}/video/${jobId}`;
-    }
-    
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to check status: ' + err.message });
-  }
 });
 
 // ---- API: Run Code (Python Locally, Others via Judge0) --------------------
