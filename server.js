@@ -6,6 +6,7 @@ const emailjs = require('@emailjs/nodejs');
 const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
+const { fal } = require('@fal-ai/client'); // 👈 fal client (reads FAL_KEY from env)
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -13,7 +14,6 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
-const AGNES_API_KEY = process.env.AGNES_API_KEY; // 👈 New Video API Key
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -21,7 +21,7 @@ const AGNES_API_KEY = process.env.AGNES_API_KEY; // 👈 New Video API Key
 try {
   const localPath = path.join(__dirname, 'firebase-service-account.json');
   const renderSecretPath = '/etc/secrets/firebase-service-account.json';
-  
+
   if (fs.existsSync(renderSecretPath)) {
     const serviceAccount = JSON.parse(fs.readFileSync(renderSecretPath, 'utf8'));
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
@@ -102,7 +102,7 @@ function incrementUsage(ref, currentCount) {
 // ADMIN UPGRADE ROUTE
 // ==========================================
 app.post('/api/admin/upgrade-user', requireAuth, async (req, res) => {
-  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; 
+  const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
   if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized. Admin only.' });
 
   const { targetEmail } = req.body;
@@ -170,14 +170,14 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  const model = req.isPremium ? 'flux' : 'sana'; 
+  const model = req.isPremium ? 'flux' : 'sana';
   const endpoint = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${model}&width=1024&height=1024`;
 
   try {
     const headers = {};
     if (POLLINATIONS_API_KEY) headers['Authorization'] = `Bearer ${POLLINATIONS_API_KEY}`;
     const response = await fetch(endpoint, { headers });
-    
+
     if (!response.ok) {
       const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
       const fallbackRes = await fetch(fallbackUrl);
@@ -190,51 +190,52 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Agnes AI - Free OpenAI-Compat) ----------------
+// ---- API: Video Generation (fal.ai) ---------------------------------------
+// Free users: 5s. Premium/admin: 10s.
+const FAL_VIDEO_MODEL = 'fal-ai/minimax/h3-max/text-to-video';
+
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 Your email
-  const isAdmin = req.user.email === ADMIN_EMAIL;
-  let videoDuration = (req.isPremium || isAdmin) ? 10 : 5; // Free: 5s, Premium: 10s
+  if (!process.env.FAL_KEY) {
+    return res.status(500).json({ error: 'FAL_KEY is not configured on the server.' });
+  }
 
-  if (!AGNES_API_KEY) return res.status(500).json({ error: 'AGNES_API_KEY is missing on the server.' });
+  const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
+  const isAdmin = req.user.email === ADMIN_EMAIL;
+  const videoDuration = (req.isPremium || isAdmin) ? 10 : 5;
 
   try {
-    const response = await fetch('https://api.agnes-ai.com/v1/videos/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AGNES_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'agnes-video-v2.0',
+    const result = await fal.subscribe(FAL_VIDEO_MODEL, {
+      input: {
         prompt: prompt,
         duration: videoDuration
-      })
+      },
+      logs: false,
+      onQueueUpdate: (status) => {
+        if (status.status === 'IN_QUEUE') console.log(`[fal] queued: ${status.request_id}`);
+        if (status.status === 'IN_PROGRESS') console.log(`[fal] running: ${status.request_id}`);
+      }
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error('Video generation failed: ' + errText);
+    const videoUrl =
+      result?.data?.video?.url ||
+      result?.data?.video_url ||
+      result?.data?.videos?.[0]?.url;
+
+    if (!videoUrl) {
+      console.error('[fal] unexpected response:', JSON.stringify(result?.data || {}).slice(0, 500));
+      throw new Error('fal returned no video URL.');
     }
 
-    const data = await response.json();
-    
-    // Agnes AI might return a job ID or a direct URL. We'll try to extract the URL.
-    // If it returns a job ID, you would need to poll for the result (similar to InferencePort).
-    const videoUrl = data.data?.[0]?.url || data.url || data.video_url;
-    if (!videoUrl) throw new Error('No video URL returned from Agnes AI.');
-
-    res.json({
-      videoUrl: videoUrl,
-      duration: videoDuration,
-      isPremium: req.isPremium || isAdmin
-    });
-
+    res.json({ videoUrl, duration: videoDuration, isPremium: req.isPremium || isAdmin });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to generate video: ' + err.message });
+    console.error('[fal] video failed:', err?.message || err);
+    const msg = /balance|credit|402/i.test(err?.message || '')
+      ? 'Video service is out of credits. Please contact the admin.'
+      : 'Failed to generate video: ' + (err?.message || 'unknown');
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -276,7 +277,7 @@ app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
   if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) return res.status(400).json({ error: 'Invalid slug.' });
-  
+
   const pubRef = admin.firestore().collection('published').doc(slug);
   try {
     const result = await admin.firestore().runTransaction(async (tx) => {
