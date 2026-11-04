@@ -14,6 +14,9 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
+// 👇 HARDCODED NGROK URL
+const LOCAL_AI_URL = 'https://cobweb-rind-flier.ngrok-free.dev'; 
+
 // ==========================================
 // FIREBASE INITIALIZATION
 // ==========================================
@@ -96,6 +99,11 @@ async function checkRateLimit(req, res, next) {
 function incrementUsage(ref, currentCount) {
   ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true }).catch(() => {});
 }
+
+// ---- API: Get Local AI URL -----------------------------------------------
+app.get('/api/config', (req, res) => {
+  res.json({ localAiUrl: LOCAL_AI_URL });
+});
 
 // ==========================================
 // ADMIN UPGRADE ROUTE
@@ -187,23 +195,6 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
     const buffer = await response.arrayBuffer();
     res.set('Content-Type', 'image/jpeg').send(Buffer.from(buffer));
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
-});
-
-// ---- API: Video Generation (Mock) ----------------------------------------
-app.post('/api/generate-video', requireAuth, async (req, res) => {
-  const { prompt } = req.body;
-  if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
-
-  // Reliable placeholder video URL
-  const fallbackVideoUrl = 'https://www.w3schools.com/html/mov_bbb.mp4';
-
-  setTimeout(() => {
-    res.json({
-      videoUrl: fallbackVideoUrl,
-      duration: 5,
-      isPremium: false
-    });
-  }, 2000);
 });
 
 // ---- API: Run Code (Python Locally, Others via Judge0) --------------------
