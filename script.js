@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with Direct Video URL)
+// CodeWix — script.js (Full Master File with Direct Tunnel Access)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -638,21 +638,30 @@ window.addEventListener('DOMContentLoaded', function () {
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
 
       try {
-        var idToken = await authUser.getIdToken();
+        // 1. Get the URL from Render (The Phonebook)
+        const configRes = await fetch('/api/config');
+        const configData = await configRes.json();
+        const localAiUrl = configData.localAiUrl;
         
-        // 1. Start the job
-        var res = await fetch('/api/generate-video', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        if (!localAiUrl) throw new Error('Local AI URL is not configured.');
+
+        // 2. Start the job directly on your laptop
+        var res = await fetch(`${localAiUrl}/generate`, {
+          method: 'POST', 
+          headers: { 
+            'Content-Type': 'application/json', 
+            'Bypass-Tunnel-Reminder': 'true' 
+          },
           body: JSON.stringify({ prompt: promptText })
         });
 
         const startData = await res.json();
         if (!res.ok) throw new Error(startData.error || 'Failed to start');
-        const jobId = startData.jobId;
+        const jobId = startData.job_id;
 
-        // 2. Poll for the result
+        // 3. Poll your laptop directly
         let attempts = 0;
-        const maxAttempts = 120; // 120 attempts * 5 seconds = 10 minutes max
+        const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes
 
         const pollInterval = setInterval(async () => {
           attempts++;
@@ -663,14 +672,15 @@ window.addEventListener('DOMContentLoaded', function () {
           }
 
           try {
-            const statusRes = await fetch(`/api/video-status/${jobId}`, {
-              headers: { 'Authorization': 'Bearer ' + idToken }
+            const statusRes = await fetch(`${localAiUrl}/status/${jobId}`, {
+              headers: { 'Bypass-Tunnel-Reminder': 'true' }
             });
             const statusData = await statusRes.json();
 
             if (statusData.status === 'completed') {
               clearInterval(pollInterval);
-              const videoUrl = statusData.videoUrl; // Use the direct URL, not Base64
+              // Append the bypass header to the video URL too
+              const videoUrl = `${localAiUrl}/video/${jobId}?Bypass-Tunnel-Reminder=true`;
               messageContent.innerHTML = `
                 <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
                 <div style="margin-top: 10px;"><video src="${videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
@@ -680,11 +690,14 @@ window.addEventListener('DOMContentLoaded', function () {
               clearInterval(pollInterval);
               messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(statusData.error)}</div>`;
             }
-            // If status is 'processing', do nothing, just wait for the next interval
           } catch (pollErr) {
             console.error("Polling error:", pollErr);
+            if (attempts > 3) {
+              clearInterval(pollInterval);
+              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Connection lost. The tunnel may have dropped.</div>`;
+            }
           }
-        }, 5000); // Check every 5 seconds
+        }, 5000);
 
       } catch (err) {
         messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`;
