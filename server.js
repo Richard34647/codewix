@@ -194,8 +194,8 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  // Instantly return a placeholder video so the UI works perfectly
-  const fallbackVideoUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+  // Reliable placeholder video URL
+  const fallbackVideoUrl = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
   setTimeout(() => {
     res.json({
