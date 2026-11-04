@@ -15,7 +15,7 @@ const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
 // 👇 HARDCODE YOUR LOCALTUNNEL URL HERE
-const LOCAL_AI_URL = 'https://chubby-streets-end.loca.lt/'; 
+const LOCAL_AI_URL = 'https://icy-boxes-smell.loca.lt'; 
 
 // ==========================================
 // FIREBASE INITIALIZATION
