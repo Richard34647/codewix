@@ -1,126 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard | CodeWix</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <style>
-        .admin-container { max-width: 800px; margin: 120px auto 60px; padding: 20px; }
-        .admin-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 30px; margin-bottom: 20px; }
-        .request-row { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #334155; }
-        .request-row:last-child { border-bottom: none; }
-        .admin-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #020617; color: white; margin-bottom: 10px; outline:none;}
-        .admin-btn { background: #10b981; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s;}
-        .admin-btn:hover { background: #059669; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeWix Admin</title>
+  <style>
+    :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --text-muted: #94a3b8; --accent: #38bdf8; --border: #334155; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+    
+    /* Sidebar */
+    .sidebar { width: 250px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar h2 { padding: 20px; color: var(--accent); border-bottom: 1px solid var(--border); }
+    .nav-btn { padding: 15px 20px; background: none; border: none; color: var(--text-muted); text-align: left; font-size: 16px; cursor: pointer; transition: 0.2s; }
+    .nav-btn:hover, .nav-btn.active { background: var(--bg); color: var(--accent); border-left: 4px solid var(--accent); }
+    
+    /* Main Content */
+    .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+    .page-title { margin-bottom: 20px; font-size: 24px; }
+    
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .stat-card { background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid var(--border); }
+    .stat-card h3 { color: var(--text-muted); font-size: 14px; text-transform: uppercase; margin-bottom: 10px; }
+    .stat-card p { font-size: 32px; font-weight: bold; color: var(--accent); }
+    
+    /* Tables & Forms */
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; }
+    th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: var(--bg); font-weight: 600; color: var(--text-muted); }
+    .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .badge.free { background: #475569; color: white; }
+    .badge.premium { background: #4ade80; color: #000; }
+    .btn { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-danger { background: #ef4444; color: white; }
+    
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; color: var(--text-muted); }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: white; }
+    .form-group textarea { height: 150px; resize: vertical; }
+  </style>
 </head>
 <body>
-    <header>
-        <div class="logo"><a href="index.html">CodeWix</a></div>
-        <nav><a href="dashboard.html">Workspace</a></nav>
-    </header>
 
-    <div class="admin-container" id="adminContent" style="display: none;">
-        <h1 style="color: #38bdf8; margin-bottom: 20px;">Admin Dashboard</h1>
+  <div class="sidebar">
+    <h2>CodeWix Admin</h2>
+    <button class="nav-btn active" data-target="dashboard">📊 Dashboard</button>
+    <button class="nav-btn" data-target="users">👥 Users</button>
+    <button class="nav-btn" data-target="lessons">📚 Lessons</button>
+    <button class="nav-btn" onclick="window.location.href='index.html'">← Back to Site</button>
+  </div>
 
-        <!-- Pending Requests -->
-        <div class="admin-card">
-            <h2 style="margin-bottom: 15px;">Pending Upgrade Requests</h2>
-            <div id="requestsList"><p>Loading requests...</p></div>
-        </div>
-
-        <!-- Manual Upgrade Form -->
-        <div class="admin-card">
-            <h2>Manual Upgrade</h2>
-            <p style="color: #94a3b8; font-size: 14px; margin-bottom: 10px;">Enter a user's email to instantly upgrade them.</p>
-            <input type="email" id="manualEmail" class="admin-input" placeholder="user@example.com">
-            <button onclick="upgradeManual()" class="admin-btn">Upgrade User</button>
-        </div>
+  <div class="main-content">
+    <!-- Dashboard Tab -->
+    <div id="dashboard" class="tab-section active">
+      <h1 class="page-title">Overview</h1>
+      <div class="stats-grid">
+        <div class="stat-card"><h3>Total Users</h3><p id="statUsers">0</p></div>
+        <div class="stat-card"><h3>Premium Users</h3><p id="statPremium">0</p></div>
+        <div class="stat-card"><h3>Projects Published</h3><p id="statProjects">0</p></div>
+        <div class="stat-card"><h3>Total Lessons</h3><p id="statLessons">0</p></div>
+      </div>
     </div>
 
-    <div id="unauthorized" style="display: none; text-align: center; margin-top: 100px;">
-        <h2 style="color: #f87171;">Access Denied</h2>
-        <p>You do not have permission to view this page.</p>
+    <!-- Users Tab -->
+    <div id="users" class="tab-section">
+      <h1 class="page-title">User Management</h1>
+      <table id="adminUsersTable">
+        <thead>
+          <tr><th>Email</th><th>Name</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody><tr><td colspan="4" style="text-align:center;">Loading...</td></tr></tbody>
+      </table>
     </div>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
-            authDomain: "codewix-16971.firebaseapp.com",
-            projectId: "codewix-16971",
-            storageBucket: "codewix-16971.firebasestorage.app",
-            messagingSenderId: "1060917593178",
-            appId: "1:1060917593178:web:8ce61640aa476bf135c463"
-        };
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+    <!-- Lessons Tab -->
+    <div id="lessons" class="tab-section">
+      <h1 class="page-title">Lesson Manager</h1>
+      
+      <div style="background: var(--panel); padding: 20px; border-radius: 12px; margin-bottom: 30px;">
+        <h3 style="margin-bottom: 15px;">Add New Lesson</h3>
+        <div class="form-group"><label>Title</label><input type="text" id="lessonTitle" placeholder="e.g. Intro to JavaScript"></div>
+        <div class="form-group"><label>Description</label><input type="text" id="lessonDesc" placeholder="Short summary..."></div>
+        <div class="form-group"><label>Difficulty</label>
+          <select id="lessonDiff">
+            <option value="Beginner">Beginner</option>
+            <option value="Intermediate">Intermediate</option>
+            <option value="Advanced">Advanced</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Content (Markdown or HTML)</label><textarea id="lessonContent" placeholder="Type lesson content here..."></textarea></div>
+        <button class="btn btn-primary" id="saveLessonBtn">Save Lesson</button>
+      </div>
 
-        const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 UPDATED EMAIL
+      <table id="adminLessonsTable">
+        <thead>
+          <tr><th>Title</th><th>Difficulty</th><th>Date</th><th>Actions</th></tr>
+        </thead>
+        <tbody><tr><td colspan="4" style="text-align:center;">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 
-        auth.onAuthStateChanged(async (user) => {
-            if (user && user.email === ADMIN_EMAIL) {
-                document.getElementById('adminContent').style.display = 'block';
-                loadRequests();
-            } else {
-                document.getElementById('unauthorized').style.display = 'block';
-            }
-        });
-
-        async function loadRequests() {
-            const list = document.getElementById('requestsList');
-            const snap = await db.collection('upgrade_requests').where('status', '==', 'pending').get();
-            
-            if (snap.empty) { list.innerHTML = '<p style="color: #64748b;">No pending requests.</p>'; return; }
-            
-            list.innerHTML = '';
-            snap.forEach(doc => {
-                const data = doc.data();
-                const row = document.createElement('div');
-                row.className = 'request-row';
-                row.innerHTML = `
-                    <div>
-                        <strong>${data.email}</strong><br>
-                        <span style="font-size: 12px; color: #64748b;">${data.currency} ${data.amount} - ${new Date(data.requestedAt?.toDate()).toLocaleString()}</span>
-                    </div>
-                    <button class="admin-btn" onclick="upgradeUser('${data.email}')">Upgrade</button>
-                `;
-                list.appendChild(row);
-            });
-        }
-
-        async function upgradeUser(email) {
-            if(!confirm("Are you sure you want to upgrade " + email + "?")) return;
-            await processUpgrade(email);
-        }
-
-        async function upgradeManual() {
-            const email = document.getElementById('manualEmail').value.trim();
-            if (!email) return alert('Enter an email');
-            await processUpgrade(email);
-            document.getElementById('manualEmail').value = '';
-        }
-
-        async function processUpgrade(email) {
-            try {
-                const token = await auth.currentUser.getIdToken();
-                const res = await fetch('/api/admin/upgrade-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                    body: JSON.stringify({ targetEmail: email })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
-                alert(data.message);
-                loadRequests(); // Refresh list
-            } catch (err) {
-                alert('Error: ' + err.message);
-            }
-        }
-    </script>
+  <!-- Firebase & Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
