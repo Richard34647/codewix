@@ -6,7 +6,6 @@ const emailjs = require('@emailjs/nodejs');
 const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
-const { fal } = require('@fal-ai/client'); // 👈 fal client (reads FAL_KEY from env)
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -14,7 +13,6 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
-const FAL_VIDEO_MODEL = 'minimax/h3-max/text-to-video'; // 👈 Declared ONLY ONCE here
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -191,54 +189,23 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (fal.ai) ---------------------------------------
-// Free users: 5s. Premium/admin: 10s.
-
+// ---- API: Video Generation (Pollinations - Free/Experimental) ------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  if (!process.env.FAL_KEY) {
-    return res.status(500).json({ error: 'FAL_KEY is not configured on the server.' });
-  }
-
-  const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
-  const isAdmin = req.user.email === ADMIN_EMAIL;
-  const videoDuration = (req.isPremium || isAdmin) ? 10 : 5;
-
   try {
-    const result = await fal.subscribe(FAL_VIDEO_MODEL, {
-      input: {
-        prompt: prompt,
-        duration: videoDuration
-      },
-      logs: false,
-      onQueueUpdate: (status) => {
-        if (status.status === 'IN_QUEUE') console.log(`[fal] queued: ${status.request_id}`);
-        if (status.status === 'IN_PROGRESS') console.log(`[fal] running: ${status.request_id}`);
-      }
+    // Pollinations free video endpoint (experimental). 
+    // It generates a video based on the prompt.
+    const videoUrl = `https://gen.pollinations.ai/video/${encodeURIComponent(prompt)}?nologo=true`;
+    
+    res.json({ 
+      videoUrl: videoUrl, 
+      duration: 5, 
+      isPremium: false 
     });
-
-    const videoUrl =
-      result?.data?.video?.url ||
-      result?.data?.video_url ||
-      result?.data?.videos?.[0]?.url;
-
-    if (!videoUrl) {
-      console.error('[fal] unexpected response:', JSON.stringify(result?.data || {}).slice(0, 500));
-      throw new Error('fal returned no video URL.');
-    }
-
-    res.json({ videoUrl, duration: videoDuration, isPremium: req.isPremium || isAdmin });
   } catch (err) {
-    console.error('[fal] video failed:', err?.message || err);
-    // Log the full error object to see the exact reason for a 403
-    console.error('[fal] Full error object:', err); 
-
-    const msg = /balance|credit|402/i.test(err?.message || '')
-      ? 'Video service is out of credits. Please contact the admin.'
-      : 'Failed to generate video: ' + (err?.message || 'unknown');
-    res.status(500).json({ error: msg });
+    res.status(500).json({ error: 'Failed to generate video: ' + err.message });
   }
 });
 
