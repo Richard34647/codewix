@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Checkout | CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+    <style>
+        .checkout-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(2, 6, 23, 0.9); z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .checkout-box {
+            background: #ffffff; color: #0f172a; width: 100%; max-width: 450px;
+            border-radius: 16px; padding: 30px; text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        .checkout-box h2 { font-size: 24px; margin-bottom: 5px; }
+        .checkout-box .price { font-size: 36px; font-weight: bold; color: #10b981; margin: 15px 0; }
+        .timer-box {
+            background: #fef2f2; color: #ef4444; padding: 8px;
+            border-radius: 8px; font-weight: bold; margin-bottom: 20px;
+            font-family: 'Courier New', monospace; font-size: 18px;
+        }
+        .qr-container {
+            background: #f8fafc; padding: 20px; border-radius: 12px;
+            display: inline-block; margin-bottom: 15px; border: 1px solid #e2e8f0;
+        }
+        .crypto-address {
+            background: #f1f5f9; padding: 12px; border-radius: 8px;
+            font-family: 'Courier New', monospace; font-size: 12px;
+            word-break: break-all; color: #334155; margin-bottom: 20px;
+            cursor: pointer; border: 1px solid #cbd5e1;
+        }
+        .crypto-address:hover { background: #e2e8f0; }
+        .checkout-input {
+            width: 100%; padding: 12px; border-radius: 8px;
+            border: 1px solid #cbd5e1; margin-bottom: 15px; outline: none;
+        }
+        .pay-btn {
+            width: 100%; padding: 14px; background: #10b981; color: white;
+            border: none; border-radius: 8px; font-size: 16px; font-weight: bold;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .pay-btn:hover { background: #059669; }
+        .pay-btn:disabled { background: #94a3b8; }
+        .trust-badge {
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+            color: #64748b; font-size: 12px; margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="checkout-modal">
+        <div class="checkout-box">
+            <h2>CodeWix Premium</h2>
+            <p style="color: #64748b; font-size: 14px;">Upgrade your account to unlock 10s videos & unlimited AI.</p>
+            
+            <div class="price">$5.00 <span style="font-size: 16px; color: #64748b;">/ month</span></div>
+            
+            <div class="timer-box">Payment expires in: <span id="timer">15:00</span></div>
+
+            <div class="qr-container">
+                <img id="qrCodeImg" src="" alt="Litecoin QR Code" width="150" height="150">
+            </div>
+
+            <p style="font-size: 14px; color: #64748b; margin-bottom: 10px;">
+                Send exactly <strong>$5 in Litecoin (LTC)</strong> to this address:
+            </p>
+
+            <!-- 👇 REPLACE THIS WITH YOUR ACTUAL LITECOIN ADDRESS FROM PECUNIA 👇 -->
+            <div class="crypto-address" id="cryptoAddress" onclick="copyAddress()">
+                ltc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh
+            </div>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: -10px; margin-bottom: 20px;">(Click to copy)</p>
+
+            <input type="email" id="userEmail" class="checkout-input" placeholder="Enter your CodeWix email" required>
+            <button id="submitBtn" class="pay-btn" onclick="submitPayment()">I Have Sent the Payment</button>
+
+            <div class="trust-badge">
+                🔒 Secure Crypto Transaction • No KYC Required
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
+            authDomain: "codewix-16971.firebaseapp.com",
+            projectId: "codewix-16971",
+            storageBucket: "codewix-16971.firebasestorage.app",
+            messagingSenderId: "1060917593178",
+            appId: "1:1060917593178:web:8ce61640aa476bf135c463"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        const MY_LTC_ADDRESS = "ltc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"; // 👈 UPDATE THIS
+        
+        document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${MY_LTC_ADDRESS}`;
+        document.getElementById('cryptoAddress').innerText = MY_LTC_ADDRESS;
+
+        auth.onAuthStateChanged((user) => {
+            if (user) document.getElementById('userEmail').value = user.email;
+        });
+
+        let timeLeft = 15 * 60;
+        const timerEl = document.getElementById('timer');
+        setInterval(() => {
+            if (timeLeft <= 0) return;
+            timeLeft--;
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerEl.innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }, 1000);
+
+        function copyAddress() {
+            navigator.clipboard.writeText(MY_LTC_ADDRESS).then(() => alert('Litecoin address copied!'));
+        }
+
+        async function submitPayment() {
+            const email = document.getElementById('userEmail').value.trim();
+            const btn = document.getElementById('submitBtn');
+            if (!email) { alert("Please enter your email."); return; }
+
+            btn.disabled = true;
+            btn.textContent = "Verifying Transaction...";
+
+            try {
+                await db.collection('upgrade_requests').add({
+                    email: email,
+                    uid: auth.currentUser ? auth.currentUser.uid : null,
+                    status: 'pending',
+                    amount: 5.00,
+                    currency: 'LTC',
+                    requestedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert("Thank you! We will verify your payment and upgrade your account shortly.");
+                window.location.href = "dashboard.html";
+            } catch (error) {
+                alert("Error saving request. Please try again.");
+                btn.disabled = false;
+                btn.textContent = "I Have Sent the Payment";
+            }
+        }
+    </script>
+</body>
+</html>
