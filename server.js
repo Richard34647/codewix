@@ -26,7 +26,7 @@ try {
   const renderSecretPath = '/etc/secrets/firebase-service-account.json';
   
   if (fs.existsSync(renderSecretPath)) {
-    // Method 1: Render Secret File
+    // 1. Render Secret File
     const serviceAccount = JSON.parse(fs.readFileSync(renderSecretPath, 'utf8'));
     admin.initializeApp({ 
       credential: admin.credential.cert(serviceAccount), 
@@ -35,7 +35,7 @@ try {
     console.log('✅ [Firebase Admin] Initialized via Render Secret File (/etc/secrets/)');
   } 
   else if (fs.existsSync(localPath)) {
-    // Method 2: Local JSON file (For Desktop app)
+    // 2. Local JSON file (Desktop app)
     const serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
     admin.initializeApp({ 
       credential: admin.credential.cert(serviceAccount), 
@@ -44,7 +44,7 @@ try {
     console.log('✅ [Firebase Admin] Initialized via local JSON file');
   } 
   else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
-    // Method 3: Split Environment Variables
+    // 3. Split Environment Variables
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
@@ -57,7 +57,6 @@ try {
   } 
   else {
     console.error('❌ [Firebase Admin] CRITICAL ERROR: No credentials found!');
-    console.error('Make sure the Secret File is named exactly: firebase-service-account.json');
   }
 } catch (err) { 
   console.error('❌ [Firebase Admin] init failed:', err.message); 
@@ -121,6 +120,41 @@ async function checkRateLimit(req, res, next) {
 function incrementUsage(ref, currentCount) {
   ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true }).catch(() => {});
 }
+
+// ==========================================
+// NEW: ADMIN UPGRADE ROUTE
+// ==========================================
+app.post('/api/admin/upgrade-user', requireAuth, async (req, res) => {
+  const ADMIN_EMAIL = 'wilcox889@gmail.com'; // 👈 Make sure this is YOUR email
+  
+  // 1. Verify the requester is YOU
+  if (req.user.email !== ADMIN_EMAIL) {
+    return res.status(403).json({ error: 'Unauthorized. Admin only.' });
+  }
+
+  const { targetEmail } = req.body;
+  if (!targetEmail) return res.status(400).json({ error: 'Target email is required.' });
+
+  try {
+    // 2. Find the user in Firebase Auth
+    const userRecord = await admin.auth().getUserByEmail(targetEmail);
+    const uid = userRecord.uid;
+
+    // 3. Set the custom claim to premium
+    await admin.auth().setCustomUserClaims(uid, { premium: true });
+
+    // 4. Mark their upgrade request as completed in Firestore
+    const requests = await admin.firestore().collection('upgrade_requests').where('email', '==', targetEmail).where('status', '==', 'pending').get();
+    const batch = admin.firestore().batch();
+    requests.forEach(doc => batch.update(doc.ref, { status: 'completed' }));
+    await batch.commit();
+
+    res.json({ ok: true, message: `Successfully upgraded ${targetEmail} to Premium!` });
+  } catch (err) {
+    console.error('Admin upgrade error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ---- API: Groq chat proxy (STREAMING) ------------------------------------
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
@@ -200,25 +234,40 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   }
 });
 
-// ---- API: Video Generation (InferencePort) --------------------------------
+// ---- API: Video Generation (Freemium) -------------------------------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  if (!req.isPremium) {
-    return res.status(403).json({ error: 'Video generation is a premium feature. Please upgrade your account.' });
-  }
+  const ADMIN_EMAIL = 'wilcox889@gmail.com'; // 👈 Your email for admin bypass
+  const isAdmin = req.user.email === ADMIN_EMAIL;
+
+  // Free users get 5s, Premium/Admin get 10s
+  let videoDuration = (req.isPremium || isAdmin) ? 10 : 5;
 
   try {
     const response = await fetch('https://inferenceport.ai/v1/videos/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'wan-fast', prompt: prompt })
+      body: JSON.stringify({ 
+        model: 'wan-fast', 
+        prompt: prompt,
+        duration: videoDuration
+      })
     });
 
-    if (!response.ok) throw new Error('Video generation failed');
+    if (!response.ok) {
+       const errText = await response.text();
+       throw new Error('Video generation failed: ' + errText);
+    }
+    
     const data = await response.json();
-    res.json({ videoUrl: data.url || data.data?.[0]?.url || data.video_url });
+    
+    res.json({ 
+      videoUrl: data.url || data.data?.[0]?.url || data.video_url,
+      duration: videoDuration,
+      isPremium: req.isPremium || isAdmin
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to generate video: ' + err.message });
   }
@@ -371,6 +420,22 @@ app.get('/s/:slug/:filename', async (req, res, next) => {
 });
 
 app.get('/u/:username', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
+
+// ---- API: Uptime Status (UptimeRobot) -------------------------------------
+app.get('/api/uptime-status', async (req, res) => {
+  const apiKey = process.env.UPTIMEROBOT_API_KEY;
+  if (!apiKey) return res.json({ status: 'unknown' });
+  try {
+    const response = await fetch('https://api.uptimerobot.com/v2/getMonitors', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, format: 'json' })
+    });
+    const data = await response.json();
+    if (data.stat === 'ok' && data.monitors?.length > 0) {
+      res.json({ status: data.monitors[0].status === 2 ? 'up' : 'down' });
+    } else res.json({ status: 'unknown' });
+  } catch (err) { res.json({ status: 'unknown' }); }
+});
 
 // ---- 🔥 DEBUG ROUTE (To find your missing files) 🔥 -----------------------
 app.get('/debug-files', (req, res) => {
