@@ -13,6 +13,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
+const AGNES_API_KEY = process.env.AGNES_API_KEY; // Ensure this is set in Render
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -189,40 +190,85 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Agnes AI - Free) ----------------------------
+// ---- API: Video Generation (Agnes AI v2.0 - Correct Async Flow) ---------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  const AGNES_API_KEY = process.env.AGNES_API_KEY;
   if (!AGNES_API_KEY) {
     return res.status(500).json({ error: 'AGNES_API_KEY is not configured on the server.' });
   }
 
   try {
-    const response = await fetch('https://api.agnes-ai.com/v1/videos/generations', {
+    // Step 1: Create the video generation task
+    const createResponse = await fetch('https://apihub.agnes-ai.com/v1/videos', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AGNES_API_KEY}`
+        'Authorization': `Bearer ${AGNES_API_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: 'agnes-video-v2.0',
         prompt: prompt,
-        duration: 5
+        num_frames: 121,
+        frame_rate: 24
       })
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Agnes AI Error: ${errorText}`);
+    if (!createResponse.ok) {
+      const errorBody = await createResponse.text();
+      throw new Error(`Agnes AI Task Creation Failed: ${errorBody}`);
     }
 
-    const data = await response.json();
-    
-    // Agnes AI returns a job ID or a direct URL. We try to extract the URL.
-    const videoUrl = data.data?.[0]?.url || data.url || data.video_url;
-    if (!videoUrl) throw new Error('No video URL returned from Agnes AI.');
+    const createData = await createResponse.json();
+    const videoId = createData.video_id || createData.id || createData.task_id;
+
+    if (!videoId) {
+      throw new Error('Agnes AI did not return a video_id. Response: ' + JSON.stringify(createData));
+    }
+
+    console.log(`[Agnes] Video task created: ${videoId}. Polling for result...`);
+
+    // Step 2: Poll for the result (max 30 attempts, 2 seconds apart)
+    let videoUrl = null;
+    const maxAttempts = 30;
+    const pollInterval = 2000; // 2 seconds
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const pollResponse = await fetch(
+        `https://apihub.agnes-ai.com/agnesapi?video_id=${videoId}&model_name=agnes-video-v2.0`,
+        {
+          headers: {
+            'Authorization': `Bearer ${AGNES_API_KEY}`
+          }
+        }
+      );
+
+      if (!pollResponse.ok) {
+        console.warn(`[Agnes] Poll attempt ${attempt + 1} failed with status ${pollResponse.status}`);
+        continue;
+      }
+
+      const pollData = await pollResponse.json();
+
+      if (pollData.status === 'completed') {
+        videoUrl = pollData.url;
+        if (!videoUrl) {
+          throw new Error('Agnes AI task completed but no video URL was provided.');
+        }
+        break;
+      }
+
+      if (pollData.status === 'failed') {
+        throw new Error(`Agnes AI task failed: ${pollData.error || 'Unknown error'}`);
+      }
+    }
+
+    if (!videoUrl) {
+      throw new Error('Video generation timed out after 60 seconds.');
+    }
 
     res.json({
       videoUrl: videoUrl,
