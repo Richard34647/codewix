@@ -13,7 +13,6 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
-const KINOVI_API_KEY = process.env.KINOVI_API_KEY; // Kinovi API Key
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -190,99 +189,53 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Kinovi AI - Corrected Payload) ------------
+// ---- API: Video Generation (Local Python AI via localtunnel) -------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  if (!KINOVI_API_KEY) {
-    return res.status(500).json({ error: 'KINOVI_API_KEY is not configured on the server.' });
-  }
-
-  const MODEL_ID = 'wan3.0-prime-text-to-video';
+  // ⚠️ REPLACE THIS WITH YOUR ACTUAL LOCALTUNNEL URL IF IT CHANGES
+  const LOCAL_AI_URL = 'https://tasty-radios-reply.loca.lt/generate';
 
   try {
-    // Step 1: Create the task
-    const createResponse = await fetch('https://kinovi.ai/api/v1/jobs/createTask', {
+    console.log(`[Local AI] Sending request to laptop for prompt: ${prompt}`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15 * 60 * 1000); 
+
+    const response = await fetch(LOCAL_AI_URL, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${KINOVI_API_KEY}`,
-        'Content-Type': 'application/json'
+      headers: { 
+        'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true' // Bypasses the loca.lt warning page
       },
-      body: JSON.stringify({
-        model: MODEL_ID,
-        inputs: {
-          prompt: prompt,
-          duration: "5",
-          aspectRatio: "16:9"
-        }
-      })
+      body: JSON.stringify({ prompt: prompt }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
-    if (!createResponse.ok) {
-      const errorBody = await createResponse.text();
-      throw new Error(`Kinovi Task Creation Failed: ${errorBody}`);
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") === -1) {
+       throw new Error("Received HTML instead of JSON. The tunnel is likely blocking the request or the Python server is offline.");
     }
 
-    const createData = await createResponse.json();
-    const taskId = createData.taskId;
-
-    if (!taskId) {
-      throw new Error('Kinovi did not return a taskId. Response: ' + JSON.stringify(createData));
+    if (!response.ok) {
+      throw new Error(`Local API Error: ${response.status}`);
     }
 
-    console.log(`[Kinovi] Video task created: ${taskId}. Polling for result...`);
-
-    // Step 2: Poll for the result
-    let videoUrl = null;
-    const maxAttempts = 30;
-    const pollInterval = 2000; // 2 seconds
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-      const pollResponse = await fetch(
-        `https://kinovi.ai/api/v1/jobs/recordInfo?taskId=${taskId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${KINOVI_API_KEY}`
-          }
-        }
-      );
-
-      if (!pollResponse.ok) {
-        console.warn(`[Kinovi] Poll attempt ${attempt + 1} failed with status ${pollResponse.status}`);
-        continue;
-      }
-
-      const pollData = await pollResponse.json();
-
-      if (pollData.status === 'success') {
-        videoUrl = pollData.output?.[0]?.url;
-        if (!videoUrl) {
-          throw new Error('Kinovi task completed but no video URL was found.');
-        }
-        break;
-      }
-
-      if (pollData.status === 'fail') {
-        throw new Error(`Kinovi task failed: ${pollData.error?.message || 'Unknown error'}`);
-      }
-    }
-
-    if (!videoUrl) {
-      throw new Error('Video generation timed out after 60 seconds.');
-    }
+    const data = await response.json();
+    const videoUrl = `data:video/mp4;base64,${data.video_base64}`;
 
     res.json({
       videoUrl: videoUrl,
-      duration: 5,
+      duration: 2,
       isPremium: false
     });
 
   } catch (err) {
-    console.error('[Kinovi] video failed:', err.message);
-    res.status(500).json({ error: 'Failed to generate video: ' + err.message });
+    console.error('[Local AI] video failed:', err.message);
+    res.status(500).json({ error: 'Failed to generate video locally: ' + err.message });
   }
 });
 
