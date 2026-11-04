@@ -114,7 +114,7 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // THEME TOGGLE, UPGRADE POPUP & ADMIN BUTTON INJECTION
   // ======================================================================
-  var ADMIN_EMAIL = 'wilcoxr889@gmail.com'; 
+  var ADMIN_EMAIL = 'wilcoxr889@gmail.com';
   var isUserPremium = false;
   var isUserAdmin = false;
 
@@ -381,9 +381,10 @@ window.addEventListener('DOMContentLoaded', function () {
     };
   })();
 
-  // ... [Insert full IDE logic here: file tree, save project, run code, etc.] ...
+  // ⚠️ ABBREVIATED IN YOUR SOURCE — paste your existing IDE logic back here.
+  // (file tree, save project, run code, livePreviewFrame wiring, etc.)
   var livePreviewFrame = $('livePreviewFrame');
-  // [For brevity, assume the IDE code from the previous responses is pasted here]
+  // ... [Insert full IDE logic here: file tree, save project, run code, etc.] ...
 
   // ======================================================================
   // AI Assistant (MULTIMODAL + STREAMING + MEDIA GENERATION)
@@ -406,7 +407,6 @@ window.addEventListener('DOMContentLoaded', function () {
   if (chatContainer && chatInput && sendBtn) {
     console.log('[CodeWix] AI Assistant detected');
 
-    // 👇 UPGRADE BUTTON (Only on AI page)
     if (navMenu && !isUserPremium && !isUserAdmin) {
       var upBtn = document.createElement('a');
       upBtn.href = 'upgrade.html';
@@ -467,7 +467,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // Media Toggles
     var mediaTogglesHTML = `
       <label class="thinking-toggle" style="margin-left: 10px;">
         <input type="checkbox" id="imageGenToggle">
@@ -482,7 +481,6 @@ window.addEventListener('DOMContentLoaded', function () {
     var imageGenToggle = $('imageGenToggle');
     var videoGenToggle = $('videoGenToggle');
 
-    // Upgrade Popup Modal
     var upgradePopupHTML = `
       <div id="upgradePopupModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(2,6,23,0.9); z-index:99999; justify-content:center; align-items:center; backdrop-filter:blur(5px);">
         <div style="background:#1e293b; border:2px solid #fbbf24; border-radius:16px; padding:40px; max-width:450px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,0.5);">
@@ -525,7 +523,7 @@ window.addEventListener('DOMContentLoaded', function () {
         title = textToUse.replace(/\s+/g, ' ').trim().substring(0, 48) + (textToUse.length > 48 ? '…' : '');
       }
       if (!title) title = 'New Chat';
-      
+
       var sanitizedMsgs = msgs.map(m => {
         if (Array.isArray(m.content)) return { role: m.role, content: m.content.map(p => p.type === 'image_url' ? { type: 'text', text: '[Image]' } : p) };
         return m;
@@ -614,7 +612,7 @@ window.addEventListener('DOMContentLoaded', function () {
       var assistantDiv = appendMessage('assistant');
       var messageContent = assistantDiv.querySelector('.message-content');
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Drawing...</div>';
-      
+
       try {
         var idToken = await authUser.getIdToken();
         var res = await fetch('/api/generate-image', {
@@ -623,7 +621,7 @@ window.addEventListener('DOMContentLoaded', function () {
         });
         if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Image failed'); }
         const objectUrl = URL.createObjectURL(await res.blob());
-        
+
         messageContent.innerHTML = `<div class="text-part">Here is your image: <strong>"${escapeHtml(promptText)}"</strong></div>
           <div style="margin-top: 10px;"><img src="${objectUrl}" style="max-width:100%; border-radius:8px; border:2px solid #334155;" /></div>
           <div style="margin-top: 10px; font-size: 12px;"><a href="${objectUrl}" target="_blank" style="color:#38bdf8;">Open Full Size ↗</a> | <a href="${objectUrl}" download="codewix.jpg" style="color:#38bdf8;">Download ⬇</a></div>`;
@@ -634,16 +632,13 @@ window.addEventListener('DOMContentLoaded', function () {
     async function generateVideo(promptText) {
       if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
 
-      if (!isUserPremium && !isUserAdmin) {
-        showUpgradePopup();
-        return;
-      }
+      // ✅ Free users get 5s videos (backend enforces this). No frontend gate.
 
       var userDiv = appendMessage('user'); setUserMessage(userDiv, promptText);
       var assistantDiv = appendMessage('assistant');
       var messageContent = assistantDiv.querySelector('.message-content');
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (may take a minute)...</div>';
-      
+
       try {
         var idToken = await authUser.getIdToken();
         var res = await fetch('/api/generate-video', {
@@ -660,7 +655,7 @@ window.addEventListener('DOMContentLoaded', function () {
           ${data.duration === 5 && !data.isPremium ? '<p style="color: #fbbf24; font-size: 14px; margin-top: 5px;">💡 Free plan (5s limit). <a href="upgrade.html" style="color:#38bdf8;">Upgrade</a> for 10s!</p>' : ''}
           <div style="margin-top: 10px;"><video src="${data.videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
         `;
-        
+
         conversation.push({ role: 'user', content: promptText }, { role: 'assistant', content: `[Video]` }); scheduleSave();
       } catch (err) {
         messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`;
@@ -674,7 +669,7 @@ window.addEventListener('DOMContentLoaded', function () {
         model = 'meta-llama/llama-4-scout-17b-16e-instruct';
         if (modelSelect) modelSelect.value = model;
       }
-      
+
       var dynamicSystemPrompt = { role: 'system', content: SYSTEM_PROMPT.content + '\n\nBegin EVERY response with: "Dear ' + getUsername() + ', "' };
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
 
@@ -700,7 +695,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
       try {
         var idToken = await authUser.getIdToken();
-        var messagesToSend = hasImages 
+        var messagesToSend = hasImages
           ? conversation.filter(m => m.role !== 'system').map((m, i, arr) => i === arr.length - 1 ? { role: 'user', content: typeof m.content === 'string' ? dynamicSystemPrompt.content + '\n\n' + m.content : m.content.map(p => p.type === 'text' ? { type: 'text', text: dynamicSystemPrompt.content + '\n\n' + p.text } : p) } : m)
           : [dynamicSystemPrompt].concat(conversation.filter(m => m.role !== 'system'));
 
@@ -758,10 +753,22 @@ window.addEventListener('DOMContentLoaded', function () {
     chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
     chatInput.addEventListener('input', function () { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px'; });
 
-    if (newChatBtn) newChatBtn.addEventListener('click', async function () { clearTimeout(saveTimer); await saveChatNow(); startNewChat(); pendingAttachments = []; renderAttachPreview(); setStatus('New chat'); showToast('New chat'); });
+    if (newChatBtn) newChatBtn.addEventListener('click', async function () {
+      clearTimeout(saveTimer); await saveChatNow();
+      // ⚠️ `startNewChat()` and `setStatus()` were referenced in your source but
+      // were NOT defined in the pasted snippet. They likely live in the section
+      // that was abbreviated above. Paste them back in, or replace this with:
+      currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT];
+      chatContainer.innerHTML = ''; updateTitleBar();
+      pendingAttachments = []; renderAttachPreview();
+      showToast('New chat');
+    });
     // ... History modal logic ...
     if (modelSelect && modelIndicator) modelSelect.addEventListener('change', function () { modelIndicator.textContent = modelSelect.value; });
   }
 
+  // ⚠️ ABBREVIATED IN YOUR SOURCE — paste your existing Learn, Explore,
+  // Profile, Publish, Status logic back here.
   // ... (Keep your Learn, Explore, Profile, Publish, Status logic below here) ...
+
 }); // end DOMContentLoaded
