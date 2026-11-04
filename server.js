@@ -51,7 +51,7 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
   console.log('✅ [EmailJS] Initialized');
 }
 
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '50mb' })); // Increased limit for Base64 video payloads
 
 // ---- Helpers & Auth Middleware ---------------------------------------------
 function rewritePublishedLinks(html, slug) {
@@ -189,22 +189,40 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Pollinations - Free/Experimental) ------------
+// ---- API: Video Generation (Hugging Face - Free) -------------------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
+  const HF_TOKEN = process.env.HF_TOKEN;
+  if (!HF_TOKEN) {
+    return res.status(500).json({ error: 'HF_TOKEN is not configured on the server. Add it in Render Environment Variables.' });
+  }
+
   try {
-    // Pollinations free video endpoint (experimental). 
-    // It generates a video based on the prompt.
-    const videoUrl = `https://gen.pollinations.ai/video/${encodeURIComponent(prompt)}?nologo=true`;
-    
-    res.json({ 
-      videoUrl: videoUrl, 
-      duration: 5, 
-      isPremium: false 
+    // Using the ali-vilab text-to-video model on Hugging Face
+    const response = await fetch('https://api-inference.huggingface.co/models/ali-vilab/text-to-video-ms-1.7b', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ inputs: prompt })
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Hugging Face Error: ${errorText}`);
+    }
+
+    // Convert the returned video into a Base64 Data URL so the frontend can play it
+    const buffer = await response.arrayBuffer();
+    const base64Video = Buffer.from(buffer).toString('base64');
+    const videoUrl = `data:video/mp4;base64,${base64Video}`;
+
+    res.json({ videoUrl, duration: 5, isPremium: false });
   } catch (err) {
+    console.error('[HF] video failed:', err.message);
     res.status(500).json({ error: 'Failed to generate video: ' + err.message });
   }
 });
