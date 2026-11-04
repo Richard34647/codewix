@@ -13,6 +13,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
+const LOCAL_AI_URL = process.env.LOCAL_AI_URL; // E.g., https://tasty-radios-reply.loca.lt
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -189,13 +190,35 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
+// ---- API: Check Local Video AI Status ------------------------------------
+app.get('/api/video-status', async (req, res) => {
+  if (!LOCAL_AI_URL) return res.json({ status: 'offline', reason: 'URL not configured' });
+  
+  try {
+    // We ping the root (/) of the Python server (the health_check route)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+
+    const response = await fetch(LOCAL_AI_URL, {
+      headers: { 'Bypass-Tunnel-Reminder': 'true' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      return res.json({ status: 'online' });
+    }
+    return res.json({ status: 'offline', reason: 'Server returned error' });
+  } catch (err) {
+    return res.json({ status: 'offline', reason: 'Connection failed or timed out' });
+  }
+});
+
 // ---- API: Video Generation (Local Python AI via localtunnel) -------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
-
-  // ⚠️ REPLACE THIS WITH YOUR ACTUAL LOCALTUNNEL URL IF IT CHANGES
-  const LOCAL_AI_URL = 'https://tasty-radios-reply.loca.lt/generate';
+  if (!LOCAL_AI_URL) return res.status(500).json({ error: 'LOCAL_AI_URL is not configured.' });
 
   try {
     console.log(`[Local AI] Sending request to laptop for prompt: ${prompt}`);
@@ -203,11 +226,11 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15 * 60 * 1000); 
 
-    const response = await fetch(LOCAL_AI_URL, {
+    const response = await fetch(`${LOCAL_AI_URL}/generate`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true' // Bypasses the loca.lt warning page
+        'Bypass-Tunnel-Reminder': 'true'
       },
       body: JSON.stringify({ prompt: prompt }),
       signal: controller.signal
@@ -227,11 +250,7 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     const data = await response.json();
     const videoUrl = `data:video/mp4;base64,${data.video_base64}`;
 
-    res.json({
-      videoUrl: videoUrl,
-      duration: 2,
-      isPremium: false
-    });
+    res.json({ videoUrl, duration: 2, isPremium: false });
 
   } catch (err) {
     console.error('[Local AI] video failed:', err.message);
