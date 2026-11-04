@@ -14,7 +14,7 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
-// ⚠️ PASTE YOUR NGROK URL HERE
+// ⚠️ PASTE YOUR CURRENT NGROK URL HERE (No trailing slash)
 const LOCAL_AI_URL = 'https://cobweb-rind-flier.ngrok-free.dev'; 
 
 // ==========================================
