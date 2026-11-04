@@ -13,6 +13,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
+const AGNES_API_KEY = process.env.AGNES_API_KEY; // 👈 New Video API Key
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -38,7 +39,7 @@ try {
       }),
       storageBucket: 'codewix-16971.firebasestorage.app'
     });
-    console.log('✅ [Firebase Admin] Initialized via environment variables');
+    console.log('✅ [Firebase Admin] Initialized via env variables');
   } else {
     console.error('❌ [Firebase Admin] CRITICAL ERROR: No credentials found!');
   }
@@ -78,11 +79,7 @@ async function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return res.status(401).json({ error: 'Missing auth token.' });
-  try { 
-    req.user = await admin.auth().verifyIdToken(idToken); 
-    req.isPremium = req.user.premium === true;
-    next(); 
-  } catch (err) { return res.status(401).json({ error: 'Invalid auth token.' }); }
+  try { req.user = await admin.auth().verifyIdToken(idToken); req.isPremium = req.user.premium === true; next(); } catch (err) { return res.status(401).json({ error: 'Invalid auth token.' }); }
 }
 
 async function checkRateLimit(req, res, next) {
@@ -105,19 +102,15 @@ function incrementUsage(ref, currentCount) {
 // ADMIN UPGRADE ROUTE
 // ==========================================
 app.post('/api/admin/upgrade-user', requireAuth, async (req, res) => {
-  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 UPDATED EMAIL
-  
-  if (req.user.email !== ADMIN_EMAIL) {
-    return res.status(403).json({ error: 'Unauthorized. Admin only.' });
-  }
+  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; 
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized. Admin only.' });
 
   const { targetEmail } = req.body;
   if (!targetEmail) return res.status(400).json({ error: 'Target email is required.' });
 
   try {
     const userRecord = await admin.auth().getUserByEmail(targetEmail);
-    const uid = userRecord.uid;
-    await admin.auth().setCustomUserClaims(uid, { premium: true });
+    await admin.auth().setCustomUserClaims(userRecord.uid, { premium: true });
 
     const requests = await admin.firestore().collection('upgrade_requests').where('email', '==', targetEmail).where('status', '==', 'pending').get();
     const batch = admin.firestore().batch();
@@ -125,10 +118,7 @@ app.post('/api/admin/upgrade-user', requireAuth, async (req, res) => {
     await batch.commit();
 
     res.json({ ok: true, message: `Successfully upgraded ${targetEmail} to Premium!` });
-  } catch (err) {
-    console.error('Admin upgrade error:', err);
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ---- API: Groq chat proxy (STREAMING) ------------------------------------
@@ -139,17 +129,14 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
 
   try {
     const body = {
-      model: model || 'openai/gpt-oss-120b',
-      messages: messages,
+      model: model || 'openai/gpt-oss-120b', messages: messages,
       temperature: typeof temperature === 'number' ? temperature : 0.7,
-      max_completion_tokens: max_completion_tokens || 2048,
-      stream: true
+      max_completion_tokens: max_completion_tokens || 2048, stream: true
     };
     if (reasoning_effort) body.reasoning_effort = reasoning_effort;
 
     const groqRes = await fetch(GROQ_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
       body: JSON.stringify(body)
     });
 
@@ -165,7 +152,6 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     const reader = groqRes.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let done = false;
-
     while (!done) {
       const { value, done: readerDone } = await reader.read();
       done = readerDone;
@@ -204,33 +190,52 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Freemium) -------------------------------------
+// ---- API: Video Generation (Agnes AI - Free OpenAI-Compat) ----------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 UPDATED EMAIL
+  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 Your email
   const isAdmin = req.user.email === ADMIN_EMAIL;
-  let videoDuration = (req.isPremium || isAdmin) ? 10 : 5;
+  let videoDuration = (req.isPremium || isAdmin) ? 10 : 5; // Free: 5s, Premium: 10s
+
+  if (!AGNES_API_KEY) return res.status(500).json({ error: 'AGNES_API_KEY is missing on the server.' });
 
   try {
-    const response = await fetch('https://inferenceport.ai/v1/videos/generations', {
+    const response = await fetch('https://api.agnes-ai.com/v1/videos/generations', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'wan-fast', prompt: prompt, duration: videoDuration })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AGNES_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'agnes-video-v2.0',
+        prompt: prompt,
+        duration: videoDuration
+      })
     });
 
     if (!response.ok) {
-       const errText = await response.text();
-       throw new Error('Video generation failed: ' + errText);
+      const errText = await response.text();
+      throw new Error('Video generation failed: ' + errText);
     }
+
     const data = await response.json();
-    res.json({ 
-      videoUrl: data.url || data.data?.[0]?.url || data.video_url,
+    
+    // Agnes AI might return a job ID or a direct URL. We'll try to extract the URL.
+    // If it returns a job ID, you would need to poll for the result (similar to InferencePort).
+    const videoUrl = data.data?.[0]?.url || data.url || data.video_url;
+    if (!videoUrl) throw new Error('No video URL returned from Agnes AI.');
+
+    res.json({
+      videoUrl: videoUrl,
       duration: videoDuration,
       isPremium: req.isPremium || isAdmin
     });
-  } catch (err) { res.status(500).json({ error: 'Failed to generate video: ' + err.message }); }
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate video: ' + err.message });
+  }
 });
 
 // ---- API: Run Code (Python Locally, Others via Judge0) --------------------
