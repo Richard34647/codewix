@@ -190,7 +190,7 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Kinovi AI - Free Tier) ----------------------
+// ---- API: Video Generation (Kinovi AI - Corrected Payload) ------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
@@ -199,11 +199,10 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'KINOVI_API_KEY is not configured on the server.' });
   }
 
-  // Use a supported text-to-video model
-  const MODEL_ID = 'wan3.0-text-to-video';
+  const MODEL_ID = 'wan3.0-prime-text-to-video';
 
   try {
-    // Step 1: Create the video generation task
+    // Step 1: Create the task
     const createResponse = await fetch('https://kinovi.ai/api/v1/jobs/createTask', {
       method: 'POST',
       headers: {
@@ -212,8 +211,11 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
       },
       body: JSON.stringify({
         model: MODEL_ID,
-        prompt: prompt,
-        // Add other parameters as needed (e.g., duration, aspect_ratio)
+        inputs: {
+          prompt: prompt,
+          duration: "5",
+          aspectRatio: "16:9"
+        }
       })
     });
 
@@ -223,7 +225,7 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     }
 
     const createData = await createResponse.json();
-    const taskId = createData.data?.taskId || createData.taskId || createData.id;
+    const taskId = createData.taskId;
 
     if (!taskId) {
       throw new Error('Kinovi did not return a taskId. Response: ' + JSON.stringify(createData));
@@ -231,7 +233,7 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
 
     console.log(`[Kinovi] Video task created: ${taskId}. Polling for result...`);
 
-    // Step 2: Poll for the result (max 30 attempts, 2 seconds apart)
+    // Step 2: Poll for the result
     let videoUrl = null;
     const maxAttempts = 30;
     const pollInterval = 2000; // 2 seconds
@@ -239,11 +241,14 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise(resolve => setTimeout(resolve, pollInterval));
 
-      const pollResponse = await fetch(`https://kinovi.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
-        headers: {
-          'Authorization': `Bearer ${KINOVI_API_KEY}`
+      const pollResponse = await fetch(
+        `https://kinovi.ai/api/v1/jobs/recordInfo?taskId=${taskId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${KINOVI_API_KEY}`
+          }
         }
-      });
+      );
 
       if (!pollResponse.ok) {
         console.warn(`[Kinovi] Poll attempt ${attempt + 1} failed with status ${pollResponse.status}`);
@@ -252,17 +257,16 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
 
       const pollData = await pollResponse.json();
 
-      // Check the task status
-      if (pollData.data?.status === 'success' || pollData.status === 'success') {
-        videoUrl = pollData.data?.videoUrl || pollData.data?.video?.url || pollData.videoUrl;
+      if (pollData.status === 'success') {
+        videoUrl = pollData.output?.[0]?.url;
         if (!videoUrl) {
-          throw new Error('Kinovi task completed but no video URL was provided.');
+          throw new Error('Kinovi task completed but no video URL was found.');
         }
         break;
       }
 
-      if (pollData.data?.status === 'fail' || pollData.status === 'fail') {
-        throw new Error(`Kinovi task failed: ${pollData.data?.error || 'Unknown error'}`);
+      if (pollData.status === 'fail') {
+        throw new Error(`Kinovi task failed: ${pollData.error?.message || 'Unknown error'}`);
       }
     }
 
