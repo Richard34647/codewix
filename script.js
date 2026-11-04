@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Direct ngrok Connection)
+// CodeWix — script.js (Full Master File with ngrok Blob Fix)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -100,6 +100,15 @@ window.addEventListener('DOMContentLoaded', function () {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  }
+  function dataUrlToBlob(dataUrl) {
+    var parts = dataUrl.split(',');
+    var mimeMatch = parts[0].match(/:(.*?);/);
+    var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    var binary = atob(parts[1]);
+    var array = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    return new Blob([array], { type: mime });
   }
 
   // ======================================================================
@@ -302,7 +311,72 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // AI Assistant (Direct ngrok connection)
+  // Sandbox IDE
+  // ======================================================================
+  var cm = null;
+  var codeEditor = null;
+
+  (function initCodeMirror() {
+    var sourceEl = $('codeEditorSource');
+    if (!sourceEl || typeof CodeMirror === 'undefined') return;
+    cm = CodeMirror.fromTextArea(sourceEl, {
+      theme: 'dracula', lineNumbers: true, mode: 'htmlmixed', indentUnit: 2, tabSize: 2,
+      extraKeys: { 'Ctrl-Space': 'autocomplete', 'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } }
+    });
+    cm.on('inputRead', function (editor, change) { if (change.text && /[<>\/=.:"\-]/.test(change.text[0])) { if (!editor.state.completionActive) editor.showHint({ completeSingle: false }); } });
+    codeEditor = {
+      get value() { return cm.getValue(); }, set value(v) { cm.setValue(v == null ? '' : String(v)); },
+      addEventListener: function (evt, fn) { if (evt === 'input' || evt === 'change') cm.on('change', function () { fn(); }); },
+      focus: function () { cm.focus(); }, _cm: cm
+    };
+    window.__codewixSetEditorMode = function (filename) {
+      if (!cm) return; var mode = 'htmlmixed'; var lower = (filename || '').toLowerCase();
+      if (lower.endsWith('.css')) mode = 'css'; else if (lower.endsWith('.js')) mode = 'javascript';
+      else if (lower.endsWith('.py')) mode = 'python'; else if (lower.endsWith('.cpp') || lower.endsWith('.c') || lower.endsWith('.java')) mode = 'text/x-c++src';
+      else if (lower.endsWith('.go')) mode = 'go'; else if (lower.endsWith('.rs')) mode = 'rust'; else if (lower.endsWith('.php')) mode = 'php'; else if (lower.endsWith('.rb')) mode = 'ruby';
+      cm.setOption('mode', mode);
+    };
+  })();
+
+  var livePreviewFrame = $('livePreviewFrame');
+  var files = { 'index.html': '<h1>Hello World</h1>', 'style.css': 'h1 { color: #38bdf8; }', 'script.js': 'console.log("Hello from CodeWix!");' };
+  var currentFile = 'index.html';
+
+  function updatePreview() {
+    if (!livePreviewFrame) return;
+    var html = files['index.html'] || '';
+    var css = files['style.css'] || '';
+    var js = files['script.js'] || '';
+    var doc = livePreviewFrame.contentDocument || livePreviewFrame.contentWindow.document;
+    doc.open();
+    doc.write(`<html><head><style>${css}</style></head><body>${html}<script>${js}<\/script></body></html>`);
+    doc.close();
+  }
+
+  function loadFile(filename) {
+    currentFile = filename;
+    if (codeEditor) codeEditor.value = files[filename] || '';
+    if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(filename);
+    document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+    var activeEl = document.querySelector(`.file-item[data-file="${filename}"]`);
+    if (activeEl) activeEl.classList.add('active');
+  }
+
+  if ($('runBtn')) $('runBtn').addEventListener('click', updatePreview);
+  if ($('saveBtn')) $('saveBtn').addEventListener('click', () => {
+    if (codeEditor) files[currentFile] = codeEditor.value;
+    localStorage.setItem('codewix_files', JSON.stringify(files));
+    showToast('Project saved!');
+    updatePreview();
+  });
+  
+  var savedFiles = localStorage.getItem('codewix_files');
+  if (savedFiles) { try { files = JSON.parse(savedFiles); } catch(e){} }
+  loadFile('index.html');
+  updatePreview();
+
+  // ======================================================================
+  // AI Assistant (Direct ngrok connection with Blob fix)
   // ======================================================================
   var chatContainer      = $('chatContainer');
   var chatInput          = $('chatInput');
@@ -357,20 +431,15 @@ window.addEventListener('DOMContentLoaded', function () {
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
 
       try {
-        // 1. Get the ngrok URL from Render
         const configRes = await fetch('/api/config');
         const configData = await configRes.json();
         const localAiUrl = configData.localAiUrl;
         
-        if (!localAiUrl || localAiUrl === 'YOUR_NGROK_URL_HERE') throw new Error('Local AI URL is not configured.');
+        if (!localAiUrl) throw new Error('Local AI URL is not configured.');
 
-        // 2. Start the job directly on your laptop (with ngrok bypass header)
         var res = await fetch(`${localAiUrl}/generate`, {
           method: 'POST', 
-          headers: { 
-            'Content-Type': 'application/json', 
-            'ngrok-skip-browser-warning': 'true' 
-          },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
           body: JSON.stringify({ prompt: promptText })
         });
 
@@ -378,10 +447,9 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!res.ok) throw new Error(startData.error || 'Failed to start');
         const jobId = startData.job_id;
 
-        // 3. Poll your laptop directly
         let attempts = 0;
         let consecutiveErrors = 0;
-        const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes
+        const maxAttempts = 60;
 
         const pollInterval = setInterval(async () => {
           attempts++;
@@ -400,10 +468,21 @@ window.addEventListener('DOMContentLoaded', function () {
 
             if (statusData.status === 'completed') {
               clearInterval(pollInterval);
-              const videoUrl = `${localAiUrl}/video/${jobId}?ngrok-skip-browser-warning=true`;
+              messageContent.innerHTML = '<div class="text-part">Downloading video...</div>';
+              
+              // Fetch the video as a Blob to bypass the ngrok HTML warning page
+              const videoRes = await fetch(`${localAiUrl}/video/${jobId}`, {
+                headers: { 'ngrok-skip-browser-warning': 'true' }
+              });
+              
+              if (!videoRes.ok) throw new Error('Failed to download video from laptop');
+              
+              const blob = await videoRes.blob();
+              const videoUrl = URL.createObjectURL(blob);
+              
               messageContent.innerHTML = `
                 <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
-                <div style="margin-top: 10px;"><video src="${videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
+                <div style="margin-top: 10px;"><video src="${videoUrl}" controls autoplay loop style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
               `;
             } else if (statusData.status === 'failed') {
               clearInterval(pollInterval);
@@ -455,7 +534,6 @@ window.addEventListener('DOMContentLoaded', function () {
       if (videoGenToggle && videoGenToggle.checked) generateVideo(text);
       else if (imageGenToggle && imageGenToggle.checked) generateImage(text);
       else {
-        // Basic chat fallback if neither toggle is on
         var userDiv = appendMessage('user');
         userDiv.querySelector('.message-content').innerHTML = '<div class="text-part">' + escapeHtml(text) + '</div>';
         var assistantDiv = appendMessage('assistant');
@@ -468,6 +546,54 @@ window.addEventListener('DOMContentLoaded', function () {
 
     sendBtn.addEventListener('click', handleSend);
     chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+  }
+
+  // ======================================================================
+  // Learn, Explore, Profile, Publish logic
+  // ======================================================================
+  if ($('exploreGrid')) {
+    fetch('/api/explore').then(r => r.json()).then(data => {
+      if (data.sites) {
+        $('exploreGrid').innerHTML = data.sites.map(site => `
+          <div class="site-card">
+            <h3>${escapeHtml(site.projectName || site.slug)}</h3>
+            <p>${escapeHtml(site.description || 'No description.')}</p>
+            <a href="/s/${site.slug}" target="_blank" class="button">Visit Site</a>
+          </div>
+        `).join('');
+      }
+    }).catch(err => console.error('Explore error:', err));
+  }
+
+  if ($('publishForm')) {
+    $('publishForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = this.querySelector('button[type="submit"]');
+      var orig = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Publishing...';
+      
+      try {
+        var idToken = await authUser.getIdToken();
+        var res = await fetch('/api/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+          body: JSON.stringify({
+            slug: $('publishSlug').value.trim(),
+            projectName: $('publishName').value.trim(),
+            description: $('publishDesc').value.trim(),
+            files: JSON.parse(localStorage.getItem('codewix_files') || '{}')
+          })
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to publish');
+        showToast('Successfully published to ' + data.fullUrl);
+        if ($('publishResult')) $('publishResult').innerHTML = `<a href="${data.url}" target="_blank">${data.fullUrl}</a>`;
+      } catch (err) {
+        showError($('publishError'), err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = orig;
+      }
+    });
   }
 
 }); // end DOMContentLoaded
