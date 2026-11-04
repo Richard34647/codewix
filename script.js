@@ -5,8 +5,6 @@
 console.log('[CodeWix] script.js file evaluated');
 
 window.addEventListener('DOMContentLoaded', function () {
-  console.log('[CodeWix] DOMContentLoaded fired');
-
   var auth = null;
   var db = null;
 
@@ -116,7 +114,7 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // THEME TOGGLE, UPGRADE BUTTON & ADMIN BUTTON INJECTION
   // ======================================================================
-  var ADMIN_EMAIL = 'wilcox889@gmail.com'; // 👈 YOUR EMAIL HERE
+  var ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 UPDATED EMAIL
 
   var savedTheme = localStorage.getItem('codewix_theme');
   if (savedTheme === 'light') document.body.classList.add('light-mode');
