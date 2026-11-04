@@ -189,35 +189,49 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
-// ---- API: Video Generation (Pollinations - Free with API Key) ------------
+// ---- API: Video Generation (Agnes AI - Free) ----------------------------
 app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  if (!POLLINATIONS_API_KEY) {
-    return res.status(500).json({ error: 'POLLINATIONS_API_KEY is not configured on the server. Add it in Render Environment Variables.' });
+  const AGNES_API_KEY = process.env.AGNES_API_KEY;
+  if (!AGNES_API_KEY) {
+    return res.status(500).json({ error: 'AGNES_API_KEY is not configured on the server.' });
   }
 
   try {
-    // Pollinations free video endpoint
-    const videoUrl = `https://gen.pollinations.ai/video/${encodeURIComponent(prompt)}?nologo=true`;
-    
-    // Verify the video is accessible
-    const testResponse = await fetch(videoUrl, {
-      headers: { 'Authorization': `Bearer ${POLLINATIONS_API_KEY}` }
+    const response = await fetch('https://api.agnes-ai.com/v1/videos/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AGNES_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'agnes-video-v2.0',
+        prompt: prompt,
+        duration: 5
+      })
     });
 
-    if (!testResponse.ok) {
-      throw new Error(`Pollinations error: ${testResponse.status} ${testResponse.statusText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Agnes AI Error: ${errorText}`);
     }
 
-    res.json({ 
-      videoUrl: videoUrl, 
-      duration: 5, 
-      isPremium: false 
+    const data = await response.json();
+    
+    // Agnes AI returns a job ID or a direct URL. We try to extract the URL.
+    const videoUrl = data.data?.[0]?.url || data.url || data.video_url;
+    if (!videoUrl) throw new Error('No video URL returned from Agnes AI.');
+
+    res.json({
+      videoUrl: videoUrl,
+      duration: 5,
+      isPremium: false
     });
+
   } catch (err) {
-    console.error('[Pollinations] video failed:', err.message);
+    console.error('[Agnes] video failed:', err.message);
     res.status(500).json({ error: 'Failed to generate video: ' + err.message });
   }
 });
