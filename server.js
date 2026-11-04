@@ -51,9 +51,28 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
   console.log('✅ [EmailJS] Initialized');
 }
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // ---- Helpers & Auth Middleware ---------------------------------------------
+function rewritePublishedLinks(html, slug) {
+  if (!html) return '';
+  return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
+    if (url.startsWith('/s/') || url.startsWith('/api/')) return match;
+    if (url.startsWith('/')) return attr + '=' + quote + '/s/' + slug + url + quote;
+    return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
+  });
+}
+
+function resolveAssetUrls(html, files) {
+  if (!html) return '';
+  return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) {
+    if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match;
+    var key = 'asset:' + url;
+    if (files[key]) return attr + '=' + quote + files[key] + quote;
+    return match;
+  });
+}
+
 async function requireAuth(req, res, next) {
   if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured.' });
   const header = req.headers.authorization || '';
@@ -62,125 +81,90 @@ async function requireAuth(req, res, next) {
   try { req.user = await admin.auth().verifyIdToken(idToken); req.isPremium = req.user.premium === true; next(); } catch (err) { return res.status(401).json({ error: 'Invalid auth token.' }); }
 }
 
-async function requireAdmin(req, res, next) {
-  const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
-  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized. Admin only.' });
-  next();
-}
-
 async function checkRateLimit(req, res, next) {
+  // PRO USERS HAVE NO RATE LIMITS
+  if (req.isPremium) return next();
+
   const uid = req.user.uid;
   const today = new Date().toISOString().slice(0, 10);
   const ref = admin.firestore().collection('users').doc(uid).collection('usage').doc(today);
   try {
     const doc = await ref.get();
     const count = doc.exists ? (doc.data().count || 0) : 0;
-    if (count >= RATE_LIMIT_PER_DAY) return res.status(429).json({ error: 'Daily limit reached.' });
+    if (count >= RATE_LIMIT_PER_DAY) return res.status(429).json({ error: 'Daily limit reached. Upgrade to Pro for unlimited access.' });
     req.rateLimitRef = ref; req.rateLimitCount = count; next();
   } catch (err) { next(); }
 }
 
 function incrementUsage(ref, currentCount) {
+  if (!ref) return;
   ref.set({ count: (currentCount || 0) + 1, lastUsed: new Date().toISOString() }, { merge: true }).catch(() => {});
 }
 
 // ==========================================
 // ADMIN ROUTES
 // ==========================================
-app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
+const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
+
+app.get('/api/admin/stats', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
   try {
     const usersList = await admin.auth().listUsers(1000);
     const projectsSnap = await admin.firestore().collection('published').get();
-    const lessonsSnap = await admin.firestore().collection('lessons').get();
-    
     let premiumCount = 0;
     usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
-
-    res.json({
-      totalUsers: usersList.users.length,
-      premiumUsers: premiumCount,
-      totalProjects: projectsSnap.size,
-      totalLessons: lessonsSnap.size
-    });
+    res.json({ totalUsers: usersList.users.length, premiumUsers: premiumCount, totalProjects: projectsSnap.size });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
   try {
     const listUsersResult = await admin.auth().listUsers(1000);
-    const users = listUsersResult.users.map(userRecord => ({
-      uid: userRecord.uid,
-      email: userRecord.email,
-      displayName: userRecord.displayName || 'No Name',
-      lastSignIn: userRecord.metadata.lastSignInTime,
-      premium: userRecord.customClaims?.premium === true
+    const users = listUsersResult.users.map(u => ({
+      uid: u.uid, email: u.email, displayName: u.displayName || 'No Name', premium: u.customClaims?.premium === true
     }));
     res.json({ users });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/admin/update-user', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
   const { uid, action } = req.body;
   try {
     if (action === 'toggle-premium') {
       const userRecord = await admin.auth().getUser(uid);
       const isPremium = userRecord.customClaims?.premium === true;
       await admin.auth().setCustomUserClaims(uid, { premium: !isPremium });
-      res.json({ ok: true, message: `Premium status toggled.` });
+      res.json({ ok: true });
     } else if (action === 'delete') {
       await admin.auth().deleteUser(uid);
-      res.json({ ok: true, message: 'User deleted.' });
-    } else {
-      res.status(400).json({ error: 'Invalid action' });
+      res.json({ ok: true });
     }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ---- Lessons Management --------------------------------------------------
-app.get('/api/lessons', async (req, res) => {
-  try {
-    const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get();
-    const lessons = [];
-    snap.forEach(doc => lessons.push({ id: doc.id, ...doc.data() }));
-    res.json({ lessons });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/admin/lessons', requireAuth, requireAdmin, async (req, res) => {
-  const { title, description, content, difficulty } = req.body;
-  if (!title || !content) return res.status(400).json({ error: 'Title and content required.' });
-  
-  try {
-    const ref = await admin.firestore().collection('lessons').add({
-      title, description, content, difficulty,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    res.json({ ok: true, id: ref.id });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    await admin.firestore().collection('lessons').doc(req.params.id).delete();
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 // ==========================================
-// GENERAL ROUTES
+// AI CHAT & MODELS
 // ==========================================
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
-  if (!GROQ_API_KEY) return res.status(500).json({ error: 'Server is missing GROQ_API_KEY.' });
+  if (!GROQ_API_KEY) return res.status(500).json({ error: 'Server missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
-  if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'messages array is required.' });
+  if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'messages array required.' });
+
+  // FREE USERS LOCKED TO FAST MODEL
+  let finalModel = model || 'openai/gpt-oss-120b';
+  if (!req.isPremium && finalModel.includes('70b')) {
+    finalModel = 'llama-3.1-8b-instant'; // Force downgrade
+  }
 
   try {
     const body = {
-      model: model || 'openai/gpt-oss-120b', messages: messages,
+      model: finalModel, messages,
       temperature: typeof temperature === 'number' ? temperature : 0.7,
       max_completion_tokens: max_completion_tokens || 2048, stream: true
     };
-    if (reasoning_effort) body.reasoning_effort = reasoning_effort;
+    if (reasoning_effort && req.isPremium) body.reasoning_effort = reasoning_effort; // Pro only
 
     const groqRes = await fetch(GROQ_ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
@@ -216,7 +200,7 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  const model = req.isPremium ? 'flux' : 'sana';
+  const model = req.isPremium ? 'flux' : 'sana'; // PRO GETS FLUX
   const endpoint = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${model}&width=1024&height=1024`;
 
   try {
@@ -236,9 +220,71 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
+// ==========================================
+// PUBLISHING (WITH PASSWORD PROTECTION)
+// ==========================================
+app.post('/api/publish', requireAuth, async (req, res) => {
+  const { slug, projectName, description, files, password } = req.body || {};
+  if (!slug || !files) return res.status(400).json({ error: 'slug and files required.' });
+  if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) return res.status(400).json({ error: 'Invalid slug.' });
+  
+  // ONLY PRO USERS CAN SET A PASSWORD
+  let finalPassword = null;
+  if (password && req.isPremium) finalPassword = password;
+
+  const pubRef = admin.firestore().collection('published').doc(slug);
+  try {
+    const result = await admin.firestore().runTransaction(async (tx) => {
+      const doc = await tx.get(pubRef);
+      if (doc.exists) {
+        if (doc.data().uid !== req.user.uid) throw new Error('SLUG_TAKEN');
+        tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, password: finalPassword, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        return { created: false };
+      }
+      tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, password: finalPassword, views: 0, publishedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return { created: true };
+    });
+    res.json({ ok: true, url: '/s/' + slug, fullUrl: req.protocol + '://' + req.get('host') + '/s/' + slug });
+  } catch (err) {
+    if (err.message === 'SLUG_TAKEN') return res.status(409).json({ error: 'Slug taken.' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/s/:slug', async (req, res, next) => {
+  if (!admin.apps.length) return next();
+  try {
+    const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
+    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    
+    const data = doc.data();
+    
+    // CHECK PASSWORD
+    if (data.password && data.password !== req.query.pw) {
+      return res.send(`
+        <html><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:100px;">
+          <h2>🔒 Password Protected Site</h2>
+          <p style="color:#94a3b8;">This site was locked by its owner.</p>
+          <form method="GET" style="margin-top:20px;">
+            <input type="password" name="pw" placeholder="Enter password" style="padding:10px;border-radius:5px;border:none;outline:none;">
+            <button type="submit" style="padding:10px 20px;background:#38bdf8;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">Unlock</button>
+          </form>
+        </body></html>
+      `);
+    }
+
+    const files = data.files || {};
+    doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
+    let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (data.projectName || req.params.slug) + '</title><style>' + (files['style.css'] || '') + '</style></head><body>' + rewritePublishedLinks(rawHtml, req.params.slug) + '<script>' + (files['script.js'] || '') + '<\/script></body></html>';
+    res.send(html);
+  } catch (err) { next(); }
+});
+
+// OTHER ROUTES (Keep existing code for Unpublish, Explore, Run, etc.)
 app.post('/api/run', requireAuth, async (req, res) => {
   const { language, code } = req.body || {};
-  if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
+  if (!language || !code) return res.status(400).json({ error: 'language and code required.' });
   const lang = language.toLowerCase();
 
   if (lang === 'py' || lang === 'python') {
@@ -266,30 +312,6 @@ app.post('/api/run', requireAuth, async (req, res) => {
     const data = await response.json();
     res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
   } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
-});
-
-app.post('/api/publish', requireAuth, async (req, res) => {
-  const { slug, projectName, description, files } = req.body || {};
-  if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
-  if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) return res.status(400).json({ error: 'Invalid slug.' });
-  
-  const pubRef = admin.firestore().collection('published').doc(slug);
-  try {
-    const result = await admin.firestore().runTransaction(async (tx) => {
-      const doc = await tx.get(pubRef);
-      if (doc.exists) {
-        if (doc.data().uid !== req.user.uid) throw new Error('SLUG_TAKEN');
-        tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        return { created: false };
-      }
-      tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, views: 0, publishedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      return { created: true };
-    });
-    res.json({ ok: true, url: '/s/' + slug, fullUrl: req.protocol + '://' + req.get('host') + '/s/' + slug });
-  } catch (err) {
-    if (err.message === 'SLUG_TAKEN') return res.status(409).json({ error: 'Slug taken.' });
-    res.status(500).json({ error: err.message });
-  }
 });
 
 app.post('/api/unpublish', requireAuth, async (req, res) => {
@@ -352,7 +374,7 @@ app.use(express.static(path.join(__dirname)));
 app.use((req, res) => {
   const file404 = path.join(__dirname, '404.html');
   if (fs.existsSync(file404)) res.status(404).sendFile(file404);
-  else res.status(404).send(`404 Not Found: The file "${req.url}" does not exist, and 404.html is missing.`);
+  else res.status(404).send(`404 Not Found`);
 });
 
 app.listen(PORT, '0.0.0.0', () => console.log('\n✅ CodeWix running on port ' + PORT + '\n'));
