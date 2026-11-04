@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with Direct Tunnel Access)
+// CodeWix — script.js (Resilient Polling for Free Tunnels)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -638,14 +638,12 @@ window.addEventListener('DOMContentLoaded', function () {
       messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
 
       try {
-        // 1. Get the URL from Render (The Phonebook)
         const configRes = await fetch('/api/config');
         const configData = await configRes.json();
         const localAiUrl = configData.localAiUrl;
         
         if (!localAiUrl) throw new Error('Local AI URL is not configured.');
 
-        // 2. Start the job directly on your laptop
         var res = await fetch(`${localAiUrl}/generate`, {
           method: 'POST', 
           headers: { 
@@ -659,9 +657,9 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!res.ok) throw new Error(startData.error || 'Failed to start');
         const jobId = startData.job_id;
 
-        // 3. Poll your laptop directly
         let attempts = 0;
-        const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes
+        let consecutiveErrors = 0; // NEW: Track consecutive errors
+        const maxAttempts = 120;
 
         const pollInterval = setInterval(async () => {
           attempts++;
@@ -675,11 +673,14 @@ window.addEventListener('DOMContentLoaded', function () {
             const statusRes = await fetch(`${localAiUrl}/status/${jobId}`, {
               headers: { 'Bypass-Tunnel-Reminder': 'true' }
             });
+            
+            if (!statusRes.ok) throw new Error('Status fetch failed');
             const statusData = await statusRes.json();
+            
+            consecutiveErrors = 0; // Reset errors on success
 
             if (statusData.status === 'completed') {
               clearInterval(pollInterval);
-              // Append the bypass header to the video URL too
               const videoUrl = `${localAiUrl}/video/${jobId}?Bypass-Tunnel-Reminder=true`;
               messageContent.innerHTML = `
                 <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
@@ -692,9 +693,12 @@ window.addEventListener('DOMContentLoaded', function () {
             }
           } catch (pollErr) {
             console.error("Polling error:", pollErr);
-            if (attempts > 3) {
+            consecutiveErrors++;
+            
+            // Only give up if the tunnel fails 10 times IN A ROW
+            if (consecutiveErrors >= 10) {
               clearInterval(pollInterval);
-              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Connection lost. The tunnel may have dropped.</div>`;
+              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Connection lost after multiple retries. The tunnel may have dropped.</div>`;
             }
           }
         }, 5000);
