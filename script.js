@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File)
+// CodeWix — script.js (Full Master File with Async Video Polling)
 // ==========================================================================
 
 console.log('[CodeWix] script.js file evaluated');
@@ -632,31 +632,60 @@ window.addEventListener('DOMContentLoaded', function () {
     async function generateVideo(promptText) {
       if (!promptText) { showToast('Please type a prompt.', 'error'); return; }
 
-      // ✅ Free users get 5s videos (backend enforces this). No frontend gate.
-
       var userDiv = appendMessage('user'); setUserMessage(userDiv, promptText);
       var assistantDiv = appendMessage('assistant');
       var messageContent = assistantDiv.querySelector('.message-content');
-      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (may take a minute)...</div>';
+      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span> Generating video (this takes a few minutes on CPU)...</div>';
 
       try {
         var idToken = await authUser.getIdToken();
+        
+        // 1. Start the job
         var res = await fetch('/api/generate-video', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
           body: JSON.stringify({ prompt: promptText })
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Video failed');
-        if (!data.videoUrl) throw new Error('No video URL returned');
+        const startData = await res.json();
+        if (!res.ok) throw new Error(startData.error || 'Failed to start');
+        const jobId = startData.jobId;
 
-        messageContent.innerHTML = `
-          <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
-          ${data.duration === 5 && !data.isPremium ? '<p style="color: #fbbf24; font-size: 14px; margin-top: 5px;">💡 Free plan (5s limit). <a href="upgrade.html" style="color:#38bdf8;">Upgrade</a> for 10s!</p>' : ''}
-          <div style="margin-top: 10px;"><video src="${data.videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
-        `;
+        // 2. Poll for the result
+        let attempts = 0;
+        const maxAttempts = 120; // 120 attempts * 5 seconds = 10 minutes max
 
-        conversation.push({ role: 'user', content: promptText }, { role: 'assistant', content: `[Video]` }); scheduleSave();
+        const pollInterval = setInterval(async () => {
+          attempts++;
+          if (attempts > maxAttempts) {
+            clearInterval(pollInterval);
+            messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: Generation timed out.</div>`;
+            return;
+          }
+
+          try {
+            const statusRes = await fetch(`/api/video-status/${jobId}`, {
+              headers: { 'Authorization': 'Bearer ' + idToken }
+            });
+            const statusData = await statusRes.json();
+
+            if (statusData.status === 'completed') {
+              clearInterval(pollInterval);
+              const videoUrl = `data:video/mp4;base64,${statusData.video_base64}`;
+              messageContent.innerHTML = `
+                <div class="text-part">Here is your video: <strong>"${escapeHtml(promptText)}"</strong></div>
+                <div style="margin-top: 10px;"><video src="${videoUrl}" controls style="max-width:100%; border-radius:8px; border:2px solid #334155;"></video></div>
+              `;
+              conversation.push({ role: 'user', content: promptText }, { role: 'assistant', content: `[Video]` }); scheduleSave();
+            } else if (statusData.status === 'failed') {
+              clearInterval(pollInterval);
+              messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(statusData.error)}</div>`;
+            }
+            // If status is 'processing', do nothing, just wait for the next interval
+          } catch (pollErr) {
+            console.error("Polling error:", pollErr);
+          }
+        }, 5000); // Check every 5 seconds
+
       } catch (err) {
         messageContent.innerHTML = `<div class="text-part" style="color: #f87171;">Error: ${escapeHtml(err.message)}</div>`;
       }
@@ -743,9 +772,11 @@ window.addEventListener('DOMContentLoaded', function () {
     function handleSend() {
       var text = chatInput.value.trim();
       if (!text && pendingAttachments.length === 0) return;
+      
       if (videoGenToggle && videoGenToggle.checked) generateVideo(text);
       else if (imageGenToggle && imageGenToggle.checked) generateImage(text);
       else sendToGroq(text);
+      
       chatInput.value = ''; chatInput.style.height = 'auto';
     }
 
@@ -755,9 +786,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (newChatBtn) newChatBtn.addEventListener('click', async function () {
       clearTimeout(saveTimer); await saveChatNow();
-      // ⚠️ `startNewChat()` and `setStatus()` were referenced in your source but
-      // were NOT defined in the pasted snippet. They likely live in the section
-      // that was abbreviated above. Paste them back in, or replace this with:
       currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT];
       chatContainer.innerHTML = ''; updateTitleBar();
       pendingAttachments = []; renderAttachPreview();
