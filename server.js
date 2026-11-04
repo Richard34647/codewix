@@ -15,36 +15,21 @@ const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
 // ==========================================
-// BULLETPROOF FIREBASE INITIALIZATION
+// FIREBASE INITIALIZATION
 // ==========================================
-console.log('\n=============================================');
-console.log('🔍 LOOKING FOR FIREBASE CREDENTIALS...');
-console.log('=============================================\n');
-
 try {
   const localPath = path.join(__dirname, 'firebase-service-account.json');
   const renderSecretPath = '/etc/secrets/firebase-service-account.json';
   
   if (fs.existsSync(renderSecretPath)) {
-    // 1. Render Secret File
     const serviceAccount = JSON.parse(fs.readFileSync(renderSecretPath, 'utf8'));
-    admin.initializeApp({ 
-      credential: admin.credential.cert(serviceAccount), 
-      storageBucket: 'codewix-16971.firebasestorage.app' 
-    });
-    console.log('✅ [Firebase Admin] Initialized via Render Secret File (/etc/secrets/)');
-  } 
-  else if (fs.existsSync(localPath)) {
-    // 2. Local JSON file (Desktop app)
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
+    console.log('✅ [Firebase Admin] Initialized via Render Secret File');
+  } else if (fs.existsSync(localPath)) {
     const serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
-    admin.initializeApp({ 
-      credential: admin.credential.cert(serviceAccount), 
-      storageBucket: 'codewix-16971.firebasestorage.app' 
-    });
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
     console.log('✅ [Firebase Admin] Initialized via local JSON file');
-  } 
-  else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
-    // 3. Split Environment Variables
+  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
@@ -54,13 +39,10 @@ try {
       storageBucket: 'codewix-16971.firebasestorage.app'
     });
     console.log('✅ [Firebase Admin] Initialized via environment variables');
-  } 
-  else {
+  } else {
     console.error('❌ [Firebase Admin] CRITICAL ERROR: No credentials found!');
   }
-} catch (err) { 
-  console.error('❌ [Firebase Admin] init failed:', err.message); 
-}
+} catch (err) { console.error('❌ [Firebase Admin] init failed:', err.message); }
 
 let emailjsReady = false;
 if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
@@ -92,9 +74,7 @@ function resolveAssetUrls(html, files) {
 }
 
 async function requireAuth(req, res, next) {
-  if (!admin.apps.length) {
-    return res.status(500).json({ error: 'Auth not configured. Missing Firebase credentials on server.' });
-  }
+  if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured.' });
   const header = req.headers.authorization || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return res.status(401).json({ error: 'Missing auth token.' });
@@ -122,12 +102,11 @@ function incrementUsage(ref, currentCount) {
 }
 
 // ==========================================
-// NEW: ADMIN UPGRADE ROUTE
+// ADMIN UPGRADE ROUTE
 // ==========================================
 app.post('/api/admin/upgrade-user', requireAuth, async (req, res) => {
-  const ADMIN_EMAIL = 'wilcox889@gmail.com'; // 👈 Make sure this is YOUR email
+  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 UPDATED EMAIL
   
-  // 1. Verify the requester is YOU
   if (req.user.email !== ADMIN_EMAIL) {
     return res.status(403).json({ error: 'Unauthorized. Admin only.' });
   }
@@ -136,14 +115,10 @@ app.post('/api/admin/upgrade-user', requireAuth, async (req, res) => {
   if (!targetEmail) return res.status(400).json({ error: 'Target email is required.' });
 
   try {
-    // 2. Find the user in Firebase Auth
     const userRecord = await admin.auth().getUserByEmail(targetEmail);
     const uid = userRecord.uid;
-
-    // 3. Set the custom claim to premium
     await admin.auth().setCustomUserClaims(uid, { premium: true });
 
-    // 4. Mark their upgrade request as completed in Firestore
     const requests = await admin.firestore().collection('upgrade_requests').where('email', '==', targetEmail).where('status', '==', 'pending').get();
     const batch = admin.firestore().batch();
     requests.forEach(doc => batch.update(doc.ref, { status: 'completed' }));
@@ -179,8 +154,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     });
 
     if (!groqRes.ok) {
-      let errData;
-      try { errData = await groqRes.json(); } catch(e) { errData = { error: 'Unknown Groq Error' }; }
+      let errData; try { errData = await groqRes.json(); } catch(e) { errData = { error: 'Unknown Groq Error' }; }
       return res.status(groqRes.status).json({ error: errData.error?.message || errData.error || 'Groq API Error' });
     }
 
@@ -199,7 +173,6 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     }
     res.end();
     incrementUsage(req.rateLimitRef, req.rateLimitCount);
-
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: 'Failed to reach Groq: ' + err.message });
     else res.end();
@@ -226,12 +199,9 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
       const buffer = await fallbackRes.arrayBuffer();
       return res.set('Content-Type', 'image/jpeg').send(Buffer.from(buffer));
     }
-
     const buffer = await response.arrayBuffer();
     res.set('Content-Type', 'image/jpeg').send(Buffer.from(buffer));
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to generate image: ' + err.message });
-  }
+  } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
 // ---- API: Video Generation (Freemium) -------------------------------------
@@ -239,38 +209,28 @@ app.post('/api/generate-video', requireAuth, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
-  const ADMIN_EMAIL = 'wilcox889@gmail.com'; // 👈 Your email for admin bypass
+  const ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // 👈 UPDATED EMAIL
   const isAdmin = req.user.email === ADMIN_EMAIL;
-
-  // Free users get 5s, Premium/Admin get 10s
   let videoDuration = (req.isPremium || isAdmin) ? 10 : 5;
 
   try {
     const response = await fetch('https://inferenceport.ai/v1/videos/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        model: 'wan-fast', 
-        prompt: prompt,
-        duration: videoDuration
-      })
+      body: JSON.stringify({ model: 'wan-fast', prompt: prompt, duration: videoDuration })
     });
 
     if (!response.ok) {
        const errText = await response.text();
        throw new Error('Video generation failed: ' + errText);
     }
-    
     const data = await response.json();
-    
     res.json({ 
       videoUrl: data.url || data.data?.[0]?.url || data.video_url,
       duration: videoDuration,
       isPremium: req.isPremium || isAdmin
     });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to generate video: ' + err.message });
-  }
+  } catch (err) { res.status(500).json({ error: 'Failed to generate video: ' + err.message }); }
 });
 
 // ---- API: Run Code (Python Locally, Others via Judge0) --------------------
@@ -421,45 +381,13 @@ app.get('/s/:slug/:filename', async (req, res, next) => {
 
 app.get('/u/:username', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
 
-// ---- API: Uptime Status (UptimeRobot) -------------------------------------
-app.get('/api/uptime-status', async (req, res) => {
-  const apiKey = process.env.UPTIMEROBOT_API_KEY;
-  if (!apiKey) return res.json({ status: 'unknown' });
-  try {
-    const response = await fetch('https://api.uptimerobot.com/v2/getMonitors', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: apiKey, format: 'json' })
-    });
-    const data = await response.json();
-    if (data.stat === 'ok' && data.monitors?.length > 0) {
-      res.json({ status: data.monitors[0].status === 2 ? 'up' : 'down' });
-    } else res.json({ status: 'unknown' });
-  } catch (err) { res.json({ status: 'unknown' }); }
-});
-
-// ---- 🔥 DEBUG ROUTE (To find your missing files) 🔥 -----------------------
-app.get('/debug-files', (req, res) => {
-  const localFiles = fs.readdirSync(__dirname);
-  let secretFiles = [];
-  try { secretFiles = fs.readdirSync('/etc/secrets'); } catch (e) {}
-  
-  res.json({ 
-    message: "Here is exactly what Render sees:",
-    local_project_folder: localFiles,
-    render_secrets_folder: secretFiles
-  });
-});
-
 // ---- Fallbacks ------------------------------------------------------------
 app.use('/api', (req, res) => res.status(404).json({ error: 'Unknown API route.' }));
 app.use(express.static(path.join(__dirname)));
 app.use((req, res) => {
   const file404 = path.join(__dirname, '404.html');
-  if (fs.existsSync(file404)) {
-    res.status(404).sendFile(file404);
-  } else {
-    res.status(404).send(`404 Not Found: The file "${req.url}" does not exist, and 404.html is missing.`);
-  }
+  if (fs.existsSync(file404)) res.status(404).sendFile(file404);
+  else res.status(404).send(`404 Not Found: The file "${req.url}" does not exist, and 404.html is missing.`);
 });
 
 app.listen(PORT, '0.0.0.0', () => console.log('\n✅ CodeWix running on port ' + PORT + '\n'));
