@@ -14,6 +14,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const RATE_LIMIT_PER_DAY = parseInt(process.env.RATE_LIMIT_PER_DAY || '50', 10);
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
+const FAL_VIDEO_MODEL = 'minimax/h3-max/text-to-video';
 
 // ==========================================
 // FIREBASE INITIALIZATION
