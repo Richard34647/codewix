@@ -63,7 +63,9 @@ function rewritePublishedLinks(html, slug) {
   if (!html) return '';
   return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
     if (url.startsWith('/s/') || url.startsWith('/api/')) return match;
+    // If the link is an absolute path (like /about.html), prepend the slug
     if (url.startsWith('/')) return attr + '=' + quote + '/s/' + slug + url + quote;
+    // If it's a relative path (like about.html), just make it absolute relative to the slug
     return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
   });
 }
@@ -382,6 +384,9 @@ app.get('/api/user/:username', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// SERVE PUBLISHED SITES (SINGLE PAGE & MULTI-PAGE)
+// ==========================================
 app.get('/s/:slug', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
@@ -407,6 +412,64 @@ app.get('/s/:slug', async (req, res, next) => {
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
     res.send(html);
+  } catch (err) { next(); }
+});
+
+// NEW: Catch-all route for specific files (like /index.html, /about.html, /image.png)
+app.get('/s/:slug/*', async (req, res, next) => {
+  if (!admin.apps.length) return next();
+  try {
+    const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
+    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    
+    const data = doc.data();
+    if (data.password && data.password !== req.query.pw) {
+      return res.status(401).send('Password required'); // Avoid showing form for sub-assets
+    }
+
+    const filename = req.params[0]; // Captures everything after /s/slug/
+    const files = data.files || {};
+
+    // If the requested file exists in the files object
+    if (files[filename]) {
+      const content = files[filename];
+      const ext = path.extname(filename).toLowerCase();
+
+      // If it's an HTML file, apply the same link rewriting and watermark
+      if (ext === '.html' || ext === '.htm') {
+        let isPremiumOwner = false;
+        try { const ownerRecord = await admin.auth().getUser(data.uid); isPremiumOwner = ownerRecord.customClaims?.premium === true; } catch (err) {}
+        
+        let rawHtml = resolveAssetUrls(content, files);
+        let watermarkHtml = '';
+        if (!isPremiumOwner) {
+          watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
+        }
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
+        return res.send(html);
+      }
+
+      // If it's an image (stored as data URL)
+      if (content.startsWith('data:')) {
+        const parts = content.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const buffer = Buffer.from(parts[1], 'base64');
+        return res.type(mime).send(buffer);
+      }
+
+      // If it's CSS, JS, JSON, etc.
+      let contentType = 'text/plain';
+      if (ext === '.css') contentType = 'text/css';
+      else if (ext === '.js') contentType = 'application/javascript';
+      else if (ext === '.json') contentType = 'application/json';
+      else if (ext === '.svg') contentType = 'image/svg+xml';
+
+      return res.type(contentType).send(content);
+    }
+
+    // File not found
+    return res.status(404).sendFile(path.join(__dirname, '404.html'));
   } catch (err) { next(); }
 });
 
