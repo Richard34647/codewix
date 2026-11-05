@@ -115,14 +115,55 @@ async function requireAdmin(req, res, next) {
 }
 
 // ==========================================
+// CUSTOM DOMAIN MIDDLEWARE
+// ==========================================
+app.use(async (req, res, next) => {
+  const host = (req.get('x-forwarded-host') || req.get('host') || '').split(':')[0].toLowerCase();
+  
+  // Ignore requests for the main app, API, or localhost
+  if (host.includes('onrender.com') || host.includes('localhost') || host.includes('127.0.0.1') || req.path.startsWith('/api')) {
+    return next();
+  }
+
+  try {
+    const snapshot = await admin.firestore().collection('published').where('customDomain', '==', host).limit(1).get();
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      const data = doc.data();
+      const files = data.files || {};
+      
+      let isPremiumOwner = false;
+      try {
+        const ownerRecord = await admin.auth().getUser(data.uid);
+        isPremiumOwner = ownerRecord.customClaims?.premium === true;
+      } catch (err) {}
+
+      doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
+      
+      let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
+      
+      // Inject Watermark for Free Users (Shouldn't happen on custom domain, but just in case)
+      let watermarkHtml = '';
+      if (!isPremiumOwner) {
+        watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
+      }
+
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || 'Untitled'}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, doc.id)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
+      
+      return res.send(html);
+    }
+  } catch (err) { console.error('Custom domain lookup error:', err); }
+  next();
+});
+
+// ==========================================
 // SELAR WEBHOOK
 // ==========================================
 app.post('/api/selar-webhook', async (req, res) => {
   try {
     const secret = req.headers['x-selar-signature'] || req.query.secret;
-    if (SELAR_WEBHOOK_SECRET && secret !== SELAR_WEBHOOK_SECRET) {
-      return res.status(401).send('Unauthorized');
-    }
+    if (SELAR_WEBHOOK_SECRET && secret !== SELAR_WEBHOOK_SECRET) return res.status(401).send('Unauthorized');
+    
     const payload = JSON.parse(req.body.toString());
     if (payload.event === 'charge.success' || payload.event === 'sale.completed' || payload.event === 'subscription.created') {
       const customerEmail = payload.data.customer.email;
@@ -135,6 +176,28 @@ app.post('/api/selar-webhook', async (req, res) => {
     }
     res.status(200).send('Webhook received');
   } catch (err) { res.status(500).send('Webhook failed'); }
+});
+
+// ==========================================
+// API: CONNECT DOMAIN
+// ==========================================
+app.post('/api/connect-domain', requireAuth, async (req, res) => {
+  if (!req.isPremium) return res.status(403).json({ error: 'Premium required for custom domains.' });
+  const { projectId, domainName } = req.body || {};
+  if (!projectId || !domainName) return res.status(400).json({ error: 'Missing fields' });
+
+  try {
+    const cleanDomain = domainName.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').trim();
+    
+    // Check if domain is already in use
+    const existing = await admin.firestore().collection('published').where('customDomain', '==', cleanDomain).get();
+    if (!existing.empty && existing.docs[0].id !== projectId) {
+      return res.status(409).json({ error: 'Domain is already connected to another site.' });
+    }
+
+    await admin.firestore().collection('published').doc(projectId).update({ customDomain: cleanDomain });
+    res.json({ ok: true, message: 'Domain saved successfully.' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
@@ -187,8 +250,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
       await req.rateLimitRef.set({ tokens: admin.firestore.FieldValue.increment(totalTokensUsed) }, { merge: true });
     }
   } catch (err) {
-    if (!res.headersSent) res.status(500).json({ error: 'Failed to reach Groq' });
-    else res.end();
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to reach Groq' }); else res.end();
   }
 });
 
@@ -291,12 +353,9 @@ app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
   
-  // ENFORCE FREE LIMIT: 1 PUBLISHED SITE
   if (!req.isPremium) {
     const existing = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
-    if (existing.size >= 1) {
-      return res.status(403).json({ error: 'Free users can only publish 1 site. Upgrade to Pro for unlimited live projects!' });
-    }
+    if (existing.size >= 1) return res.status(403).json({ error: 'Free users can only publish 1 site. Upgrade to Pro for unlimited live projects!' });
   }
 
   let finalPassword = null;
@@ -351,7 +410,7 @@ app.get('/api/user/:username', async (req, res) => {
 });
 
 // ==========================================
-// RENDER PUBLISHED SITE (WITH WATERMARK)
+// RENDER PUBLISHED SITE
 // ==========================================
 app.get('/s/:slug', async (req, res, next) => {
   if (!admin.apps.length) return next();
@@ -364,26 +423,16 @@ app.get('/s/:slug', async (req, res, next) => {
       return res.send(`<html><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:100px;"><h2>🔒 Password Protected</h2><form method="GET" style="margin-top:20px;"><input type="password" name="pw" placeholder="Password" style="padding:10px;border-radius:5px;"><button type="submit" style="padding:10px 20px;background:#38bdf8;border:none;border-radius:5px;">Unlock</button></form></body></html>`);
     }
 
-    // Fetch owner's premium status
     let isPremiumOwner = false;
-    try {
-      const ownerRecord = await admin.auth().getUser(data.uid);
-      isPremiumOwner = ownerRecord.customClaims?.premium === true;
-    } catch (err) { console.warn('Could not verify owner status'); }
+    try { const ownerRecord = await admin.auth().getUser(data.uid); isPremiumOwner = ownerRecord.customClaims?.premium === true; } catch (err) {}
 
     const files = data.files || {};
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
     
     let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
-    
-    // Inject Watermark for Free Users
     let watermarkHtml = '';
     if (!isPremiumOwner) {
-      watermarkHtml = `
-        <div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;">
-          <a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a>
-        </div>
-      `;
+      watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
     }
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
