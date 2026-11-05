@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Settings — CodeWix</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .settings-layout { display: flex; max-width: 1200px; margin: 100px auto; padding: 0 20px; gap: 40px; }
+        .settings-sidebar { width: 250px; flex-shrink: 0; }
+        .settings-sidebar h2 { font-size: 20px; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+        .settings-nav-btn { display: block; width: 100%; text-align: left; padding: 10px 15px; background: transparent; border: none; color: #cbd5e1; cursor: pointer; border-radius: 6px; font-size: 14px; margin-bottom: 4px; font-family: inherit; }
+        .settings-nav-btn:hover { background: #1e293b; }
+        .settings-nav-btn.active { background: #38bdf8; color: #020617; font-weight: bold; }
+        .settings-content { flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 30px; }
+        .settings-tab { display: block; }
+        
+        .file-editor-group { margin-bottom: 20px; }
+        .file-editor-group label { display: block; margin-bottom: 8px; color: #94a3b8; font-size: 14px; }
+        .file-editor-group textarea { width: 100%; height: 200px; background: #020617; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 13px; resize: vertical; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
+        <nav>
+            <a href="dashboard.html">Workspace</a>
+            <a href="profile.html">Profile</a>
+            <a href="#" id="logoutBtn">Logout</a>
+        </nav>
+    </header>
+
+    <div class="settings-layout">
+        <div class="settings-sidebar">
+            <h2>Site Settings</h2>
+            <button class="settings-nav-btn active">📄 Files</button>
+            <div style="margin-top: 30px;">
+                <a href="#" id="viewLiveSiteBtn" target="_blank" class="studio-btn ghost-btn" style="width: 100%; justify-content: center;">View Live Site ↗</a>
+            </div>
+        </div>
+
+        <div class="settings-content">
+            <!-- Tab: Files -->
+            <div class="settings-tab active">
+                <h2>Edit Published Files</h2>
+                <p style="color: #94a3b8; font-size: 14px; margin-bottom: 20px;">Changes made here will update your live site immediately.</p>
+                
+                <div class="file-editor-group">
+                    <label>index.html</label>
+                    <textarea id="edit-index-html" placeholder="HTML code here..."></textarea>
+                </div>
+                <div class="file-editor-group">
+                    <label>style.css</label>
+                    <textarea id="edit-style-css" placeholder="CSS code here..."></textarea>
+                </div>
+                <div class="file-editor-group">
+                    <label>script.js</label>
+                    <textarea id="edit-script-js" placeholder="JS code here..."></textarea>
+                </div>
+                
+                <button class="button" id="saveFilesBtn" style="width: 100%;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
