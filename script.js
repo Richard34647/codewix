@@ -232,9 +232,10 @@ window.addEventListener('DOMContentLoaded', function () {
               
               let domainBtnHtml = '';
               if (isPremiumUser) {
-                domainBtnHtml = `<button class="domain-btn" onclick="window.promptDomain('${site.slug}')">🌐 Connect Domain</button>`;
                 if (site.customDomain) {
                   domainBtnHtml = `<button class="domain-btn" style="border-color:#34d399; color:#34d399;">🌐 ${escapeHtml(site.customDomain)}</button>`;
+                } else {
+                  domainBtnHtml = `<button class="domain-btn" onclick="window.promptDomain('${site.slug}')">🌐 Connect Domain</button>`;
                 }
               }
 
@@ -585,7 +586,7 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   if ($('lessonTitle') && $('lessonBody')) {
     var LESSONS = [
-      { title: 'HTML: Page Structure', level: 'Beginner', lang: 'html', concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.', code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>', exercise: 'Create an HTML page with an <code>h1</code> that says "I am learning" and a <code>p</code> that says "HTML is fun".', hint: 'Use <code>&lt;h1&gt;I am learning&lt;/h1&gt;</code>' },
+      { title: 'HTML: Page Structure', level: 'Beginner', lang: 'html', concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.', code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>', exercise: 'Create an HTML page with an <h1> that says "I am learning" and a <p> that says "HTML is fun".', hint: 'Use <code>&lt;h1&gt;I am learning&lt;/h1&gt;</code>' },
       { title: 'HTML: Links and Images', level: 'Beginner', lang: 'html', concept: 'Use the <code>&lt;a&gt;</code> tag for links and the <code>&lt;img&gt;</code> tag for images. Images use <code>src</code> and links use <code>href</code>.', code: '<h2>My Favorite Site</h2>\n<a href="https://google.com">Go to Google</a>\n<br><br>\n<img src="https://via.placeholder.com/150" alt="Placeholder Image">', exercise: 'Create a link to your favorite website and an image of a cat.', hint: 'Use <code>&lt;a href="url"&gt;Text&lt;/a&gt;</code>' },
       { title: 'HTML: Lists', level: 'Beginner', lang: 'html', concept: 'Use <code>&lt;ul&gt;</code> for unordered (bullet) lists and <code>&lt;ol&gt;</code> for ordered (numbered) lists. Inside them, use <code>&lt;li&gt;</code> for each item.', code: '<ul>\n  <li>Apples</li>\n  <li>Bananas</li>\n  <li>Cherries</li>\n</ul>', exercise: 'Make an ordered list of your top 3 favorite movies.', hint: 'Use <code>&lt;ol&gt;</code> and <code>&lt;li&gt;</code>' },
       { title: 'CSS: Basics and Selectors', level: 'Beginner', lang: 'css', concept: 'CSS changes how HTML looks. You target elements using selectors (like <code>body</code> or <code>.my-class</code>) and change properties like <code>color</code> and <code>background</code>.', code: 'body {\n  background-color: #0f172a;\n  color: white;\n  font-family: Arial, sans-serif;\n}\n\nh1 {\n  color: #38bdf8;\n}', exercise: 'Change the background of the body to black, and make all h1 tags red.', hint: 'Use <code>background-color: black;</code>' },
@@ -738,7 +739,7 @@ window.addEventListener('DOMContentLoaded', function () {
       e.preventDefault();
       var slug = $('publishSlug').value.trim().toLowerCase();
       var name = $('publishName').value.trim();
-      var desc = $('publishDesc') ? $('publishDesc').value.trim() : ''; // Grab description safely
+      var desc = $('publishDesc') ? $('publishDesc').value.trim() : '';
       var id = projectSelect.value;
       
       if (!id || !slug || !name) return showToast('Fill all fields.', 'error');
@@ -755,7 +756,10 @@ window.addEventListener('DOMContentLoaded', function () {
         var data = await res.json(); if (!res.ok) throw new Error(data.error);
         showToast('Published successfully!', 'success'); this.reset();
         loadPublishedSites();
-      } catch (err) { showToast(err.message, 'error'); } finally { btn.disabled = false; btn.textContent = 'Publish'; }
+      } catch (err) { 
+        alert("Publish Error: " + err.message);
+        showToast(err.message, 'error'); 
+      } finally { btn.disabled = false; btn.textContent = 'Publish'; }
     });
   }
 
