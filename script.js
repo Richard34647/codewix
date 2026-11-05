@@ -172,7 +172,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // ADMIN DASHBOARD LOGIC (UPGRADED)
+  // ADMIN DASHBOARD LOGIC (FIXED)
   // ======================================================================
   if (isAdminPage) {
     document.querySelectorAll('.nav-btn[data-target]').forEach(function(btn) {
@@ -190,11 +190,15 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     });
     
-    var getToken = async function() { return await auth.currentUser.getIdToken(); };
+    var getToken = async function() { 
+      if (!auth.currentUser) throw new Error("Not logged in");
+      return await auth.currentUser.getIdToken(); 
+    };
 
     var loadStats = async function() {
       try {
-        const res = await fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); if (!res.ok) throw new Error('Failed');
+        const res = await fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
+        if (!res.ok) throw new Error('Failed to load stats');
         const data = await res.json(); 
         if ($('statUsers')) $('statUsers').textContent = data.totalUsers; 
         if ($('statPremium')) $('statPremium').textContent = data.premiumUsers; 
@@ -205,8 +209,10 @@ window.addEventListener('DOMContentLoaded', function () {
 
     var loadUsers = async function() {
       try {
-        const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); const data = await res.json();
-        const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; if (!tbody) return;
+        const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
+        const data = await res.json();
+        const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; 
+        if (!tbody) return;
         tbody.innerHTML = data.users.map(function(user) { 
           return `<tr>
             <td>${escapeHtml(user.email)}</td>
@@ -226,7 +232,8 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         const res = await fetch('/api/admin/projects', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
         const data = await res.json();
-        const tbody = $('adminProjectsTable') ? $('adminProjectsTable').querySelector('tbody') : null; if (!tbody) return;
+        const tbody = $('adminProjectsTable') ? $('adminProjectsTable').querySelector('tbody') : null; 
+        if (!tbody) return;
         if (!data.projects || data.projects.length === 0) {
            tbody.innerHTML = '<tr><td colspan="5">No projects published yet.</td></tr>'; return;
         }
@@ -286,7 +293,14 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    loadStats();
+    // FIX: Wait for auth before loading initial stats
+    if (auth) {
+      auth.onAuthStateChanged(function(user) {
+        if (user) {
+          loadStats();
+        }
+      });
+    }
   }
 
   // ======================================================================
