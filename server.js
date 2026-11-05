@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors'); // ADDED FOR FRONTEND COMMUNICATION
 const path = require('path');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
@@ -54,6 +55,7 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
 }
 
 app.use('/api/selar-webhook', express.raw({ type: 'application/json' }));
+app.use(cors()); // ADDED CORS
 app.use(express.json({ limit: '50mb' }));
 
 // ==========================================
@@ -115,29 +117,27 @@ async function requireAdmin(req, res, next) {
 }
 
 // ==========================================
-// ADMIN ROUTES (UPGRADED)
+// ADMIN ROUTES
 // ==========================================
 app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
   try {
     const usersList = await admin.auth().listUsers(1000);
     const projectsSnap = await admin.firestore().collection('published').get();
     const lessonsSnap = await admin.firestore().collection('lessons').get();
-    let premiumCount = 0; usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
-    
-    // AI Analytics: Get today's total usage
-    const today = new Date().toISOString().slice(0, 10);
-    const usageSnap = await admin.firestore().collectionGroup('usage').where('date', '==', today).get(); // Note: requires index if you query collection group, let's just do an aggregate manually
-    let totalTokensToday = 0;
-    // For simplicity, we will just return the user and project stats for now.
+    let premiumCount = 0; 
+    usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
     
     res.json({ 
       totalUsers: usersList.users.length, 
       premiumUsers: premiumCount, 
       totalProjects: projectsSnap.size, 
       totalLessons: lessonsSnap.size,
-      totalTokensToday: 145000 // Placeholder for now, we will build the real tracker below
+      totalTokensToday: 0 // Removed broken collectionGroup query
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { 
+    console.error("Admin Stats Error:", err); // THIS WILL PRINT TO RENDER LOGS IF IT FAILS
+    res.status(500).json({ error: err.message }); 
+  }
 });
 
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
@@ -169,7 +169,6 @@ app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) =
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// NEW: Get all published projects for Live Monitoring
 app.get('/api/admin/projects', requireAuth, requireAdmin, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').orderBy('views', 'desc').get();
@@ -177,7 +176,6 @@ app.get('/api/admin/projects', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// NEW: Take Down a malicious site
 app.delete('/api/admin/projects/:slug', requireAuth, requireAdmin, async (req, res) => {
   try {
     await admin.firestore().collection('published').doc(req.params.slug).delete();
@@ -185,11 +183,9 @@ app.delete('/api/admin/projects/:slug', requireAuth, requireAdmin, async (req, r
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// NEW: AI Analytics (Top Consumers)
 app.get('/api/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    // Since we can't easily query collection groups for usage, we fetch all users and check their usage today
     const listUsersResult = await admin.auth().listUsers(1000);
     let topConsumers = [];
     let totalTokens = 0;
@@ -205,7 +201,6 @@ app.get('/api/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
       }
     }
 
-    // Sort descending and take top 10
     topConsumers.sort((a, b) => b.tokens - a.tokens);
     topConsumers = topConsumers.slice(0, 10);
 
