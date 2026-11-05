@@ -81,7 +81,7 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // NAV & THEME
   // ======================================================================
-  var ADMIN_EMAIL = 'wilcoxr889@gmail.com';
+  var ADMIN_EMAIL = 'wilcoxr889@gmail.com'; // Kept just in case
   var isAdminPage = location.pathname.toLowerCase().includes('admin.html');
   var savedTheme = localStorage.getItem('codewix_theme');
   if (savedTheme === 'light') document.body.classList.add('light-mode');
@@ -102,7 +102,16 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!user) return;
       const tokenResult = await user.getIdTokenResult();
       isUserPremium = tokenResult.claims.premium === true; 
-      isUserAdmin = user.email === ADMIN_EMAIL;
+      
+      // CHECK FIRESTORE FOR isAdmin INSTEAD OF EMAIL
+      if (db) {
+        try {
+          const userDoc = await db.collection('users').doc(user.uid).get();
+          if (userDoc.exists) {
+            isUserAdmin = userDoc.data().isAdmin === true;
+          }
+        } catch (e) { console.error("Error fetching admin status", e); }
+      }
 
       if (navMenu && !isAdminPage) {
         if (!document.getElementById('profileNavLink')) {
@@ -133,10 +142,18 @@ window.addEventListener('DOMContentLoaded', function () {
   var path = location.pathname.toLowerCase();
   var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html', 'publish.html', 'admin.html'];
   if (auth && protectedPages.some(function (p) { return path.indexOf(p) !== -1; })) {
-    auth.onAuthStateChanged(function (user) {
+    auth.onAuthStateChanged(async function (user) {
       if (!user) { location.replace('login.html'); return; }
       if (!user.emailVerified) { alert('Please verify your email to access this page.'); auth.signOut().then(function () { location.replace('login.html'); }); return; }
-      if (isAdminPage && user.email !== ADMIN_EMAIL) { location.replace('dashboard.html'); return; }
+      
+      // Check Admin via Firestore
+      if (isAdminPage && db) {
+        const doc = await db.collection('users').doc(user.uid).get();
+        if (!doc.exists || doc.data().isAdmin !== true) {
+           location.replace('dashboard.html'); return;
+        }
+      }
+
       if ($('dashUser')) $('dashUser').textContent = user.email.split('@')[0];
       if ($('userEmail')) $('userEmail').textContent = user.email;
     });
@@ -160,6 +177,9 @@ window.addEventListener('DOMContentLoaded', function () {
       auth.createUserWithEmailAndPassword(email, password).then(function (uc) {
         var user = uc.user; if (username && user.updateProfile) return user.updateProfile({ displayName: username }).then(function () { return user; }); return user;
       }).then(function (user) {
+        // Save user to Firestore on register (optional but recommended)
+        if (db) db.collection('users').doc(user.uid).set({ email: user.email, displayName: username || '', createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        
         return fetch('/api/send-verification-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: user.email, userName: username || user.email.split('@')[0], redirectUrl: window.location.origin + '/verify.html' }) })
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
       }).then(function (result) {
@@ -283,7 +303,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // ADMIN DASHBOARD LOGIC
+  // ADMIN DASHBOARD LOGIC (BYPASSES BACKEND APIs)
   // ======================================================================
   if (isAdminPage) {
     document.querySelectorAll('.nav-btn[data-target]').forEach(function(btn) {
@@ -303,112 +323,133 @@ window.addEventListener('DOMContentLoaded', function () {
     
     var getToken = async function() { 
       if (!auth.currentUser) throw new Error("Not logged in");
-      return await auth.currentUser.getIdToken(true); // Force refresh to prevent expired token errors
+      return await auth.currentUser.getIdToken(true);
     };
 
     var loadStats = async function() {
       try {
-        const res = await fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
-        if (!res.ok) throw new Error('Failed to load stats');
-        const data = await res.json(); 
-        if ($('statUsers')) $('statUsers').textContent = data.totalUsers; 
-        if ($('statPremium')) $('statPremium').textContent = data.premiumUsers; 
-        if ($('statProjects')) $('statProjects').textContent = data.totalProjects; 
-        if ($('statLessons')) $('statLessons').textContent = data.totalLessons;
+        if (!db) throw new Error("Firestore not initialized");
+        const usersSnap = await db.collection('users').get();
+        const projectsSnap = await db.collection('published').get();
+        
+        let premiumCount = 0;
+        usersSnap.forEach(doc => {
+           const data = doc.data();
+           if (data.premium === true || data.isPremium === true) premiumCount++;
+        });
+
+        if ($('statUsers')) $('statUsers').textContent = usersSnap.size; 
+        if ($('statPremium')) $('statPremium').textContent = premiumCount; 
+        if ($('statProjects')) $('statProjects').textContent = projectsSnap.size; 
+        if ($('statLessons')) $('statLessons').textContent = 15; // Hardcoded for now
       } catch (err) { showToast(err.message, 'error'); }
     };
 
     var loadUsers = async function() {
       try {
-        const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
-        const data = await res.json();
+        if (!db) throw new Error("Firestore not initialized");
+        const snap = await db.collection('users').get();
         const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; 
         if (!tbody) return;
-        tbody.innerHTML = data.users.map(function(user) { 
-          return `<tr>
-            <td>${escapeHtml(user.email)}</td>
-            <td>${escapeHtml(user.displayName)}</td>
-            <td>${escapeHtml(user.joined)}</td>
-            <td><span class="badge ${user.premium ? 'premium' : 'free'}">${user.premium ? 'Premium' : 'Free'}</span></td>
-            <td>
-              <button class="btn btn-primary toggle-premium-btn" data-uid="${user.uid}">Toggle Pro</button>
-              <button class="btn btn-danger delete-user-btn" data-uid="${user.uid}">Delete</button>
-            </td>
-          </tr>`; 
-        }).join('');
+        
+        if (snap.empty) {
+           tbody.innerHTML = '<tr><td colspan="5">No users found in database.</td></tr>'; return;
+        }
+
+        let html = '';
+        snap.forEach(doc => {
+           const u = doc.data();
+           const email = u.email || 'Unknown';
+           const displayName = u.displayName || 'No Name';
+           const joined = u.createdAt ? formatDate(u.createdAt) : 'Unknown';
+           const isPremium = u.premium === true || u.isPremium === true;
+
+           html += `<tr>
+              <td>${escapeHtml(email)}</td>
+              <td>${escapeHtml(displayName)}</td>
+              <td>${escapeHtml(joined)}</td>
+              <td><span class="badge ${isPremium ? 'premium' : 'free'}">${isPremium ? 'Premium' : 'Free'}</span></td>
+              <td>
+                <button class="btn btn-primary toggle-premium-btn" data-uid="${doc.id}">Toggle Pro</button>
+                <button class="btn btn-danger delete-user-btn" data-uid="${doc.id}">Delete</button>
+              </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
       } catch (err) { showToast(err.message, 'error'); }
     };
 
     var loadProjects = async function() {
       try {
-        const res = await fetch('/api/admin/projects', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
-        const data = await res.json();
+        if (!db) throw new Error("Firestore not initialized");
+        const snap = await db.collection('published').get();
         const tbody = $('adminProjectsTable') ? $('adminProjectsTable').querySelector('tbody') : null; 
         if (!tbody) return;
-        if (!data.projects || data.projects.length === 0) {
+        
+        if (snap.empty) {
            tbody.innerHTML = '<tr><td colspan="5">No projects published yet.</td></tr>'; return;
         }
-        tbody.innerHTML = data.projects.map(function(p) { 
-          return `<tr>
-            <td>${escapeHtml(p.projectName || 'Untitled')}</td>
-            <td><a href="/s/${p.slug}" target="_blank" style="color:#38bdf8;">/s/${p.slug}</a></td>
-            <td><small>${escapeHtml(p.uid || 'Unknown')}</small></td>
-            <td>${p.views || 0}</td>
-            <td>
-              <button class="btn btn-warning takedown-btn" data-slug="${p.slug}">Take Down</button>
-            </td>
-          </tr>`; 
-        }).join('');
+
+        let html = '';
+        snap.forEach(doc => {
+           const p = doc.data();
+           html += `<tr>
+              <td>${escapeHtml(p.projectName || 'Untitled')}</td>
+              <td><a href="/s/${doc.id}" target="_blank" style="color:#38bdf8;">/s/${doc.id}</a></td>
+              <td><small>${escapeHtml(p.username || 'Unknown')}</small></td>
+              <td>${p.views || 0}</td>
+              <td>
+                <button class="btn btn-warning takedown-btn" data-slug="${doc.id}">Take Down</button>
+              </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
       } catch (err) { showToast(err.message, 'error'); }
     };
 
     var loadAnalytics = async function() {
       try {
-        const res = await fetch('/api/admin/analytics', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
-        const data = await res.json();
-        
-        if ($('statTokensToday')) $('statTokensToday').textContent = (data.totalTokensToday || 0).toLocaleString();
-        
+        if (!db) throw new Error("Firestore not initialized");
+        // Simplified: Just showing a placeholder since collectionGroup requires manual indexing
+        if ($('statTokensToday')) $('statTokensToday').textContent = "0";
         const list = $('topConsumersList');
-        if (!list) return;
-        if (!data.topConsumers || data.topConsumers.length === 0) {
-          list.innerHTML = '<p style="color:#64748b;">No AI usage today.</p>'; return;
-        }
-        list.innerHTML = data.topConsumers.map(c => {
-           return `<div class="consumer-row">
-             <span>${escapeHtml(c.email)}</span>
-             <span style="color:#fbbf24; font-weight:bold;">${c.tokens.toLocaleString()} tokens</span>
-           </div>`;
-        }).join('');
+        if (list) list.innerHTML = '<p style="color:#64748b;">Analytics requires a backend index. Check API logs.</p>';
       } catch (err) { showToast(err.message, 'error'); }
     };
 
+    // NOTE: Toggle Premium & Delete still go to the backend because 
+    // you cannot delete an Auth user or change custom claims from the frontend.
     document.addEventListener('click', async function(e) {
       if (e.target.classList.contains('toggle-premium-btn')) { 
         const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; 
-        await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid: uid, action: 'toggle-premium' }) }); 
-        loadUsers(); 
+        try {
+          await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid: uid, action: 'toggle-premium' }) }); 
+          loadUsers(); 
+        } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; }
       }
       if (e.target.classList.contains('delete-user-btn')) { 
         if(!confirm('Delete permanently?')) return; 
         const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; 
-        await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid: uid, action: 'delete' }) }); 
-        loadUsers(); 
+        try {
+          await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid: uid, action: 'delete' }) }); 
+          loadUsers(); 
+        } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; }
       }
       if (e.target.classList.contains('takedown-btn')) {
         if (!confirm('Are you sure? This will permanently delete this site.')) return;
         const slug = e.target.getAttribute('data-slug'); e.target.disabled = true;
-        await fetch('/api/admin/projects/' + slug, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + await getToken() } });
-        showToast('Site taken down.', 'success');
-        loadProjects();
+        try {
+          // We can delete this directly from Firestore since we are admin
+          await db.collection('published').doc(slug).delete();
+          showToast('Site taken down.', 'success');
+          loadProjects();
+        } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; }
       }
     });
 
     if (auth) {
       auth.onAuthStateChanged(function(user) {
-        if (user) {
-          loadStats();
-        }
+        if (user) loadStats();
       });
     }
   }
