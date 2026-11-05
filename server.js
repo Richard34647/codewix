@@ -146,6 +146,16 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     }
     res.end();
 
+    // Process any leftover data in the buffer (for final token count)
+    if (buffer.trim().startsWith('data: ') && buffer.trim() !== 'data: [DONE]') {
+      try {
+        const parsed = JSON.parse(buffer.trim().slice(6));
+        if (parsed.usage && parsed.usage.total_tokens) {
+          totalTokensUsed = parsed.usage.total_tokens;
+        }
+      } catch (e) {}
+    }
+
     if (!req.isPremium && totalTokensUsed > 0 && req.rateLimitRef) {
       await req.rateLimitRef.set({ tokens: admin.firestore.FieldValue.increment(totalTokensUsed) }, { merge: true });
     }
@@ -319,6 +329,66 @@ app.get('/s/:slug', async (req, res, next) => {
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (data.projectName || req.params.slug) + '</title><style>' + (files['style.css'] || '') + '</style></head><body>' + rewritePublishedLinks(rawHtml, req.params.slug) + '<script>' + (files['script.js'] || '') + '<\/script></body></html>';
     res.send(html);
   } catch (err) { next(); }
+});
+
+// ==========================================
+// MISSING ROUTES: VERIFICATION & LESSONS
+// ==========================================
+
+// 1. Send Verification Email
+app.post('/api/send-verification-email', async (req, res) => {
+  const { userEmail, userName, redirectUrl } = req.body;
+  if (!userEmail) return res.status(400).json({ error: 'Email required' });
+
+  try {
+    const link = await admin.auth().generateEmailVerificationLink(userEmail, { url: redirectUrl });
+    
+    if (emailjsReady) {
+      await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
+        to_email: userEmail,
+        user_name: userName,
+        verification_link: link
+      });
+    } else {
+      console.log('⚠️ EmailJS not configured. Verification link:', link);
+    }
+    
+    res.json({ ok: true, message: 'Verification email sent' });
+  } catch (err) {
+    console.error('Verify Email Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Get all lessons (Public)
+app.get('/api/lessons', async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get();
+    const lessons = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ lessons });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 3. Create a new lesson (Admin Only)
+app.post('/api/admin/lessons', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
+  const { title, description, difficulty, content } = req.body;
+  try {
+    const ref = await admin.firestore().collection('lessons').add({
+      title, description, difficulty, content, 
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.json({ ok: true, id: ref.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// 4. Delete a lesson (Admin Only)
+app.delete('/api/admin/lessons/:id', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
+  try {
+    await admin.firestore().collection('lessons').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Fallbacks
