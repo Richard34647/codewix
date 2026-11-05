@@ -172,30 +172,6 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // CUSTOM DOMAIN FUNCTION
-  // ======================================================================
-  window.promptDomain = async function(projectId) {
-    const domain = prompt("Enter your custom domain (e.g., www.mywebsite.com):\n\nNote: You must set a CNAME record pointing to codewi.onrender.com in your domain registrar.");
-    if (!domain) return;
-    
-    try {
-      const user = auth.currentUser;
-      const token = await user.getIdToken();
-      const res = await fetch('/api/connect-domain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ projectId: projectId, domainName: domain })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
-      showToast('Domain connected successfully!', 'success');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // ======================================================================
   // PROFILE PAGE LOGIC
   // ======================================================================
   if (location.pathname.includes('profile.html')) {
@@ -230,21 +206,12 @@ window.addEventListener('DOMContentLoaded', function () {
               totalViews += (site.views || 0);
               var card = document.createElement('div'); card.className = 'site-card';
               
-              let domainBtnHtml = '';
-              if (isPremiumUser) {
-                if (site.customDomain) {
-                  domainBtnHtml = `<button class="domain-btn" style="border-color:#34d399; color:#34d399;">🌐 ${escapeHtml(site.customDomain)}</button>`;
-                } else {
-                  domainBtnHtml = `<button class="domain-btn" onclick="window.promptDomain('${site.slug}')">🌐 Connect Domain</button>`;
-                }
-              }
-
               card.innerHTML = `
                 <div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div>
                 <div class="site-info">
                   <h3>${escapeHtml(site.projectName || 'Untitled')}</h3>
                   <p>👁 ${site.views || 0} views</p>
-                  ${domainBtnHtml}
+                  <a href="site-settings.html?slug=${site.slug}" class="domain-btn" style="text-decoration:none; display:block; text-align:center;">⚙️ Settings</a>
                 </div>
               `;
               grid.appendChild(card);
@@ -639,7 +606,75 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // PUBLISH PAGE (WITH DOMAIN & FIXED DESCRIPTION)
+  // SITE SETTINGS PAGE LOGIC
+  // ======================================================================
+  if (location.pathname.includes('site-settings.html')) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const slug = urlParams.get('slug');
+
+    if (!slug) { alert("No site specified."); location.href = 'profile.html'; return; }
+
+    window.copyToClipboard = function(text) {
+      navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success'));
+    };
+
+    if (auth) {
+      auth.onAuthStateChanged(async function(user) {
+        if (!user) { location.href = 'login.html'; return; }
+        const token = await user.getIdToken();
+
+        // 1. Load Site Data
+        try {
+          const res = await fetch('/api/published/' + slug, {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+
+          const site = data.site;
+          
+          // Set View Link
+          document.getElementById('viewLiveSiteBtn').href = '/s/' + slug;
+
+          // Populate File Editors
+          document.getElementById('edit-index-html').value = site.files['index.html'] || '';
+          document.getElementById('edit-style-css').value = site.files['style.css'] || '';
+          document.getElementById('edit-script-js').value = site.files['script.js'] || '';
+
+        } catch (err) { alert("Error loading site: " + err.message); }
+
+        // 2. Save Files
+        document.getElementById('saveFilesBtn').onclick = async function() {
+          this.disabled = true; this.textContent = 'Saving...';
+          try {
+            const files = {
+              'index.html': document.getElementById('edit-index-html').value,
+              'style.css': document.getElementById('edit-style-css').value,
+              'script.js': document.getElementById('edit-script-js').value,
+            };
+            
+            // Preserve existing assets
+            const currentSiteRes = await fetch('/api/published/' + slug, { headers: { 'Authorization': 'Bearer ' + token } });
+            const currentData = await currentSiteRes.json();
+            const allFiles = Object.assign({}, currentData.site.files, files);
+
+            const res = await fetch('/api/published/' + slug, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ files: allFiles })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            showToast('Files updated successfully!', 'success');
+          } catch (err) { showToast(err.message, 'error'); }
+          finally { this.disabled = false; this.textContent = 'Save Changes'; }
+        };
+      });
+    }
+  }
+
+  // ======================================================================
+  // PUBLISH PAGE
   // ======================================================================
   if ($('publishForm')) {
     var projectSelect = $('projectSelect');
@@ -676,14 +711,6 @@ window.addEventListener('DOMContentLoaded', function () {
         var url = '/s/' + encodeURIComponent(site.slug);
         var fullUrl = location.origin + url;
         
-        var domainBtnHtml = '';
-        if (isUserPremium) {
-          domainBtnHtml = `<button type="button" class="studio-btn ghost-btn domain-btn" data-slug="${escapeHtml(site.slug)}" style="margin-left: 6px;">🌐 Connect Domain</button>`;
-          if (site.customDomain) {
-             domainBtnHtml = `<button type="button" class="studio-btn ghost-btn domain-btn" style="margin-left: 6px; border-color:#34d399; color:#34d399;" data-slug="${escapeHtml(site.slug)}">🌐 ${escapeHtml(site.customDomain)}</button>`;
-          }
-        }
-
         card.innerHTML =
           '<div class="my-site-info">' +
             '<h3>' + escapeHtml(site.projectName || 'Untitled') + '</h3>' +
@@ -697,7 +724,7 @@ window.addEventListener('DOMContentLoaded', function () {
           '<div class="my-site-actions">' +
             '<a href="' + url + '" target="_blank" class="studio-btn ghost-btn">View</a>' +
             '<button type="button" class="studio-btn ghost-btn copy-link-btn" data-url="' + escapeHtml(fullUrl) + '">Copy Link</button>' +
-            domainBtnHtml +
+            '<a href="site-settings.html?slug=' + site.slug + '" class="studio-btn ghost-btn" style="text-decoration: none;">⚙️ Settings</a>' +
             '<button type="button" class="studio-btn ghost-btn danger-btn unpublish-btn" data-slug="' + escapeHtml(site.slug) + '">Unpublish</button>' +
           '</div>';
         mySitesGrid.appendChild(card);
@@ -706,12 +733,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (mySitesGrid) {
       mySitesGrid.addEventListener('click', function (e) {
-        var domainBtn = e.target.closest('.domain-btn');
-        if (domainBtn) {
-          var slug = domainBtn.getAttribute('data-slug');
-          window.promptDomain(slug);
-          return;
-        }
         var copyBtn = e.target.closest('.copy-link-btn');
         if (copyBtn) {
           var url = copyBtn.getAttribute('data-url');
@@ -734,12 +755,10 @@ window.addEventListener('DOMContentLoaded', function () {
       auth.onAuthStateChanged(async function(user) {
         if (!user) return;
         try {
-          // FIX: Removed .orderBy to prevent missing index errors
           var snap = await db.collection('users').doc(user.uid).collection('projects').get();
           var projects = [];
           snap.forEach(function(doc) { projects.push({ id: doc.id, data: doc.data() }); });
           
-          // Sort in memory
           projects.sort(function(a, b) {
             var timeA = a.data.updatedAt ? a.data.updatedAt.toMillis() : 0;
             var timeB = b.data.updatedAt ? b.data.updatedAt.toMillis() : 0;
