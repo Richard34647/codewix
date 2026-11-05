@@ -78,42 +78,6 @@ window.addEventListener('DOMContentLoaded', function () {
     return new Blob([array], { type: mime });
   }
 
-  // ADDED: GLOBAL TTS FUNCTION
-  window.playTTS = async function(buttonElement, text) {
-    if (!isUserPremium) return showToast('Text-to-Speech is a Pro feature.', 'error');
-    const originalText = buttonElement.textContent;
-    buttonElement.disabled = true;
-    buttonElement.textContent = 'Generating...';
-
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ text: text })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate audio.');
-      }
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      const audioElement = buttonElement.parentElement.querySelector('audio');
-      audioElement.src = audioUrl;
-      audioElement.play();
-
-      audioElement.onended = () => URL.revokeObjectURL(audioUrl);
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      buttonElement.disabled = false;
-      buttonElement.textContent = originalText;
-    }
-  };
-
   // ======================================================================
   // GLOBAL BAN CHECK & NAV & THEME
   // ======================================================================
@@ -823,7 +787,7 @@ window.addEventListener('DOMContentLoaded', function () {
       c.innerHTML = html;
     }
     
-    // UPDATED: ADDED TTS BUTTON FOR PREMIUM
+    // UPDATED: TTS BUTTON LOGIC FIXED
     function setAssistantMessage(div, content, reasoning) { 
       var c = div.querySelector('.message-content'), html = ''; 
       if (reasoning) html += '<details class="reasoning-section"><summary>Thinking</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>'; 
@@ -833,7 +797,7 @@ window.addEventListener('DOMContentLoaded', function () {
         const audioId = 'tts-audio-' + Date.now();
         html += `
             <div style="margin-top: 10px;">
-                <button class="btn" style="background: #38bdf8; color: #020617; padding: 6px 12px; font-size: 12px;" onclick="playTTS(this, '${escapeHtml(content).replace(/'/g, "\\'")}')">🔊 Read Aloud</button>
+                <button class="btn read-aloud-btn" style="background: #38bdf8; color: #020617; padding: 6px 12px; font-size: 12px;">🔊 Read Aloud</button>
                 <audio id="${audioId}" style="display:none;"></audio>
             </div>
         `;
@@ -881,8 +845,61 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    chatContainer.addEventListener('click', function (e) {
-      var btn = e.target.closest('button'); if (!btn) return; var block = btn.closest('.code-block'); if (!block) return;
+    chatContainer.addEventListener('click', async function (e) {
+      var btn = e.target.closest('button'); if (!btn) return; 
+      
+      // NEW TTS LOGIC HERE
+      if (btn.classList.contains('read-aloud-btn')) {
+        if (!isUserPremium) return showToast('Text-to-Speech is a Pro feature.', 'error');
+        
+        const messageContentEl = btn.closest('.message-content');
+        let textToRead = "";
+        messageContentEl.querySelectorAll('.text-part').forEach(el => {
+            textToRead += el.innerText + " ";
+        });
+        textToRead = textToRead.trim();
+
+        if (!textToRead) return showToast('No text to read.', 'error');
+
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ text: textToRead })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate audio.');
+            }
+
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            const audioElement = btn.parentElement.querySelector('audio');
+            if (audioElement) {
+                audioElement.src = audioUrl;
+                audioElement.play();
+                audioElement.onended = () => URL.revokeObjectURL(audioUrl);
+            } else {
+                const audio = new Audio(audioUrl);
+                audio.play();
+            }
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+        return;
+      }
+
+      var block = btn.closest('.code-block'); if (!block) return;
       var codeEl = block.querySelector('pre code'), code = codeEl ? codeEl.textContent : '', lang = block.getAttribute('data-lang') || 'txt', filename = block.getAttribute('data-filename') || ('snippet.' + lang);
       if (btn.classList.contains('copy-btn')) { (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { showToast('Code copied'); }).catch(function () { showToast('Copy failed', 'error'); }); }
       else if (btn.classList.contains('download-code-btn')) { var blob = new Blob([code], { type: 'text/plain' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); }
