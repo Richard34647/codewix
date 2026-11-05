@@ -298,7 +298,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
-// TEXT TO SPEECH (PREMIUM ONLY) - UPDATED TO MP3
+// TEXT TO SPEECH (PREMIUM ONLY) - FIXED ENDPOINT
 app.post('/api/tts', requireAuth, async (req, res) => {
   if (!req.isPremium) {
     return res.status(403).json({ error: 'Text-to-Speech is a Pro feature.' });
@@ -308,8 +308,12 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   if (!text) return res.status(400).json({ error: 'Text is required.' });
 
   try {
-    const tts = new MsEdgeTTS();
-    // Changed to MP3 for better browser compatibility
+    // Force the new working Microsoft endpoint
+    const tts = new MsEdgeTTS({
+      wssUrl: 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1'
+    });
+    
+    // Use MP3 for best browser compatibility
     await tts.setMetadata("en-US-AriaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
     const readable = tts.toStream(text);
     
