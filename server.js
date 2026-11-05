@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors'); // ADDED FOR FRONTEND COMMUNICATION
+const cors = require('cors');
 const path = require('path');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
@@ -55,7 +55,7 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
 }
 
 app.use('/api/selar-webhook', express.raw({ type: 'application/json' }));
-app.use(cors()); // ADDED CORS
+app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // ==========================================
@@ -131,13 +131,50 @@ app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
       totalUsers: usersList.users.length, 
       premiumUsers: premiumCount, 
       totalProjects: projectsSnap.size, 
-      totalLessons: lessonsSnap.size,
-      totalTokensToday: 0 // Removed broken collectionGroup query
+      totalLessons: lessonsSnap.size
     });
-  } catch (err) { 
-    console.error("Admin Stats Error:", err); // THIS WILL PRINT TO RENDER LOGS IF IT FAILS
-    res.status(500).json({ error: err.message }); 
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// BAN / UNBAN USER
+app.post('/api/admin/ban-user', requireAuth, requireAdmin, async (req, res) => {
+  const { uid, action } = req.body;
+  try {
+    if (action === 'ban') {
+      await admin.auth().updateUser(uid, { disabled: true });
+      await admin.firestore().collection('users').doc(uid).set({ banned: true, strikes: 3 }, { merge: true });
+      res.json({ ok: true, message: 'User banned successfully.' });
+    } else if (action === 'unban') {
+      await admin.auth().updateUser(uid, { disabled: false });
+      await admin.firestore().collection('users').doc(uid).set({ banned: false, strikes: 0 }, { merge: true });
+      res.json({ ok: true, message: 'User unbanned successfully.' });
+    } else {
+      res.status(400).json({ error: 'Invalid action.' });
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// AUTO-BAN SYSTEM (Strikes)
+app.post('/api/report-violation', requireAuth, async (req, res) => {
+  const { targetUid, reason } = req.body;
+  if (!targetUid) return res.status(400).json({ error: 'Target UID required.' });
+  
+  try {
+    const userRef = admin.firestore().collection('users').doc(targetUid);
+    const userDoc = await userRef.get();
+    
+    let currentStrikes = userDoc.exists ? (userDoc.data().strikes || 0) : 0;
+    currentStrikes += 1;
+    
+    if (currentStrikes >= 3) {
+      await admin.auth().updateUser(targetUid, { disabled: true });
+      await userRef.set({ banned: true, strikes: currentStrikes, banReason: reason || 'Violated Terms of Service' }, { merge: true });
+      res.json({ ok: true, message: 'User automatically banned due to 3 strikes.' });
+    } else {
+      await userRef.set({ strikes: currentStrikes, lastViolation: reason || 'Rule violation' }, { merge: true });
+      res.json({ ok: true, message: `Warning issued. Strike ${currentStrikes}/3.` });
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
@@ -200,7 +237,6 @@ app.get('/api/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
         }
       }
     }
-
     topConsumers.sort((a, b) => b.tokens - a.tokens);
     topConsumers = topConsumers.slice(0, 10);
 
@@ -295,6 +331,43 @@ app.get('/api/user/usage', requireAuth, async (req, res) => {
 });
 
 // ==========================================
+// RUN CODE ROUTE
+// ==========================================
+app.post('/api/run', requireAuth, async (req, res) => {
+  const { language, code } = req.body || {};
+  if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
+  const lang = language.toLowerCase();
+
+  if (lang === 'py' || lang === 'python') {
+    const tempFile = path.join(os.tmpdir(), `script_${Date.now()}.py`);
+    fs.writeFileSync(tempFile, code);
+    exec(`python3 ${tempFile}`, { timeout: 120000 }, (error, stdout, stderr) => {
+      try { fs.unlinkSync(tempFile); } catch (e) {}
+      let finalErr = stderr;
+      if (error) {
+        if (error.killed) finalErr = "❌ PROCESS KILLED: The script took too long (exceeded 2 minutes) or ran out of memory.";
+        else if (!stderr && !stdout) finalErr = "❌ SERVER KILLED PROCESS: Likely Out of Memory (OOM).";
+        else finalErr = error.message;
+      }
+      res.json({ output: stdout || '', stderr: finalErr || '', code: error ? 1 : 0 });
+    });
+    return;
+  }
+
+  const langMap = { 'php': 68, 'js': 63, 'javascript': 63, 'cpp': 54, 'c++': 54, 'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 };
+  const langId = langMap[lang];
+  if (!langId) return res.status(400).json({ error: 'Unsupported language.' });
+
+  try {
+    const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language_id: langId, source_code: code })
+    });
+    const data = await response.json();
+    res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
+  } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
+});
+
+// ==========================================
 // CONTACT & VERIFICATION
 // ==========================================
 app.post('/api/contact', async (req, res) => {
@@ -352,12 +425,11 @@ app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res)
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
-  
   const safeDescription = description || '';
   
   if (!req.isPremium) {
     const existing = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
-    if (existing.size >= 1) return res.status(403).json({ error: 'Free users can only publish 1 site. Upgrade to Pro for unlimited live projects!' });
+    if (existing.size >= 1) return res.status(403).json({ error: 'Free users can only publish 1 site. Upgrade to Pro!' });
   }
 
   let finalPassword = null;
