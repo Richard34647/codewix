@@ -15,6 +15,7 @@
         <button class="nav-btn" data-target="projects">🌐 Projects</button>
         <button class="nav-btn" data-target="analytics">📈 AI Analytics</button>
         <button class="nav-btn" data-target="notifications">🔔 Notifications</button>
+        <button class="nav-btn" data-target="support">🎧 Support</button>
         <a href="dashboard.html" class="back-link">← Back to Site</a>
     </div>
 
@@ -23,22 +24,10 @@
         <div id="dashboard" class="tab-section active">
             <h1>Overview</h1>
             <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>Total Users</h3>
-                    <div class="value" id="statUsers">0</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Premium Users</h3>
-                    <div class="value" id="statPremium">0</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Projects Published</h3>
-                    <div class="value" id="statProjects">0</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Total Lessons</h3>
-                    <div class="value" id="statLessons">0</div>
-                </div>
+                <div class="stat-card"><h3>Total Users</h3><div class="value" id="statUsers">0</div></div>
+                <div class="stat-card"><h3>Premium Users</h3><div class="value" id="statPremium">0</div></div>
+                <div class="stat-card"><h3>Projects Published</h3><div class="value" id="statProjects">0</div></div>
+                <div class="stat-card"><h3>Total Lessons</h3><div class="value" id="statLessons">0</div></div>
             </div>
         </div>
 
@@ -46,18 +35,8 @@
         <div id="users" class="tab-section">
             <h1>User Management</h1>
             <table id="adminUsersTable">
-                <thead>
-                    <tr>
-                        <th>Email</th>
-                        <th>Name</th>
-                        <th>Status</th>
-                        <th>Plan</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="5">Loading users...</td></tr>
-                </tbody>
+                <thead><tr><th>Email</th><th>Name</th><th>Status</th><th>Plan</th><th>Actions</th></tr></thead>
+                <tbody><tr><td colspan="5">Loading users...</td></tr></tbody>
             </table>
         </div>
 
@@ -65,18 +44,8 @@
         <div id="projects" class="tab-section">
             <h1>Live Projects</h1>
             <table id="adminProjectsTable">
-                <thead>
-                    <tr>
-                        <th>Project Name</th>
-                        <th>URL</th>
-                        <th>Owner</th>
-                        <th>Last Updated</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="5">Loading projects...</td></tr>
-                </tbody>
+                <thead><tr><th>Project Name</th><th>URL</th><th>Owner</th><th>Updated</th><th>Actions</th></tr></thead>
+                <tbody><tr><td colspan="5">Loading projects...</td></tr></tbody>
             </table>
         </div>
 
@@ -84,50 +53,53 @@
         <div id="analytics" class="tab-section">
             <h1>AI Analytics</h1>
             <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>Tokens Used Today</h3>
-                    <div class="value" id="statTokensToday">0</div>
-                </div>
+                <div class="stat-card"><h3>Tokens Used Today</h3><div class="value" id="statTokensToday">0</div></div>
             </div>
             <h3>Top Consumers</h3>
-            <div id="topConsumersList" style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-                Loading analytics...
-            </div>
+            <div id="topConsumersList" style="background: var(--bg-panel); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">Loading analytics...</div>
         </div>
 
         <!-- NOTIFICATIONS TAB -->
         <div id="notifications" class="tab-section">
             <h1>Manage Notifications</h1>
-            
             <form id="addNotifForm" class="admin-form">
-                <h3 style="margin-top: 0; color: var(--text-main);">Send New Notification</h3>
-                <input type="text" id="notifTitle" placeholder="Notification Title (e.g., New Feature!)" required>
-                <textarea id="notifMessage" placeholder="Notification Message..." required></textarea>
+                <h3>Send New Notification</h3>
+                <input type="text" id="notifTitle" placeholder="Notification Title" required>
+                <textarea id="notifMessage" placeholder="Message..." required></textarea>
                 <button type="submit" class="btn btn-primary" style="align-self: flex-start;">Add Notification</button>
             </form>
-
             <h3>Existing Notifications</h3>
             <table id="adminNotifTable">
-                <thead>
-                    <tr>
-                        <th>Title</th>
-                        <th>Message</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="3">Loading notifications...</td></tr>
-                </tbody>
+                <thead><tr><th>Title</th><th>Message</th><th>Actions</th></tr></thead>
+                <tbody><tr><td colspan="3">Loading...</td></tr></tbody>
             </table>
+        </div>
+
+        <!-- SUPPORT TAB -->
+        <div id="support" class="tab-section">
+            <h1>Support Tickets</h1>
+            <div style="display: flex; gap: 20px; height: 70vh;">
+                <!-- Ticket List -->
+                <div style="width: 300px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; overflow-y: auto;" id="adminTicketList">
+                    <p style="padding: 20px; color: #64748b;">Loading tickets...</p>
+                </div>
+                <!-- Chat Area -->
+                <div style="flex: 1; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column;">
+                    <div id="adminChatHeader" style="padding: 15px; border-bottom: 1px solid var(--border); color: #94a3b8;">Select a ticket to chat</div>
+                    <div id="adminChatMessages" style="flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;"></div>
+                    <div style="padding: 15px; border-top: 1px solid var(--border); display: flex; gap: 10px;">
+                        <input type="text" id="adminChatInput" placeholder="Type reply..." style="flex:1; padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-dark); color: white;" disabled>
+                        <button id="adminChatSend" class="btn btn-primary" disabled>Send</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    
-    <!-- Main Script -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
