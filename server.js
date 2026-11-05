@@ -53,7 +53,6 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
   console.log('✅ [EmailJS] Initialized');
 }
 
-// Use raw body parser for webhook to verify signatures if needed
 app.use('/api/selar-webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 
@@ -116,83 +115,48 @@ async function requireAdmin(req, res, next) {
 }
 
 // ==========================================
-// SELAR WEBHOOK (UPGRADE LOGIC)
+// SELAR WEBHOOK
 // ==========================================
 app.post('/api/selar-webhook', async (req, res) => {
   try {
-    // 1. Verify Webhook Secret (Optional but highly recommended)
-    // Selar typically sends custom headers or you configure the URL with a secret
     const secret = req.headers['x-selar-signature'] || req.query.secret;
     if (SELAR_WEBHOOK_SECRET && secret !== SELAR_WEBHOOK_SECRET) {
-      console.warn('⚠️ Unauthorized webhook attempt');
       return res.status(401).send('Unauthorized');
     }
-
     const payload = JSON.parse(req.body.toString());
-    
-    // Check event type based on Selar documentation
     if (payload.event === 'charge.success' || payload.event === 'sale.completed' || payload.event === 'subscription.created') {
       const customerEmail = payload.data.customer.email;
+      if (!customerEmail) return res.status(400).send('No email provided');
       
-      if (!customerEmail) {
-        console.warn('⚠️ Webhook received without customer email');
-        return res.status(400).send('No email provided');
-      }
-
-      console.log(`💳 Payment successful from: ${customerEmail}. Attempting upgrade...`);
-
-      // Find user by email in Firebase
       const userRecord = await admin.auth().getUserByEmail(customerEmail);
-      
-      // Upgrade user to Pro
       await admin.auth().setCustomUserClaims(userRecord.uid, { premium: true });
-      
-      console.log(`✅ SUCCESS: User ${customerEmail} upgraded to PRO.`);
-      
-      // Optionally, update Firestore to keep a record
-      await admin.firestore().collection('users').doc(userRecord.uid).set({
-        premium: true,
-        upgradedAt: admin.firestore.FieldValue.serverTimestamp(),
-        paymentProvider: 'Selar'
-      }, { merge: true });
+      await admin.firestore().collection('users').doc(userRecord.uid).set({ premium: true, upgradedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      console.log(`✅ User ${customerEmail} upgraded to PRO.`);
     }
-
     res.status(200).send('Webhook received');
-  } catch (err) {
-    console.error('❌ Webhook Error:', err.message);
-    res.status(500).send('Webhook processing failed');
-  }
+  } catch (err) { res.status(500).send('Webhook failed'); }
 });
 
 // ==========================================
 // AI CHAT ROUTE
 // ==========================================
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
-  if (!GROQ_API_KEY) return res.status(500).json({ error: 'Server is missing GROQ_API_KEY.' });
+  if (!GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
-  if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'messages array is required.' });
+  if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'messages required.' });
 
   try {
     let finalModel = model || 'openai/gpt-oss-120b';
     if (!req.isPremium && finalModel.includes('70b')) finalModel = 'llama-3.1-8b-instant';
 
-    const body = {
-      model: finalModel, messages: messages,
-      temperature: typeof temperature === 'number' ? temperature : 0.7,
-      max_completion_tokens: max_completion_tokens || 2048, stream: true,
-      stream_options: { include_usage: true }
-    };
+    const body = { model: finalModel, messages, temperature: temperature || 0.7, max_completion_tokens: max_completion_tokens || 2048, stream: true, stream_options: { include_usage: true } };
     if (reasoning_effort && req.isPremium) body.reasoning_effort = reasoning_effort;
 
     const groqRes = await fetch(GROQ_ENDPOINT, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
-      body: JSON.stringify(body)
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY }, body: JSON.stringify(body)
     });
 
-    if (!groqRes.ok) {
-      let errData; try { errData = await groqRes.json(); } catch(e) { errData = { error: 'Unknown Groq Error' }; }
-      return res.status(groqRes.status).json({ error: errData.error?.message || errData.error || 'Groq API Error' });
-    }
+    if (!groqRes.ok) { const errData = await groqRes.json(); return res.status(groqRes.status).json(errData); }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -213,29 +177,17 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
         buffer = lines.pop(); 
         for (let line of lines) {
           if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              if (parsed.usage && parsed.usage.total_tokens) totalTokensUsed = parsed.usage.total_tokens;
-            } catch (e) {}
+            try { const parsed = JSON.parse(line.slice(6)); if (parsed.usage && parsed.usage.total_tokens) totalTokensUsed = parsed.usage.total_tokens; } catch (e) {}
           }
         }
       }
     }
     res.end();
-
-    if (buffer.trim().startsWith('data: ') && buffer.trim() !== 'data: [DONE]') {
-      try {
-        const parsed = JSON.parse(buffer.trim().slice(6));
-        if (parsed.usage && parsed.usage.total_tokens) totalTokensUsed = parsed.usage.total_tokens;
-      } catch (e) {}
-    }
-
     if (!req.isPremium && totalTokensUsed > 0 && req.rateLimitRef) {
       await req.rateLimitRef.set({ tokens: admin.firestore.FieldValue.increment(totalTokensUsed) }, { merge: true });
     }
-
   } catch (err) {
-    if (!res.headersSent) res.status(500).json({ error: 'Failed to reach Groq: ' + err.message });
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to reach Groq' });
     else res.end();
   }
 });
@@ -246,7 +198,7 @@ app.get('/api/user/usage', requireAuth, async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const doc = await admin.firestore().collection('users').doc(req.user.uid).collection('usage').doc(today).get();
     const tokensUsed = doc.exists ? (doc.data().tokens || 0) : 0;
-    res.json({ isPremium: false, tokensUsed: tokensUsed, limit: DAILY_TOKEN_LIMIT });
+    res.json({ isPremium: false, tokensUsed, limit: DAILY_TOKEN_LIMIT });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -255,66 +207,28 @@ app.get('/api/user/usage', requireAuth, async (req, res) => {
 // ==========================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body || {};
-  if (!name || !email || !message) return res.status(400).json({ error: 'Name, email, and message are required.' });
-
-  if (!process.env.EMAILJS_SERVICE_ID || !process.env.EMAILJS_CONTACT_TEMPLATE_ID || !process.env.EMAILJS_PUBLIC_KEY) {
-     return res.status(500).json({ error: 'Server config error: EmailJS IDs are missing.' });
-  }
-
+  if (!name || !email || !message) return res.status(400).json({ error: 'Fields required.' });
   try {
     const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_CONTACT_TEMPLATE_ID,
-        user_id: process.env.EMAILJS_PUBLIC_KEY,
-        accessToken: process.env.EMAILJS_PRIVATE_KEY,
-        template_params: {
-          from_name: name, from_email: email, subject: subject || 'New Contact Form Submission',
-          message: message, to_email: 'codewix@proton.me'
-        }
-      })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service_id: process.env.EMAILJS_SERVICE_ID, template_id: process.env.EMAILJS_CONTACT_TEMPLATE_ID, user_id: process.env.EMAILJS_PUBLIC_KEY, accessToken: process.env.EMAILJS_PRIVATE_KEY, template_params: { from_name: name, from_email: email, subject: subject || 'Contact Form', message: message, to_email: 'codewix@proton.me' } })
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(500).json({ error: 'EmailJS Error: ' + errorText });
-    }
-    res.json({ ok: true, message: 'Message sent successfully' });
-  } catch (err) { res.status(500).json({ error: 'Network error: ' + err.message }); }
+    if (!response.ok) return res.status(500).json({ error: 'EmailJS failed.' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Network error' }); }
 });
 
 app.post('/api/send-verification-email', async (req, res) => {
   const { userEmail, userName, redirectUrl } = req.body;
   if (!userEmail) return res.status(400).json({ error: 'Email required' });
-
-  if (!process.env.EMAILJS_SERVICE_ID || !process.env.EMAILJS_TEMPLATE_ID || !process.env.EMAILJS_PUBLIC_KEY) {
-     return res.status(500).json({ error: 'Server config error: EmailJS IDs are missing.' });
-  }
-
   try {
     const link = await admin.auth().generateEmailVerificationLink(userEmail, { url: redirectUrl });
-    
     const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID,
-        user_id: process.env.EMAILJS_PUBLIC_KEY,
-        accessToken: process.env.EMAILJS_PRIVATE_KEY,
-        template_params: {
-          email: userEmail, user_name: userName || 'there', verification_link: link 
-        }
-      })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service_id: process.env.EMAILJS_SERVICE_ID, template_id: process.env.EMAILJS_TEMPLATE_ID, user_id: process.env.EMAILJS_PUBLIC_KEY, accessToken: process.env.EMAILJS_PRIVATE_KEY, template_params: { email: userEmail, user_name: userName || 'there', verification_link: link } })
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(500).json({ error: 'EmailJS Error: ' + errorText });
-    }
-    res.json({ ok: true, message: 'Verification email sent' });
+    if (!response.ok) return res.status(500).json({ error: 'EmailJS failed.' });
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -326,8 +240,7 @@ app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
     const usersList = await admin.auth().listUsers(1000);
     const projectsSnap = await admin.firestore().collection('published').get();
     const lessonsSnap = await admin.firestore().collection('lessons').get();
-    let premiumCount = 0;
-    usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
+    let premiumCount = 0; usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
     res.json({ totalUsers: usersList.users.length, premiumUsers: premiumCount, totalProjects: projectsSnap.size, totalLessons: lessonsSnap.size });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -342,17 +255,13 @@ app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
 
 app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) => {
   const { uid, action } = req.body || {};
-  if (!uid || !action) return res.status(400).json({ error: 'uid and action are required.' });
   try {
     if (action === 'toggle-premium') {
       const userRecord = await admin.auth().getUser(uid);
       const isPremium = userRecord.customClaims?.premium === true;
       await admin.auth().setCustomUserClaims(uid, { ...(userRecord.customClaims || {}), premium: !isPremium });
-      res.json({ ok: true, premium: !isPremium });
-    } else if (action === 'delete') {
-      await admin.auth().deleteUser(uid);
       res.json({ ok: true });
-    }
+    } else if (action === 'delete') { await admin.auth().deleteUser(uid); res.json({ ok: true }); }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -365,56 +274,31 @@ app.get('/api/lessons', async (req, res) => {
 
 app.post('/api/admin/lessons', requireAuth, requireAdmin, async (req, res) => {
   const { title, description, difficulty, content } = req.body || {};
-  if (!title || !content) return res.status(400).json({ error: 'title and content are required.' });
   try {
-    const ref = await admin.firestore().collection('lessons').add({ title, description: description || '', difficulty: difficulty || 'Beginner', content, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    const ref = await admin.firestore().collection('lessons').add({ title, description, difficulty, content, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     res.json({ ok: true, id: ref.id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res) => {
-  try { await admin.firestore().collection('lessons').doc(req.params.id).delete(); res.json({ ok: true }); } 
-  catch (err) { res.status(500).json({ error: err.message }); }
+  try { await admin.firestore().collection('lessons').doc(req.params.id).delete(); res.json({ ok: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
-// PUBLISH, EXPLORE, IDE RUNNER
+// PUBLISH (WITH FREE LIMIT ENFORCEMENT)
 // ==========================================
-app.post('/api/run', requireAuth, async (req, res) => {
-  const { language, code } = req.body || {};
-  if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
-  const lang = language.toLowerCase();
-
-  if (lang === 'py' || lang === 'python') {
-    const tempFile = path.join(os.tmpdir(), `script_${Date.now()}.py`);
-    fs.writeFileSync(tempFile, code);
-    exec(`python3 ${tempFile}`, { timeout: 120000 }, (error, stdout, stderr) => {
-      try { fs.unlinkSync(tempFile); } catch (e) {}
-      let finalErr = stderr;
-      if (error) { finalErr = error.killed ? "❌ PROCESS KILLED: Exceeded time/memory limits." : (!stderr && !stdout ? "❌ SERVER KILLED PROCESS: Out of Memory." : error.message); }
-      res.json({ output: stdout || '', stderr: finalErr || '', code: error ? 1 : 0 });
-    });
-    return;
-  }
-
-  const langMap = { 'php': 68, 'js': 63, 'javascript': 63, 'cpp': 54, 'c++': 54, 'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 };
-  const langId = langMap[lang];
-  if (!langId) return res.status(400).json({ error: 'Unsupported language.' });
-
-  try {
-    const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language_id: langId, source_code: code })
-    });
-    const data = await response.json();
-    res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
-  } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
-});
-
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
-  if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) return res.status(400).json({ error: 'Invalid slug.' });
   
+  // ENFORCE FREE LIMIT: 1 PUBLISHED SITE
+  if (!req.isPremium) {
+    const existing = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
+    if (existing.size >= 1) {
+      return res.status(403).json({ error: 'Free users can only publish 1 site. Upgrade to Pro for unlimited live projects!' });
+    }
+  }
+
   let finalPassword = null;
   if (password && req.isPremium) finalPassword = password;
 
@@ -466,6 +350,9 @@ app.get('/api/user/:username', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// RENDER PUBLISHED SITE (WITH WATERMARK)
+// ==========================================
 app.get('/s/:slug', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
@@ -477,10 +364,29 @@ app.get('/s/:slug', async (req, res, next) => {
       return res.send(`<html><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:100px;"><h2>🔒 Password Protected</h2><form method="GET" style="margin-top:20px;"><input type="password" name="pw" placeholder="Password" style="padding:10px;border-radius:5px;"><button type="submit" style="padding:10px 20px;background:#38bdf8;border:none;border-radius:5px;">Unlock</button></form></body></html>`);
     }
 
+    // Fetch owner's premium status
+    let isPremiumOwner = false;
+    try {
+      const ownerRecord = await admin.auth().getUser(data.uid);
+      isPremiumOwner = ownerRecord.customClaims?.premium === true;
+    } catch (err) { console.warn('Could not verify owner status'); }
+
     const files = data.files || {};
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
+    
     let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}<script>${files['script.js'] || ''}<\/script></body></html>`;
+    
+    // Inject Watermark for Free Users
+    let watermarkHtml = '';
+    if (!isPremiumOwner) {
+      watermarkHtml = `
+        <div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;">
+          <a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a>
+        </div>
+      `;
+    }
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
     res.send(html);
   } catch (err) { next(); }
 });
