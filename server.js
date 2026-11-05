@@ -7,7 +7,7 @@ const emailjs = require('@emailjs/nodejs');
 const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
-const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+const { EdgeTTS } = require('node-edge-tts'); // REPLACED msedge-tts with node-edge-tts
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -298,7 +298,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
-// TEXT TO SPEECH (PREMIUM ONLY) - FIXED ENDPOINT
+// TEXT TO SPEECH (PREMIUM ONLY) - Using node-edge-tts
 app.post('/api/tts', requireAuth, async (req, res) => {
   if (!req.isPremium) {
     return res.status(403).json({ error: 'Text-to-Speech is a Pro feature.' });
@@ -308,26 +308,14 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   if (!text) return res.status(400).json({ error: 'Text is required.' });
 
   try {
-    // Force the new working Microsoft endpoint
-    const tts = new MsEdgeTTS({
-      wssUrl: 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1'
-    });
-    
-    // Use MP3 for best browser compatibility
-    await tts.setMetadata("en-US-AriaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-    const readable = tts.toStream(text);
+    const tts = new EdgeTTS();
+    const audioBuffer = await tts.ttsPromise(text);
     
     res.setHeader('Content-Type', 'audio/mpeg');
-    readable.pipe(res);
-
-    readable.on('error', (err) => {
-      console.error('TTS Stream Error:', err);
-      if (!res.headersSent) res.status(500).json({ error: 'Failed to generate audio stream.' });
-      else res.end();
-    });
+    res.send(audioBuffer);
   } catch (err) {
-    console.error('TTS Init Error:', err);
-    res.status(500).json({ error: 'Failed to initialize Text-to-Speech.' });
+    console.error('TTS Error:', err);
+    res.status(500).json({ error: 'Failed to generate audio.' });
   }
 });
 
