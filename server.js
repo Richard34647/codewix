@@ -344,13 +344,12 @@ app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res)
 });
 
 // ==========================================
-// PUBLISH (WITH FREE LIMIT & FIXED DESCRIPTION)
+// PUBLISH & MY-PUBLISHED
 // ==========================================
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
   
-  // FIX: Ensure description is never undefined
   const safeDescription = description || '';
   
   if (!req.isPremium) {
@@ -390,8 +389,24 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
 
 app.get('/api/my-published', requireAuth, async (req, res) => {
   try {
-    const snap = await admin.firestore().collection('published').where('uid', '==', req.user.uid).orderBy('updatedAt', 'desc').get();
-    res.json({ sites: snap.docs.map(doc => ({ slug: doc.id, ...doc.data(), updatedAt: doc.data().updatedAt?.toDate().toISOString() })) });
+    // FIX: Removed .orderBy to prevent missing composite index errors
+    const snap = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
+    let sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
+    
+    // Sort in memory
+    sites.sort((a, b) => {
+      const timeA = a.updatedAt ? (a.updatedAt._seconds || 0) : 0;
+      const timeB = b.updatedAt ? (b.updatedAt._seconds || 0) : 0;
+      return timeB - timeA;
+    });
+
+    // Convert timestamps to ISO strings safely
+    sites = sites.map(s => ({
+      ...s,
+      updatedAt: s.updatedAt ? new Date(s.updatedAt._seconds * 1000).toISOString() : null
+    }));
+
+    res.json({ sites });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -409,9 +424,6 @@ app.get('/api/user/:username', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// RENDER PUBLISHED SITE
-// ==========================================
 app.get('/s/:slug', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
