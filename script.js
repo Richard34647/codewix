@@ -341,28 +341,29 @@ window.addEventListener('DOMContentLoaded', function () {
 
     var loadUsers = async function() {
       try {
-        if (!db) throw new Error("Firestore not initialized");
-        const snap = await db.collection('users').get();
+        const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
+        const data = await res.json();
+        
         const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; 
         if (!tbody) return;
         
-        if (snap.empty) { tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>'; return; }
+        if (!data.users || data.users.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>'; return; }
 
         let html = '';
-        snap.forEach(doc => {
-           const u = doc.data();
+        data.users.forEach(u => {
            const isBanned = u.banned === true;
-           const isPremium = u.premium === true || u.isPremium === true;
+           const isPremium = u.premium === true;
 
            html += `<tr>
-              <td>${escapeHtml(u.email || 'Unknown')}</td>
-              <td>${escapeHtml(u.displayName || 'No Name')}</td>
+              <td>${escapeHtml(u.email)}</td>
+              <td>${escapeHtml(u.displayName)}</td>
               <td>${isBanned ? '<span style="color:#ef4444;font-weight:bold;">BANNED</span>' : 'Active'}</td>
               <td><span class="badge ${isPremium ? 'premium' : 'free'}">${isPremium ? 'Premium' : 'Free'}</span></td>
               <td>
+                <button class="btn btn-primary toggle-premium-btn" data-uid="${u.uid}">Toggle Pro</button>
                 ${isBanned 
-                  ? `<button class="btn btn-success unban-btn" data-uid="${doc.id}">Unban User</button>`
-                  : `<button class="btn btn-danger ban-btn" data-uid="${doc.id}">Ban User</button>`
+                  ? `<button class="btn btn-success unban-btn" data-uid="${u.uid}">Unban</button>`
+                  : `<button class="btn btn-danger ban-btn" data-uid="${u.uid}">Ban</button>`
                 }
               </td>
             </tr>`;
@@ -411,9 +412,17 @@ window.addEventListener('DOMContentLoaded', function () {
     };
 
     document.addEventListener('click', async function(e) {
+      // TOGGLE PREMIUM
+      if (e.target.classList.contains('toggle-premium-btn')) {
+        const uid = e.target.getAttribute('data-uid'); e.target.disabled = true;
+        try {
+          await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'toggle-premium' }) });
+          showToast('Premium status updated.', 'success'); loadUsers();
+        } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; }
+      }
       // BAN USER
       if (e.target.classList.contains('ban-btn')) {
-        if (!confirm('Are you sure you want to BAN this user? They will be logged out and unable to access the site.')) return;
+        if (!confirm('Are you sure you want to BAN this user?')) return;
         const uid = e.target.getAttribute('data-uid'); e.target.disabled = true;
         try {
           await fetch('/api/admin/ban-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'ban' }) });
@@ -532,6 +541,73 @@ window.addEventListener('DOMContentLoaded', function () {
     function loadFilesIntoEditor(newFiles, projectId, projectName, shareId) { files = Object.assign({}, DEFAULT_FILES, newFiles || {}); activeFile = 'index.html'; currentProjectId = projectId || null; currentProjectName = projectName || null; currentShareId = shareId || null; lastSavedSnapshot = snapshot(); if (codeEditor) codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); rebuildFileTree(); renderPreview(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = currentProjectName ? 'Project: ' + currentProjectName : 'No project loaded'; }
 
     if (codeEditor) { codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); lastSavedSnapshot = snapshot(); codeEditor.addEventListener('input', function () { if (isAsset(activeFile)) return; files[activeFile] = codeEditor.value; markUnsaved(); }); }
+
+    // MY PROJECTS MODAL LOGIC
+    if (myProjectsBtn) {
+      myProjectsBtn.addEventListener('click', async function() {
+        if (!db || !auth.currentUser) return showToast('Sign in first.', 'error');
+        projectsModal.style.display = 'flex';
+        projectsListBox.innerHTML = '<p style="color:#64748b;">Loading projects...</p>';
+        
+        try {
+          const snap = await db.collection('users').doc(auth.currentUser.uid).collection('projects').get();
+          if (snap.empty) {
+            projectsListBox.innerHTML = '<p style="color:#64748b;">No saved projects found.</p>';
+            return;
+          }
+          
+          let html = '';
+          snap.forEach(doc => {
+            const p = doc.data();
+            const date = p.updatedAt ? formatDate(p.updatedAt) : 'Unknown';
+            html += `
+              <div class="project-item" data-id="${doc.id}" data-name="${escapeHtml(p.name)}" style="padding:12px; border-bottom:1px solid #334155; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <h4 style="margin:0; color:#e2e8f0;">${escapeHtml(p.name || 'Untitled')}</h4>
+                  <small style="color:#64748b;">Updated: ${date}</small>
+                </div>
+                <button class="btn btn-primary load-proj-btn" data-id="${doc.id}" style="padding:4px 8px; font-size:12px;">Load</button>
+              </div>
+            `;
+          });
+          projectsListBox.innerHTML = html;
+        } catch (err) {
+          projectsListBox.innerHTML = `<p style="color:#f87171;">Failed to load: ${err.message}</p>`;
+        }
+      });
+    }
+
+    if (closeModalBtn) {
+      closeModalBtn.addEventListener('click', function() {
+        projectsModal.style.display = 'none';
+      });
+    }
+
+    // Load Project from Modal
+    if (projectsListBox) {
+      projectsListBox.addEventListener('click', async function(e) {
+        const btn = e.target.closest('.load-proj-btn');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        
+        try {
+          const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(id).get();
+          if (doc.exists) {
+            const data = doc.data();
+            loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled', null);
+            projectsModal.style.display = 'none';
+            showToast('Project loaded!', 'success');
+          }
+        } catch (err) {
+          showToast('Failed to load: ' + err.message, 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Load';
+        }
+      });
+    }
 
     var remixId = localStorage.getItem('codewix_remix_project_id');
     if (remixId && db && auth && auth.currentUser) { localStorage.removeItem('codewix_remix_project_id'); db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(remixId).get().then(function(doc) { if (doc.exists) { var data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Remix', null); showToast('Remix loaded!', 'success'); } }).catch(function(err) { console.error(err); }); }
@@ -820,7 +896,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // LEARN (PREMIUM LESSONS LOCK)
+  // LEARN (PREMIUM LESSONS LOCK & PROGRESS)
   // ======================================================================
   if ($('lessonTitle') && $('lessonBody')) {
     var LESSONS = [
@@ -871,9 +947,47 @@ window.addEventListener('DOMContentLoaded', function () {
         <div class="lesson-section"><h3>Your Turn</h3><p>${lesson.exercise}</p><details class="hint-reveal"><summary>Show hint</summary><p>${lesson.hint}</p></details></div>
         <div class="lesson-actions"><a href="dashboard.html" class="button">Try in Workspace →</a><button type="button" class="complete-btn${isDone ? ' done' : ''}" id="completeBtn" data-index="${idx}">${isDone ? '✓ Completed' : 'Mark Complete'}</button></div>
       `;
+
+      // ADDED EVENT LISTENER FOR MARK COMPLETE
+      const completeBtn = document.getElementById('completeBtn');
+      if (completeBtn) {
+        completeBtn.addEventListener('click', async () => {
+          if (!db || !authUserL) return showToast('Sign in first.', 'error');
+          completeBtn.disabled = true;
+          completeBtn.textContent = 'Saving...';
+          
+          const isNowDone = !progressData.completed[idx];
+          progressData.completed[idx] = isNowDone;
+          
+          try {
+            await progressDocRef().set({ completed: progressData.completed }, { merge: true });
+            showToast(isNowDone ? 'Lesson completed! 🎉' : 'Marked as incomplete.', 'success');
+            renderLesson(idx); // Re-render to update the button
+          } catch (err) {
+            showToast('Failed to save progress: ' + err.message, 'error');
+            progressData.completed[idx] = !isNowDone; // Revert on failure
+            completeBtn.disabled = false;
+            completeBtn.textContent = isNowDone ? 'Mark Complete' : '✓ Completed';
+          }
+        });
+      }
     }
 
-    if (auth) auth.onAuthStateChanged(function(user) { if (user) { authUserL = user; renderLesson(0); } });
+    if (auth) {
+      auth.onAuthStateChanged(async function(user) { 
+        if (user) { 
+          authUserL = user; 
+          try {
+            const doc = await progressDocRef().get();
+            if (doc.exists) {
+              progressData = doc.data();
+              if (!progressData.completed) progressData.completed = {};
+            }
+          } catch (e) { console.error("Error loading progress", e); }
+          renderLesson(0); 
+        } 
+      });
+    }
   }
 
   // ======================================================================
