@@ -584,8 +584,23 @@ window.addEventListener('DOMContentLoaded', function () {
   // LEARN (PREMIUM LESSONS LOCK)
   // ======================================================================
   if ($('lessonTitle') && $('lessonBody')) {
-    var LESSONS = [ /* ... keep your full array of 20 lessons here ... */ ]; 
-    // Abbreviated here for readability. Use your full list.
+    var LESSONS = [
+      { title: 'HTML: Page Structure', level: 'Beginner', lang: 'html', concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.', code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>', exercise: 'Create an HTML page with an <code>h1</code> that says "I am learning" and a <code>p</code> that says "HTML is fun".', hint: 'Use <code>&lt;h1&gt;I am learning&lt;/h1&gt;</code>' },
+      { title: 'HTML: Links and Images', level: 'Beginner', lang: 'html', concept: 'Use the <code>&lt;a&gt;</code> tag for links and the <code>&lt;img&gt;</code> tag for images. Images use <code>src</code> and links use <code>href</code>.', code: '<h2>My Favorite Site</h2>\n<a href="https://google.com">Go to Google</a>\n<br><br>\n<img src="https://via.placeholder.com/150" alt="Placeholder Image">', exercise: 'Create a link to your favorite website and an image of a cat.', hint: 'Use <code>&lt;a href="url"&gt;Text&lt;/a&gt;</code>' },
+      { title: 'HTML: Lists', level: 'Beginner', lang: 'html', concept: 'Use <code>&lt;ul&gt;</code> for unordered (bullet) lists and <code>&lt;ol&gt;</code> for ordered (numbered) lists. Inside them, use <code>&lt;li&gt;</code> for each item.', code: '<ul>\n  <li>Apples</li>\n  <li>Bananas</li>\n  <li>Cherries</li>\n</ul>', exercise: 'Make an ordered list of your top 3 favorite movies.', hint: 'Use <code>&lt;ol&gt;</code> and <code>&lt;li&gt;</code>' },
+      { title: 'CSS: Basics and Selectors', level: 'Beginner', lang: 'css', concept: 'CSS changes how HTML looks. You target elements using selectors (like <code>body</code> or <code>.my-class</code>) and change properties like <code>color</code> and <code>background</code>.', code: 'body {\n  background-color: #0f172a;\n  color: white;\n  font-family: Arial, sans-serif;\n}\n\nh1 {\n  color: #38bdf8;\n}', exercise: 'Change the background of the body to black, and make all h1 tags red.', hint: 'Use <code>background-color: black;</code>' },
+      { title: 'CSS: Classes and IDs', level: 'Beginner', lang: 'css', concept: 'Classes start with a dot (<code>.class</code>) and can be used multiple times. IDs start with a hash (<code>#id</code>) and must be unique.', code: '.text-red {\n  color: red;\n}\n\n#main-header {\n  font-size: 32px;\n}', exercise: 'Create a class called <code>.highlight</code> that gives an element a yellow background.', hint: 'Use <code>.highlight { background-color: yellow; }</code>' },
+      { title: 'CSS: Flexbox Layout', level: 'Intermediate', lang: 'css', concept: 'Flexbox is for aligning items. Apply <code>display: flex;</code> to a container to align its children easily.', code: '.container {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  height: 100vh;\n}', exercise: 'Create a flex container that spaces items evenly using <code>justify-content: space-between;</code>.', hint: 'Use <code>display: flex;</code>' },
+      { title: 'JS: Variables & Data Types', level: 'Beginner', lang: 'javascript', concept: 'Use <code>let</code> for variables that change and <code>const</code> for constants. JS has strings, numbers, and booleans.', code: 'let name = "Alice";\nconst age = 25;\nlet isStudent = true;\n\nconsole.log(name, age, isStudent);', exercise: 'Create a variable called <code>score</code> set to 100.', hint: '<code>let score = 100;</code>' },
+      { title: 'JS: Functions', level: 'Beginner', lang: 'javascript', concept: 'Functions are reusable blocks of code. Define them with the <code>function</code> keyword and call them by their name.', code: 'function greet(name) {\n  return "Hello, " + name + "!";\n}\n\nconsole.log(greet("World"));', exercise: 'Write a function called <code>add</code> that takes two numbers and returns their sum.', hint: '<code>function add(a, b) { return a + b; }</code>' },
+      { title: 'JS: DOM Manipulation', level: 'Intermediate', lang: 'javascript', concept: 'You can change HTML using JavaScript. <code>document.getElementById()</code> finds an element, and <code>.innerText</code> changes its text.', code: '// Assuming HTML has: <h1 id="title">Hello</h1>\nlet heading = document.getElementById("title");\nheading.innerText = "Changed by JS!";\nheading.style.color = "red";', exercise: 'Change the background color of the body using JS: <code>document.body.style.backgroundColor = "black";</code>', hint: 'Select body with <code>document.body</code>' },
+      { title: 'PHP: Introduction & Echo', level: 'Beginner', lang: 'php', concept: 'PHP is a server-side language. Code goes inside <code>&lt;?php ... ?&gt;</code>. Use <code>echo</code> to print text.', code: '<?php\necho "Hello, PHP!";\n$name = "Alice";\necho "<br>Welcome, $name";\n?>', exercise: 'Create a PHP script that echoes "My first PHP script".', hint: '<code>&lt;?php echo "My first PHP script"; ?&gt;</code>' },
+      { title: 'PHP: Variables & Math', level: 'Beginner', lang: 'php', concept: 'PHP variables start with a <code>$</code>. You can do math just like in JavaScript.', code: '<?php\n$price = 10;\n$tax = 2;\n$total = $price + $tax;\necho "Total is: $total";\n?>', exercise: 'Calculate the area of a rectangle (width = 5, height = 10) and echo the result.', hint: '<code>$area = 5 * 10; echo $area;</code>' },
+      { title: 'PHP: Arrays', level: 'Intermediate', lang: 'php', concept: 'Arrays hold multiple values. You can access them by their index (starting at 0).', code: '<?php\n$colors = array("Red", "Green", "Blue");\necho $colors[0]; // Outputs: Red\n?>', exercise: 'Create an array of 3 animals and echo the second one.', hint: '<code>echo $animals[1];</code>' },
+      { title: 'Python: Hello World', level: 'Beginner', lang: 'python', concept: 'Python is famous for being readable. No semicolons needed! Just use <code>print()</code> to output text.', code: 'print("Hello, World!")\nname = "Alice"\nprint(f"Welcome, {name}")', exercise: 'Print your name using the <code>print()</code> function.', hint: 'print("Your Name")' },
+      { title: 'Python: Lists & Loops', level: 'Beginner', lang: 'python', concept: 'A list holds multiple items. A <code>for</code> loop goes through each item in the list.', code: 'fruits = ["apple", "banana", "cherry"]\nfor fruit in fruits:\n    print(fruit)', exercise: 'Create a list of numbers and loop through them to print each one.', hint: 'for num in my_list:' },
+      { title: 'Python: Functions', level: 'Intermediate', lang: 'python', concept: 'Define a function using <code>def</code>. Indentation (spaces) is extremely important in Python.', code: 'def greet(name):\n    return "Hello, " + name\n\nresult = greet("Python")\nprint(result)', exercise: 'Create a function called <code>multiply(a, b)</code> that returns the product.', hint: 'def multiply(a, b): return a * b' }
+    ];
     
     var progressData = { completed: {}, streak: 1, startDate: null }, authUserL = null;
     function progressDocRef() { if (!db || !authUserL) return null; return db.collection('users').doc(authUserL.uid).collection('progress').doc('state'); }
@@ -623,7 +638,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // PUBLISH PAGE
+  // PUBLISH PAGE (WITH DOMAIN & FIXED DESCRIPTION)
   // ======================================================================
   if ($('publishForm')) {
     var projectSelect = $('projectSelect');
@@ -721,13 +736,22 @@ window.addEventListener('DOMContentLoaded', function () {
 
     $('publishForm').addEventListener('submit', async function(e) {
       e.preventDefault();
-      var slug = $('publishSlug').value.trim().toLowerCase(), name = $('publishName').value.trim(), id = projectSelect.value;
+      var slug = $('publishSlug').value.trim().toLowerCase();
+      var name = $('publishName').value.trim();
+      var desc = $('publishDesc') ? $('publishDesc').value.trim() : ''; // Grab description safely
+      var id = projectSelect.value;
+      
       if (!id || !slug || !name) return showToast('Fill all fields.', 'error');
+      
       var btn = this.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = 'Publishing...';
       try {
         var proj = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(id).get();
         var token = await auth.currentUser.getIdToken();
-        var res = await fetch('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ slug: slug, projectName: name, files: proj.data().files }) });
+        var res = await fetch('/api/publish', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, 
+          body: JSON.stringify({ slug: slug, projectName: name, description: desc, files: proj.data().files }) 
+        });
         var data = await res.json(); if (!res.ok) throw new Error(data.error);
         showToast('Published successfully!', 'success'); this.reset();
         loadPublishedSites();
