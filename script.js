@@ -78,6 +78,42 @@ window.addEventListener('DOMContentLoaded', function () {
     return new Blob([array], { type: mime });
   }
 
+  // ADDED: GLOBAL TTS FUNCTION
+  window.playTTS = async function(buttonElement, text) {
+    if (!isUserPremium) return showToast('Text-to-Speech is a Pro feature.', 'error');
+    const originalText = buttonElement.textContent;
+    buttonElement.disabled = true;
+    buttonElement.textContent = 'Generating...';
+
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ text: text })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate audio.');
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      const audioElement = buttonElement.parentElement.querySelector('audio');
+      audioElement.src = audioUrl;
+      audioElement.play();
+
+      audioElement.onended = () => URL.revokeObjectURL(audioUrl);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      buttonElement.disabled = false;
+      buttonElement.textContent = originalText;
+    }
+  };
+
   // ======================================================================
   // GLOBAL BAN CHECK & NAV & THEME
   // ======================================================================
@@ -347,7 +383,7 @@ window.addEventListener('DOMContentLoaded', function () {
         const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; 
         if (!tbody) return;
         
-        if (!data.users || data.users.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>'; return; }
+        if (!data.users || data.users.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No users found.</td></tr>'; return; }
 
         let html = '';
         data.users.forEach(u => {
@@ -360,10 +396,10 @@ window.addEventListener('DOMContentLoaded', function () {
               <td>${isBanned ? '<span style="color:#ef4444;font-weight:bold;">BANNED</span>' : 'Active'}</td>
               <td><span class="badge ${isPremium ? 'premium' : 'free'}">${isPremium ? 'Premium' : 'Free'}</span></td>
               <td>
-                <button class="btn btn-primary toggle-premium-btn" data-uid="${u.uid}">Toggle Pro</button>
+                <button class="btn btn-warning toggle-premium-btn" data-uid="${u.uid}">${isPremium ? 'Revoke Pro' : 'Make Pro'}</button>
                 ${isBanned 
-                  ? `<button class="btn btn-success unban-btn" data-uid="${u.uid}">Unban</button>`
-                  : `<button class="btn btn-danger ban-btn" data-uid="${u.uid}">Ban</button>`
+                  ? `<button class="btn btn-success unban-btn" data-uid="${u.uid}">Unban User</button>`
+                  : `<button class="btn btn-danger ban-btn" data-uid="${u.uid}">Ban User</button>`
                 }
               </td>
             </tr>`;
@@ -417,12 +453,12 @@ window.addEventListener('DOMContentLoaded', function () {
         const uid = e.target.getAttribute('data-uid'); e.target.disabled = true;
         try {
           await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'toggle-premium' }) });
-          showToast('Premium status updated.', 'success'); loadUsers();
+          showToast('User premium status updated.', 'success'); loadUsers();
         } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; }
       }
       // BAN USER
       if (e.target.classList.contains('ban-btn')) {
-        if (!confirm('Are you sure you want to BAN this user?')) return;
+        if (!confirm('Are you sure you want to BAN this user? They will be logged out and unable to access the site.')) return;
         const uid = e.target.getAttribute('data-uid'); e.target.disabled = true;
         try {
           await fetch('/api/admin/ban-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'ban' }) });
@@ -786,7 +822,24 @@ window.addEventListener('DOMContentLoaded', function () {
       else if (Array.isArray(content)) { content.forEach(function (part) { if (part.type === 'text') { if (part.text.indexOf('--- File:') === -1) html += '<div class="text-part">' + escapeHtml(part.text).replace(/\n/g, '<br>') + '</div>'; } else if (part.type === 'image_url') { html += '<div style="margin-top:8px;"><img src="' + part.image_url.url + '" style="max-width:200px;border-radius:8px;border:1px solid #334155;"/></div>'; } }); }
       c.innerHTML = html;
     }
-    function setAssistantMessage(div, content, reasoning) { var c = div.querySelector('.message-content'), html = ''; if (reasoning) html += '<details class="reasoning-section"><summary>Thinking</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>'; html += renderContent(content); c.innerHTML = html; }
+    
+    // UPDATED: ADDED TTS BUTTON FOR PREMIUM
+    function setAssistantMessage(div, content, reasoning) { 
+      var c = div.querySelector('.message-content'), html = ''; 
+      if (reasoning) html += '<details class="reasoning-section"><summary>Thinking</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>'; 
+      html += renderContent(content); 
+      
+      if (isUserPremium) {
+        const audioId = 'tts-audio-' + Date.now();
+        html += `
+            <div style="margin-top: 10px;">
+                <button class="btn" style="background: #38bdf8; color: #020617; padding: 6px 12px; font-size: 12px;" onclick="playTTS(this, '${escapeHtml(content).replace(/'/g, "\\'")}')">🔊 Read Aloud</button>
+                <audio id="${audioId}" style="display:none;"></audio>
+            </div>
+        `;
+      }
+      c.innerHTML = html; 
+    }
 
     function onUserReady(user) { authUser = user; currentUserName = getUsername(); updateTokenUsage(); var col = chatsCollection(); if (!col) { startNewChat(); return; } col.orderBy('updatedAt', 'desc').limit(1).get().then(function (snap) { if (snap.empty) startNewChat(); else { var doc = snap.docs[0]; loadChat(doc.id, doc.data()); if (!doc.data().messages || doc.data().messages.length === 0) showWelcome(); } refreshHistory(); }).catch(function () { startNewChat(); }); }
     if (auth) auth.onAuthStateChanged(function (user) { if (user) onUserReady(user); });
