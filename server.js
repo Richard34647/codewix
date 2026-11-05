@@ -7,7 +7,6 @@ const emailjs = require('@emailjs/nodejs');
 const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
-const { EdgeTTS } = require('node-edge-tts'); // REPLACED msedge-tts with node-edge-tts
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -223,6 +222,35 @@ app.get('/api/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // ==========================================
+// NOTIFICATIONS ROUTES
+// ==========================================
+app.get('/api/notifications', requireAuth, async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection('notifications').orderBy('createdAt', 'desc').limit(20).get();
+    const notifications = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ notifications });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/notifications', requireAuth, requireAdmin, async (req, res) => {
+  const { title, message } = req.body;
+  if (!title || !message) return res.status(400).json({ error: 'Title and message are required.' });
+  try {
+    const ref = await admin.firestore().collection('notifications').add({
+      title, message, createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    res.json({ ok: true, id: ref.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/admin/notifications/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await admin.firestore().collection('notifications').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
 // SELAR WEBHOOK
 // ==========================================
 app.post('/api/selar-webhook', async (req, res) => {
@@ -245,7 +273,7 @@ app.post('/api/selar-webhook', async (req, res) => {
 });
 
 // ==========================================
-// AI CHAT & TTS ROUTES
+// AI CHAT ROUTE
 // ==========================================
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY.' });
@@ -295,27 +323,6 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     }
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: 'Failed to reach Groq' }); else res.end();
-  }
-});
-
-// TEXT TO SPEECH (PREMIUM ONLY) - Using node-edge-tts
-app.post('/api/tts', requireAuth, async (req, res) => {
-  if (!req.isPremium) {
-    return res.status(403).json({ error: 'Text-to-Speech is a Pro feature.' });
-  }
-
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text is required.' });
-
-  try {
-    const tts = new EdgeTTS();
-    const audioBuffer = await tts.ttsPromise(text);
-    
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.send(audioBuffer);
-  } catch (err) {
-    console.error('TTS Error:', err);
-    res.status(500).json({ error: 'Failed to generate audio.' });
   }
 });
 
