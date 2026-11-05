@@ -498,29 +498,85 @@ footer a:hover { color: #38bdf8; }
 
 /* ---- Studio header ---- */
 .studio-header {
-    background: #090d16; height: 55px;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 24px; border-bottom: 1px solid #1e293b;
-    width: 100%; position: relative; box-shadow: none;
+    background: #090d16; 
+    min-height: 55px; /* Changed from height to min-height */
+    height: auto; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    padding: 10px 24px; 
+    border-bottom: 1px solid #1e293b;
+    width: 100%; 
+    position: relative; 
+    box-shadow: none;
+    flex-wrap: wrap; /* Allows items to wrap to a new line if too wide */
+    gap: 15px; /* Adds space between the three main sections */
 }
-.header-brand { display: flex; align-items: center; }
-.studio-logo { font-size: 18px; font-weight: bold; color: #38bdf8; margin-right: 12px; }
+
+.header-brand { 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; /* Space out logo and Sandbox badge */
+}
+
+.studio-logo { 
+    font-size: 18px; 
+    font-weight: bold; 
+    color: #38bdf8; 
+    margin-right: 0; /* Removed margin since we use gap */
+}
+
 .env-badge {
-    background: #1e293b; color: #94a3b8;
-    padding: 3px 8px; border-radius: 4px;
-    font-size: 11px; font-weight: 600;
+    background: #1e293b; 
+    color: #94a3b8;
+    padding: 3px 8px; 
+    border-radius: 4px;
+    font-size: 11px; 
+    font-weight: 600;
+    white-space: nowrap;
 }
+
+.studio-nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    flex: 1; /* Allows nav to take up available center space */
+}
+
 .studio-nav a {
-    color: #94a3b8; text-decoration: none;
-    margin: 0 12px; font-size: 14px; font-weight: 500;
+    color: #94a3b8; 
+    text-decoration: none;
+    font-size: 14px; 
+    font-weight: 500;
+    margin: 0; /* Removed margin, handled by gap */
+    white-space: nowrap;
 }
-.studio-nav a.active, .studio-nav a:hover { color: #38bdf8; }
-.user-session { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+
+.studio-nav a.active, .studio-nav a:hover { 
+    color: #38bdf8; 
+}
+
+.user-session { 
+    display: flex; 
+    align-items: center; 
+    gap: 12px; 
+    font-size: 13px; 
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .exit-btn {
-    background: transparent; color: #f87171;
-    border: 1px solid #f87171; padding: 4px 12px;
-    border-radius: 4px; cursor: pointer; font-weight: 600;
+    background: transparent; 
+    color: #f87171;
+    border: 1px solid #f87171; 
+    padding: 4px 12px;
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-weight: 600;
     font-family: inherit;
+    white-space: nowrap;
 }
 .exit-btn:hover { background: rgba(248, 113, 113, 0.1); }
 
