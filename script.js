@@ -400,8 +400,24 @@ window.addEventListener('DOMContentLoaded', function () {
       hamburger.id = 'cwHamburger'; hamburger.innerHTML = '☰'; document.body.appendChild(hamburger); if (window.innerWidth < 800) chatArea.classList.add('cw-sidebar-collapsed');
     }
 
-    sidebar.innerHTML = '<div class="cw-sb-head"><span>Chats</span><div><button id="cwSbNew" style="background:none;border:none;color:#fff;cursor:pointer">+</button><button id="cwSbClose" style="background:none;border:none;color:#fff;cursor:pointer">✕</button></div></div><div class="cw-sb-list" id="cwHistoryList"></div>';
+    // FIX: Added the search input back into the sidebar HTML
+    sidebar.innerHTML = `
+      <div class="cw-sb-head">
+        <span>Chats</span>
+        <div>
+          <button id="cwSbNew" style="background:none;border:none;color:#fff;cursor:pointer">+</button>
+          <button id="cwSbClose" style="background:none;border:none;color:#fff;cursor:pointer">✕</button>
+        </div>
+      </div>
+      <input type="text" id="cwSbSearch" placeholder="Search chats…" style="margin: 8px 12px; padding: 8px 10px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; font-size: 13px; outline: none;" />
+      <div class="cw-sb-list" id="cwHistoryList"></div>
+    `;
     var historyListBox = $('cwHistoryList');
+    var historySearchEl = $('cwSbSearch'); // FIX: Define the variable
+    if (historySearchEl) {
+      historySearchEl.addEventListener('input', renderHistoryList); // FIX: Add listener so it actually searches
+    }
+
     function setSidebarOpen(open) { if (chatArea) { chatArea.classList.toggle('cw-sidebar-collapsed', !open); hamburger.style.display = open ? 'none' : 'block'; } }
     hamburger.onclick = function() { setSidebarOpen(true); refreshHistory(); }; $('cwSbClose').onclick = function() { setSidebarOpen(false); }; $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
 
@@ -503,8 +519,10 @@ window.addEventListener('DOMContentLoaded', function () {
       try { var snap = await col.orderBy('updatedAt', 'desc').limit(100).get(); historyCache = snap.docs.map(function (d) { return { id: d.id, data: d.data() || {} }; }); renderHistoryList(); } 
       catch (err) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">Failed: ' + escapeHtml(err.message) + '</p>'; }
     }
+    
     function renderHistoryList() {
-      if (!historyListBox) return; var q = (historySearchEl && historySearchEl.value || '').toLowerCase().trim(), items = historyCache;
+      if (!historyListBox) return; 
+      var q = (historySearchEl && historySearchEl.value || '').toLowerCase().trim(), items = historyCache;
       if (q) items = items.filter(function (it) { return (it.data.title || 'Untitled').toLowerCase().indexOf(q) !== -1; });
       historyListBox.innerHTML = '';
       if (!items.length) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">' + (q ? 'No matches.' : 'No history yet.') + '</p>'; return; }
