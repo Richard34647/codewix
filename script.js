@@ -303,7 +303,7 @@ window.addEventListener('DOMContentLoaded', function () {
     
     var getToken = async function() { 
       if (!auth.currentUser) throw new Error("Not logged in");
-      return await auth.currentUser.getIdToken(); 
+      return await auth.currentUser.getIdToken(true); // Force refresh to prevent expired token errors
     };
 
     var loadStats = async function() {
