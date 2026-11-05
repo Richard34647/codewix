@@ -3,154 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Checkout | CodeWix</title>
+    <title>Upgrade — CodeWix</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-
     <style>
-        .checkout-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(2, 6, 23, 0.9); z-index: 9999;
-            display: flex; justify-content: center; align-items: center;
-            backdrop-filter: blur(5px);
+        .pricing-container {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-top: 40px;
+            padding: 0 20px;
         }
-        .checkout-box {
-            background: #ffffff; color: #0f172a; width: 100%; max-width: 450px;
-            border-radius: 16px; padding: 30px; text-align: center;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        .pricing-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 340px;
+            text-align: center;
             position: relative;
+            transition: transform 0.2s;
         }
-        .checkout-box h2 { font-size: 24px; margin-bottom: 5px; }
-        .checkout-box .price { font-size: 36px; font-weight: bold; color: #10b981; margin: 15px 0; }
-        .timer-box {
-            background: #fef2f2; color: #ef4444; padding: 8px;
-            border-radius: 8px; font-weight: bold; margin-bottom: 20px;
-            font-family: 'Courier New', monospace; font-size: 18px;
+        .pricing-card:hover { transform: translateY(-5px); border-color: #38bdf8; }
+        .pricing-card.featured { border-color: #fbbf24; box-shadow: 0 0 20px rgba(251, 191, 36, 0.2); }
+        .pricing-card.featured::before {
+            content: 'MOST POPULAR';
+            position: absolute;
+            top: -12px; left: 50%; transform: translateX(-50%);
+            background: #fbbf24; color: #020617;
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 11px; font-weight: bold;
         }
-        .qr-container {
-            background: #f8fafc; padding: 20px; border-radius: 12px;
-            display: inline-block; margin-bottom: 15px; border: 1px solid #e2e8f0;
-        }
-        .crypto-address {
-            background: #f1f5f9; padding: 12px; border-radius: 8px;
-            font-family: 'Courier New', monospace; font-size: 12px;
-            word-break: break-all; color: #334155; margin-bottom: 20px;
-            cursor: pointer; border: 1px solid #cbd5e1;
-        }
-        .crypto-address:hover { background: #e2e8f0; }
-        .checkout-input {
-            width: 100%; padding: 12px; border-radius: 8px;
-            border: 1px solid #cbd5e1; margin-bottom: 15px; outline: none;
-        }
-        .pay-btn {
-            width: 100%; padding: 14px; background: #10b981; color: white;
-            border: none; border-radius: 8px; font-size: 16px; font-weight: bold;
-            cursor: pointer; transition: background 0.2s;
-        }
-        .pay-btn:hover { background: #059669; }
-        .pay-btn:disabled { background: #94a3b8; }
-        .trust-badge {
-            display: flex; align-items: center; justify-content: center; gap: 5px;
-            color: #64748b; font-size: 12px; margin-top: 15px;
-        }
+        .pricing-card h2 { font-size: 24px; margin-bottom: 8px; }
+        .pricing-card .price { font-size: 48px; font-weight: bold; color: #38bdf8; margin-bottom: 20px; }
+        .pricing-card .price span { font-size: 16px; color: #64748b; font-weight: normal; }
+        .pricing-features { list-style: none; text-align: left; margin-bottom: 24px; }
+        .pricing-features li { padding: 8px 0; border-bottom: 1px solid #334155; color: #cbd5e1; font-size: 14px; }
+        .pricing-features li::before { content: '✓'; color: #34d399; margin-right: 8px; font-weight: bold; }
+        
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: #1e293b; padding: 30px; border-radius: 12px; width: 100%; max-width: 400px; border: 1px solid #334155; }
+        .modal-content h3 { margin-bottom: 15px; color: #38bdf8; }
+        .pay-btn { display: block; width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; }
+        .btn-card { background: #38bdf8; color: #020617; }
+        .btn-crypto { background: #fbbf24; color: #020617; }
+        .btn-cancel { background: transparent; color: #f87171; border: 1px solid #f87171; margin-top: 15px; }
     </style>
 </head>
 <body>
-    <div class="checkout-modal">
-        <div class="checkout-box">
-            <h2>CodeWix Premium</h2>
-            <p style="color: #64748b; font-size: 14px;">Upgrade your account to unlock 10s videos & unlimited AI.</p>
-            
-            <div class="price">$5.00 <span style="font-size: 16px; color: #64748b;">/ month</span></div>
-            
-            <div class="timer-box">Payment expires in: <span id="timer">15:00</span></div>
+    <header>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
+        <nav>
+            <a href="dashboard.html">Workspace</a>
+            <a href="upgrade.html" class="active">Upgrade</a>
+            <a href="#" id="logoutBtn">Logout</a>
+        </nav>
+    </header>
 
-            <div class="qr-container">
-                <img id="qrCodeImg" src="" alt="Litecoin QR Code" width="150" height="150">
+    <div class="container" style="text-align: center; padding-top: 100px;">
+        <h1 style="font-size: 40px; margin-bottom: 10px;">Upgrade your <span style="color: #38bdf8;">CodeWix</span></h1>
+        <p style="color: #94a3b8; margin-bottom: 40px;">Unlock the full power of AI, larger uploads, and password-protected sites.</p>
+
+        <div class="pricing-container">
+            <!-- Free Plan -->
+            <div class="pricing-card">
+                <h2>Free</h2>
+                <div class="price">$0<span>/mo</span></div>
+                <ul class="pricing-features">
+                    <li>50,000 AI Tokens / day</li>
+                    <li>Access to Fast Models</li>
+                    <li>300 KB File Uploads</li>
+                    <li>Public Projects Only</li>
+                    <li>Community Support</li>
+                </ul>
+                <a href="dashboard.html" class="button" style="width: 100%; text-decoration: none;">Current Plan</a>
             </div>
 
-            <p style="font-size: 14px; color: #64748b; margin-bottom: 10px;">
-                Send exactly <strong>$5 in Litecoin (LTC)</strong> to this address:
-            </p>
-
-            <!-- 👇 REPLACE THIS WITH YOUR ACTUAL LITECOIN ADDRESS FROM PECUNIA 👇 -->
-            <div class="crypto-address" id="cryptoAddress" onclick="copyAddress()">
-                ltc1qnaf45ddq5veem4le5xdwd6fl3ajlhyetptzcvk
+            <!-- Pro Plan -->
+            <div class="pricing-card featured">
+                <h2>Pro</h2>
+                <div class="price">$5<span>/mo</span></div>
+                <ul class="pricing-features">
+                    <li>Unlimited AI Tokens</li>
+                    <li>Access to 70B Smart Models</li>
+                    <li>5 MB File Uploads</li>
+                    <li>Password-Protected Sites</li>
+                    <li>Priority Support</li>
+                </ul>
+                <button class="button" style="width: 100%; background: #fbbf24;" onclick="openCheckout('Pro', 5)">Upgrade to Pro</button>
             </div>
-            <p style="font-size: 12px; color: #94a3b8; margin-top: -10px; margin-bottom: 20px;">(Click to copy)</p>
 
-            <input type="email" id="userEmail" class="checkout-input" placeholder="Enter your CodeWix email" required>
-            <button id="submitBtn" class="pay-btn" onclick="submitPayment()">I Have Sent the Payment</button>
-
-            <div class="trust-badge">
-                🔒 Secure Crypto Transaction • No KYC Required
+            <!-- Premium Plan -->
+            <div class="pricing-card">
+                <h2>Premium</h2>
+                <div class="price">$15<span>/mo</span></div>
+                <ul class="pricing-features">
+                    <li>Everything in Pro</li>
+                    <li>Highest Priority AI Queue</li>
+                    <li>Custom Domain Support</li>
+                    <li>Early Access to New Features</li>
+                    <li>1-on-1 Onboarding</li>
+                </ul>
+                <button class="button" style="width: 100%;" onclick="openCheckout('Premium', 15)">Upgrade to Premium</button>
             </div>
         </div>
     </div>
 
+    <!-- Checkout Modal -->
+    <div class="modal-overlay" id="checkoutModal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Checkout</h3>
+            <p style="color: #94a3b8; margin-bottom: 20px; font-size: 14px;">Choose your payment method for <strong id="modalPlan" style="color: white;"></strong>.</p>
+            
+            <button class="pay-btn btn-card" onclick="processPayment('Card')">💳 Pay with Card</button>
+            <button class="pay-btn btn-crypto" onclick="processPayment('Crypto')">🪙 Pay with Crypto (LTC)</button>
+            <button class="pay-btn btn-cancel" onclick="closeCheckout()">Cancel</button>
+        </div>
+    </div>
+
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
-            authDomain: "codewix-16971.firebaseapp.com",
-            projectId: "codewix-16971",
-            storageBucket: "codewix-16971.firebasestorage.app",
-            messagingSenderId: "1060917593178",
-            appId: "1:1060917593178:web:8ce61640aa476bf135c463"
-        };
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-
-        const MY_LTC_ADDRESS = "ltc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"; // 👈 UPDATE THIS
-        
-        document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${MY_LTC_ADDRESS}`;
-        document.getElementById('cryptoAddress').innerText = MY_LTC_ADDRESS;
-
-        auth.onAuthStateChanged((user) => {
-            if (user) document.getElementById('userEmail').value = user.email;
-        });
-
-        let timeLeft = 15 * 60;
-        const timerEl = document.getElementById('timer');
-        setInterval(() => {
-            if (timeLeft <= 0) return;
-            timeLeft--;
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            timerEl.innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-        }, 1000);
-
-        function copyAddress() {
-            navigator.clipboard.writeText(MY_LTC_ADDRESS).then(() => alert('Litecoin address copied!'));
+        // Function to open the modal
+        function openCheckout(planName, price) {
+            document.getElementById('modalPlan').innerText = planName + ' Plan ($' + price + '/mo)';
+            document.getElementById('checkoutModal').style.display = 'flex';
         }
 
-        async function submitPayment() {
-            const email = document.getElementById('userEmail').value.trim();
-            const btn = document.getElementById('submitBtn');
-            if (!email) { alert("Please enter your email."); return; }
+        // Function to close the modal
+        function closeCheckout() {
+            document.getElementById('checkoutModal').style.display = 'none';
+        }
 
-            btn.disabled = true;
-            btn.textContent = "Verifying Transaction...";
+        // Function to handle payment routing
+        function processPayment(method) {
+            if (method === 'Card') {
+                // Here you would typically redirect to Stripe, Paystack, or a payment link
+                alert("Redirecting to secure card checkout... (Integration required)");
+                // window.location.href = "https://checkout.stripe.com/your-link";
+            } else if (method === 'Crypto') {
+                alert("Redirecting to Crypto payment gateway... (Integration required)");
+                // window.location.href = "crypto-payment.html";
+            }
+        }
 
-            try {
-                await db.collection('upgrade_requests').add({
-                    email: email,
-                    uid: auth.currentUser ? auth.currentUser.uid : null,
-                    status: 'pending',
-                    amount: 5.00,
-                    currency: 'LTC',
-                    requestedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                alert("Thank you! We will verify your payment and upgrade your account shortly.");
-                window.location.href = "dashboard.html";
-            } catch (error) {
-                alert("Error saving request. Please try again.");
-                btn.disabled = false;
-                btn.textContent = "I Have Sent the Payment";
+        // Close modal if clicking outside
+        window.onclick = function(event) {
+            var modal = document.getElementById('checkoutModal');
+            if (event.target === modal) {
+                modal.style.display = "none";
             }
         }
     </script>
