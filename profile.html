@@ -3,72 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile | CodeWix</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <title>Your Profile — CodeWix</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-RPX2BV738C"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-RPX2BV738C');
-</script>
+    <style>
+        .profile-container { max-width: 1000px; margin: 100px auto 60px; padding: 0 20px; }
+        .profile-header { display: flex; align-items: center; gap: 24px; background: #1e293b; padding: 32px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 40px; }
+        .profile-avatar { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #34d399); color: #020617; font-size: 32px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .profile-info h1 { margin: 0 0 8px; font-size: 28px; }
+        .profile-info p { margin: 0; color: #94a3b8; }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-left: 10px; }
+        .badge.free { background: #334155; color: #cbd5e1; }
+        .badge.pro { background: #fbbf24; color: #020617; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 40px; }
+        .stat-card { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; text-align: center; }
+        .stat-card h3 { font-size: 32px; color: #38bdf8; margin: 0 0 5px; }
+        .stat-card p { color: #94a3b8; margin: 0; font-size: 14px; }
+        .my-sites-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .site-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; text-decoration: none; color: white; }
+        .site-preview { height: 160px; background: #020617; border-bottom: 1px solid #334155; }
+        .site-preview iframe { width: 400%; height: 400%; border: none; transform: scale(0.25); transform-origin: 0 0; pointer-events: none; }
+        .site-info { padding: 16px; }
+        .site-info h3 { margin: 0 0 4px; font-size: 16px; }
+        .site-info p { margin: 0; font-size: 13px; color: #64748b; }
+    </style>
 </head>
 <body>
-
-    <header class="studio-header">
-        <div class="header-brand">
-            <span class="studio-logo">CodeWix</span>
-            <span class="env-badge">Profile</span>
-        </div>
-        <nav class="studio-nav">
-            <a href="index.html">Home</a>
-            <a href="explore.html">Explore</a>
+    <header>
+        <div class="logo"><a href="index.html">CodeWix</a></div>
+        <nav>
             <a href="dashboard.html">Workspace</a>
-            <a href="learn.html">Learn</a>
-            <a href="ai-assistance.html">AI Assistant</a>
-            <a href="play.html">Play Game</a>
+            <a href="explore.html">Explore</a>
+            <a href="upgrade.html">Upgrade</a>
+            <a href="#" id="logoutBtn">Logout</a>
         </nav>
-        <div class="user-session">
-            <span id="dashUser">Guest</span>
-            <button class="exit-btn" id="logoutBtn">Exit</button>
-        </div>
     </header>
 
-    <main class="profile-workspace">
+    <div class="profile-container">
         <div class="profile-header">
-            <div class="profile-avatar" id="profileAvatar">?</div>
+            <div class="profile-avatar" id="profAvatar">U</div>
             <div class="profile-info">
-                <h1 id="profileUsername">Loading…</h1>
-                <p id="profileStats" class="profile-stats"></p>
+                <h1 id="profName">User Name <span id="profBadge" class="badge free">Free</span></h1>
+                <p id="profEmail">email@example.com</p>
             </div>
         </div>
 
-        <h2 class="profile-section-title">Published Projects</h2>
-
-        <div id="profileGrid" class="explore-grid">
-            <p class="explore-empty">Loading…</p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3 id="statProjects">0</h3>
+                <p>Published Projects</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="statViews">0</h3>
+                <p>Total Views</p>
+            </div>
         </div>
-    </main>
 
-    <footer class="studio-status-bar">
-        <div class="status-left-node">
-            <span class="status-indicator-dot online"></span>
-            <span id="userEmail">Profile</span>
+        <h2 style="margin-bottom: 20px;">Your Published Sites</h2>
+        <div class="my-sites-grid" id="profileSitesGrid">
+            <p style="color: #64748b;">Loading sites...</p>
         </div>
-        <div class="status-right-node">
-            <span>CodeWix</span>
-        </div>
-    </footer>
+    </div>
 
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
