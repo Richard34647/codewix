@@ -13,7 +13,6 @@ const PORT = process.env.PORT || 5500;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const DAILY_TOKEN_LIMIT = 100000; 
-const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'wilcoxr889@gmail.com').toLowerCase();
 const SELAR_WEBHOOK_SECRET = process.env.SELAR_WEBHOOK_SECRET || 'my_super_secret_webhook_key';
 
@@ -502,14 +501,15 @@ app.put('/api/published/:slug', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// UPDATED: EXPLORE ROUTE TO ATTACH PREMIUM STATUS
 app.get('/api/explore', async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').orderBy('updatedAt', 'desc').limit(60).get();
     const sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
     
-    // Bulk fetch users to get premium status for verification badges
+    // Fetch premium status for verification badges
     const uids = [...new Set(sites.map(s => s.uid))];
+    if (uids.length === 0) return res.json({ sites: [] });
+    
     const usersResult = await admin.auth().getUsers(uids.map(uid => ({ uid })));
     const premiumUids = new Set(usersResult.users.filter(u => u.customClaims?.premium).map(u => u.uid));
 
