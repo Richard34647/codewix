@@ -45,39 +45,7 @@ window.addEventListener('DOMContentLoaded', function () {
     setTimeout(function () { t.classList.remove('show'); setTimeout(function () { document.body.removeChild(t); }, 300); }, 2400);
   }
   function formatDate(ts) { if (!ts) return ''; var d = ts.toDate ? ts.toDate() : new Date(ts); return d.toLocaleDateString(); }
-  function downloadBlob(blob, filename) {
-    var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-  }
-  function extensionForLang(lang) {
-    var map = { 'javascript':'js','js':'js','jsx':'jsx','typescript':'ts','ts':'ts','tsx':'tsx','python':'py','py':'py','html':'html','xml':'html','css':'css','scss':'scss','json':'json','yaml':'yml','yml':'yml','bash':'sh','sh':'sh','shell':'sh','sql':'sql','java':'java','c':'c','cpp':'cpp','csharp':'cs','cs':'cs','go':'go','rust':'rs','php':'php','ruby':'rb','swift':'swift','kotlin':'kt','markdown':'md','md':'md','text':'txt','plaintext':'txt' };
-    return map[String(lang).toLowerCase()] || 'txt';
-  }
-  function readFileAsText(file) { return new Promise(function (resolve, reject) { var reader = new FileReader(); reader.onload = function () { resolve(reader.result); }; reader.onerror = function () { reject(reader.error); }; reader.readAsText(file); }); }
-  function readFileAsDataURL(file) { return new Promise(function (resolve, reject) { var reader = new FileReader(); reader.onload = function () { resolve(reader.result); }; reader.onerror = function () { reject(reader.error); }; reader.readAsDataURL(file); }); }
-  function resizeImage(file, maxWidth, maxHeight) {
-    return new Promise(function(resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var img = new Image();
-        img.onload = function() {
-          var width = img.width, height = img.height;
-          if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
-          if (height > maxHeight) { width = Math.round((width * maxHeight) / height); height = maxHeight; }
-          var canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height); resolve(canvas.toDataURL('image/jpeg', 0.8));
-        }; img.onerror = reject; img.src = e.target.result;
-      }; reader.onerror = reject; reader.readAsDataURL(file);
-    });
-  }
-  function dataUrlToBlob(dataUrl) {
-    var parts = dataUrl.split(','), mimeMatch = parts[0].match(/:(.*?);/), mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-    var binary = atob(parts[1]), array = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
-    return new Blob([array], { type: mime });
-  }
-
+  
   // ======================================================================
   // NAV & THEME & POPUP
   // ======================================================================
@@ -172,56 +140,60 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // PROFILE PAGE LOGIC (WITH CUSTOM DOMAIN)
+  // PROFILE PAGE LOGIC (FIXED)
   // ======================================================================
   if (location.pathname.includes('profile.html')) {
     if (auth) {
       auth.onAuthStateChanged(function(user) {
         if (!user) { location.href = 'login.html'; return; }
+        
         var name = user.displayName || user.email.split('@')[0];
-        $('profName').innerHTML = name + ' <span id="profBadge" class="badge ' + (isUserPremium ? 'pro' : 'free') + '">' + (isUserPremium ? '💎 PRO' : 'Free') + '</span>';
-        $('profEmail').textContent = user.email;
-        $('profAvatar').textContent = name.charAt(0).toUpperCase();
+        if($('profName')) $('profName').innerHTML = name + ' <span id="profBadge" class="badge ' + (isUserPremium ? 'pro' : 'free') + '">' + (isUserPremium ? '💎 PRO' : 'Free') + '</span>';
+        if($('profEmail')) $('profEmail').textContent = user.email;
+        if($('profAvatar')) $('profAvatar').textContent = name.charAt(0).toUpperCase();
 
-        fetch('/api/my-published', { headers: { 'Authorization': 'Bearer ' + user.getIdToken() } })
-        .then(res => res.json())
-        .then(data => {
-          var grid = $('profileSitesGrid');
-          grid.innerHTML = '';
-          if (!data.sites || data.sites.length === 0) {
-            grid.innerHTML = '<p style="color: #64748b;">You haven\'t published any sites yet. <a href="dashboard.html" style="color: #38bdf8;">Go build one!</a></p>';
-            return;
-          }
-          var totalViews = 0;
-          data.sites.forEach(function(site) {
-            totalViews += (site.views || 0);
-            var card = document.createElement('a'); 
-            card.href = '/s/' + site.slug; 
-            card.target = '_blank'; 
-            card.className = 'site-card';
+        user.getIdToken().then(function(token) {
+          fetch('/api/my-published', { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(res => res.json())
+          .then(data => {
+            var grid = $('profileSitesGrid');
+            if(!grid) return;
+            grid.innerHTML = '';
             
-            // Add Custom Domain Badge & Button for Premium
-            let domainHtml = '';
-            if (isUserPremium) {
-              if (site.customDomain) {
-                domainHtml = `<p style="color: #34d399; font-size: 12px; margin-top: 4px;">🌐 ${site.customDomain}</p>`;
-              }
-              domainHtml += `<button class="button" style="padding: 6px 12px; font-size: 12px; margin-top: 10px; width: 100%;" onclick="event.preventDefault(); window.promptDomain('${site.slug}')">⚙️ Connect Domain</button>`;
+            if (!data.sites || data.sites.length === 0) {
+              grid.innerHTML = '<p style="color: #64748b;">You haven\'t published any sites yet. <a href="dashboard.html" style="color: #38bdf8;">Go build one!</a></p>';
+              return;
             }
+            var totalViews = 0;
+            data.sites.forEach(function(site) {
+              totalViews += (site.views || 0);
+              var card = document.createElement('div'); card.className = 'site-card';
+              
+              let domainBtnHtml = '';
+              if (isUserPremium) {
+                domainBtnHtml = `<button class="domain-btn" onclick="window.promptDomain('${site.slug}')">🌐 Connect Domain</button>`;
+                if (site.customDomain) {
+                  domainBtnHtml = `<button class="domain-btn" style="border-color:#34d399; color:#34d399;">🌐 ${escapeHtml(site.customDomain)}</button>`;
+                }
+              }
 
-            card.innerHTML = `
-              <div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div>
-              <div class="site-info">
-                <h3>${escapeHtml(site.projectName || 'Untitled')}</h3>
-                <p>👁 ${site.views || 0} views</p>
-                ${domainHtml}
-              </div>
-            `;
-            grid.appendChild(card);
+              card.innerHTML = `
+                <div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div>
+                <div class="site-info">
+                  <h3>${escapeHtml(site.projectName || 'Untitled')}</h3>
+                  <p>👁 ${site.views || 0} views</p>
+                  ${domainBtnHtml}
+                </div>
+              `;
+              grid.appendChild(card);
+            });
+            if($('statProjects')) $('statProjects').textContent = data.sites.length;
+            if($('statViews')) $('statViews').textContent = totalViews;
+          })
+          .catch(err => { 
+            if($('profileSitesGrid')) $('profileSitesGrid').innerHTML = '<p style="color: #f87171;">Failed to load sites: ' + err.message + '</p>'; 
           });
-          $('statProjects').textContent = data.sites.length;
-          $('statViews').textContent = totalViews;
-        }).catch(err => { $('profileSitesGrid').innerHTML = '<p style="color: #f87171;">Failed to load sites: ' + err.message + '</p>'; });
+        });
       });
     }
   }
