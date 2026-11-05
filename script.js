@@ -172,14 +172,37 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // PROFILE PAGE LOGIC (FIXED)
+  // CUSTOM DOMAIN FUNCTION
+  // ======================================================================
+  window.promptDomain = async function(projectId) {
+    const domain = prompt("Enter your custom domain (e.g., www.mywebsite.com):\n\nNote: You must set a CNAME record pointing to codewi.onrender.com in your domain registrar.");
+    if (!domain) return;
+    
+    try {
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+      const res = await fetch('/api/connect-domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ projectId: projectId, domainName: domain })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      showToast('Domain connected successfully!', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  // ======================================================================
+  // PROFILE PAGE LOGIC
   // ======================================================================
   if (location.pathname.includes('profile.html')) {
     if (auth) {
       auth.onAuthStateChanged(async function(user) {
         if (!user) { location.href = 'login.html'; return; }
         
-        // FIX: Fetch the freshest token directly here so the badge is always correct
         const tokenResult = await user.getIdTokenResult();
         const isPremiumUser = tokenResult.claims.premium === true;
 
@@ -198,7 +221,6 @@ window.addEventListener('DOMContentLoaded', function () {
             
             if (!data.sites || data.sites.length === 0) {
               grid.innerHTML = '<p style="color: #64748b;">You haven\'t published any sites yet. <a href="dashboard.html" style="color: #38bdf8;">Go build one!</a></p>';
-              // FIX: Set stats to 0 instead of leaving them as "-"
               if($('statProjects')) $('statProjects').textContent = '0';
               if($('statViews')) $('statViews').textContent = '0';
               return;
@@ -236,27 +258,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
   }
-
-  window.promptDomain = async function(projectId) {
-    const domain = prompt("Enter your custom domain (e.g., www.mywebsite.com):\n\nNote: You must set a CNAME record pointing to codewi.onrender.com in your domain registrar.");
-    if (!domain) return;
-    
-    try {
-      const user = auth.currentUser;
-      const token = await user.getIdToken();
-      const res = await fetch('/api/connect-domain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ projectId: projectId, domainName: domain })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
-      showToast('Domain connected successfully!', 'success');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
 
   // ======================================================================
   // IDE & CODE EDITOR
@@ -622,22 +623,91 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // EXPLORE & PUBLISH
+  // PUBLISH PAGE
   // ======================================================================
-  if ($('exploreGrid')) {
-    fetch('/api/explore').then(function(r) { return r.json(); }).then(function(data) {
-      var grid = $('exploreGrid'); grid.innerHTML = '';
-      if(!data.sites || !data.sites.length) { grid.innerHTML = '<p style="color:#64748b;text-align:center;">No sites published yet.</p>'; return; }
-      data.sites.forEach(function(site) {
-        var card = document.createElement('a'); card.href = '/s/' + site.slug; card.target = '_blank'; card.className = 'site-card';
-        card.innerHTML = `<div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div><div class="site-info"><h3>${escapeHtml(site.projectName || 'Untitled')}</h3><p>@${escapeHtml(site.username)}</p></div>`;
-        grid.appendChild(card);
-      });
-    }).catch(function(err) { console.error(err); });
-  }
-
   if ($('publishForm')) {
     var projectSelect = $('projectSelect');
+    var mySitesGrid = $('mySitesGrid');
+    var mySitesCount = $('mySitesCount');
+
+    function loadPublishedSites() {
+      if (!auth || !auth.currentUser) return;
+      auth.currentUser.getIdToken().then(function (token) {
+        fetch('/api/my-published', { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) { renderPublishedSites(data.sites || []); })
+          .catch(function (err) { if(mySitesGrid) mySitesGrid.innerHTML = '<p class="my-sites-empty">Failed: ' + escapeHtml(err.message) + '</p>'; });
+      });
+    }
+
+    function renderPublishedSites(sites) {
+      if (!mySitesGrid) return;
+      mySitesGrid.innerHTML = '';
+      if (mySitesCount) mySitesCount.textContent = sites.length + ' site' + (sites.length === 1 ? '' : 's');
+      if (!sites.length) {
+        mySitesGrid.innerHTML = '<p class="my-sites-empty">You haven\'t published anything yet.</p>';
+        return;
+      }
+      sites.forEach(function (site) {
+        var card = document.createElement('div');
+        card.className = 'my-site-card';
+        var url = '/s/' + encodeURIComponent(site.slug);
+        var fullUrl = location.origin + url;
+        
+        var domainBtnHtml = '';
+        if (isUserPremium) {
+          domainBtnHtml = `<button type="button" class="studio-btn ghost-btn domain-btn" data-slug="${escapeHtml(site.slug)}" style="margin-left: 6px;">🌐 Connect Domain</button>`;
+          if (site.customDomain) {
+             domainBtnHtml = `<button type="button" class="studio-btn ghost-btn domain-btn" style="margin-left: 6px; border-color:#34d399; color:#34d399;" data-slug="${escapeHtml(site.slug)}">🌐 ${escapeHtml(site.customDomain)}</button>`;
+          }
+        }
+
+        card.innerHTML =
+          '<div class="my-site-info">' +
+            '<h3>' + escapeHtml(site.projectName || 'Untitled') + '</h3>' +
+            '<a href="' + url + '" target="_blank" class="my-site-url">' + escapeHtml(fullUrl) + '</a>' +
+            '<div class="my-site-meta">' +
+              '<span>👁 ' + (site.views || 0) + ' views</span>' +
+              '<span>·</span>' +
+              '<span>' + (site.updatedAt ? formatDate(site.updatedAt) : '') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="my-site-actions">' +
+            '<a href="' + url + '" target="_blank" class="studio-btn ghost-btn">View</a>' +
+            '<button type="button" class="studio-btn ghost-btn copy-link-btn" data-url="' + escapeHtml(fullUrl) + '">Copy Link</button>' +
+            domainBtnHtml +
+            '<button type="button" class="studio-btn ghost-btn danger-btn unpublish-btn" data-slug="' + escapeHtml(site.slug) + '">Unpublish</button>' +
+          '</div>';
+        mySitesGrid.appendChild(card);
+      });
+    }
+
+    if (mySitesGrid) {
+      mySitesGrid.addEventListener('click', function (e) {
+        var domainBtn = e.target.closest('.domain-btn');
+        if (domainBtn) {
+          var slug = domainBtn.getAttribute('data-slug');
+          window.promptDomain(slug);
+          return;
+        }
+        var copyBtn = e.target.closest('.copy-link-btn');
+        if (copyBtn) {
+          var url = copyBtn.getAttribute('data-url');
+          navigator.clipboard.writeText(url).then(function() { showToast('Copied!', 'success'); });
+          return;
+        }
+        var unBtn = e.target.closest('.unpublish-btn');
+        if (unBtn) {
+          if (!confirm('Unpublish this site?')) return;
+          var slug = unBtn.getAttribute('data-slug');
+          auth.currentUser.getIdToken().then(function(token) {
+            fetch('/api/unpublish', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ slug: slug }) })
+            .then(function() { showToast('Unpublished', 'success'); loadPublishedSites(); });
+          });
+        }
+      });
+    }
+
     if (auth && db) {
       auth.onAuthStateChanged(function(user) {
         if (!user) return;
@@ -645,8 +715,10 @@ window.addEventListener('DOMContentLoaded', function () {
           projectSelect.innerHTML = '<option value="">Choose a project…</option>';
           snap.forEach(function(doc) { var opt = document.createElement('option'); opt.value = doc.id; opt.textContent = doc.data().name || 'Untitled'; projectSelect.appendChild(opt); });
         });
+        loadPublishedSites();
       });
     }
+
     $('publishForm').addEventListener('submit', async function(e) {
       e.preventDefault();
       var slug = $('publishSlug').value.trim().toLowerCase(), name = $('publishName').value.trim(), id = projectSelect.value;
@@ -658,8 +730,24 @@ window.addEventListener('DOMContentLoaded', function () {
         var res = await fetch('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ slug: slug, projectName: name, files: proj.data().files }) });
         var data = await res.json(); if (!res.ok) throw new Error(data.error);
         showToast('Published successfully!', 'success'); this.reset();
+        loadPublishedSites();
       } catch (err) { showToast(err.message, 'error'); } finally { btn.disabled = false; btn.textContent = 'Publish'; }
     });
+  }
+
+  // ======================================================================
+  // EXPLORE PAGE
+  // ======================================================================
+  if ($('exploreGrid')) {
+    fetch('/api/explore').then(function(r) { return r.json(); }).then(function(data) {
+      var grid = $('exploreGrid'); grid.innerHTML = '';
+      if(!data.sites || !data.sites.length) { grid.innerHTML = '<p style="color:#64748b;text-align:center;">No sites published yet.</p>'; return; }
+      data.sites.forEach(function(site) {
+        var card = document.createElement('a'); card.href = '/s/' + site.slug; card.target = '_blank'; card.className = 'site-card';
+        card.innerHTML = `<div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div><div class="site-info"><h3>${escapeHtml(site.projectName || 'Untitled')}</h3><p>@${escapeHtml(site.username)}</p></div>`;
+        grid.appendChild(card);
+      });
+    }).catch(function(err) { console.error(err); });
   }
 
   // UPGRADE PAGE TOKEN REFRESH
