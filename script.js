@@ -172,6 +172,124 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
+  // ADMIN DASHBOARD LOGIC (UPGRADED)
+  // ======================================================================
+  if (isAdminPage) {
+    document.querySelectorAll('.nav-btn[data-target]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-section').forEach(function(s) { s.classList.remove('active'); });
+        e.target.classList.add('active'); 
+        var targetId = e.target.getAttribute('data-target'), targetEl = $(targetId); 
+        if (targetEl) targetEl.classList.add('active');
+        
+        if (targetId === 'dashboard') loadStats(); 
+        if (targetId === 'users') loadUsers(); 
+        if (targetId === 'projects') loadProjects();
+        if (targetId === 'analytics') loadAnalytics();
+      });
+    });
+    
+    var getToken = async function() { return await auth.currentUser.getIdToken(); };
+
+    var loadStats = async function() {
+      try {
+        const res = await fetch('/api/admin/stats', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); if (!res.ok) throw new Error('Failed');
+        const data = await res.json(); 
+        if ($('statUsers')) $('statUsers').textContent = data.totalUsers; 
+        if ($('statPremium')) $('statPremium').textContent = data.premiumUsers; 
+        if ($('statProjects')) $('statProjects').textContent = data.totalProjects; 
+        if ($('statLessons')) $('statLessons').textContent = data.totalLessons;
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    var loadUsers = async function() {
+      try {
+        const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); const data = await res.json();
+        const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; if (!tbody) return;
+        tbody.innerHTML = data.users.map(function(user) { 
+          return `<tr>
+            <td>${escapeHtml(user.email)}</td>
+            <td>${escapeHtml(user.displayName)}</td>
+            <td>${escapeHtml(user.joined)}</td>
+            <td><span class="badge ${user.premium ? 'premium' : 'free'}">${user.premium ? 'Premium' : 'Free'}</span></td>
+            <td>
+              <button class="btn btn-primary toggle-premium-btn" data-uid="${user.uid}">Toggle Pro</button>
+              <button class="btn btn-danger delete-user-btn" data-uid="${user.uid}">Delete</button>
+            </td>
+          </tr>`; 
+        }).join('');
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    var loadProjects = async function() {
+      try {
+        const res = await fetch('/api/admin/projects', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
+        const data = await res.json();
+        const tbody = $('adminProjectsTable') ? $('adminProjectsTable').querySelector('tbody') : null; if (!tbody) return;
+        if (!data.projects || data.projects.length === 0) {
+           tbody.innerHTML = '<tr><td colspan="5">No projects published yet.</td></tr>'; return;
+        }
+        tbody.innerHTML = data.projects.map(function(p) { 
+          return `<tr>
+            <td>${escapeHtml(p.projectName || 'Untitled')}</td>
+            <td><a href="/s/${p.slug}" target="_blank" style="color:#38bdf8;">/s/${p.slug}</a></td>
+            <td><small>${escapeHtml(p.uid || 'Unknown')}</small></td>
+            <td>${p.views || 0}</td>
+            <td>
+              <button class="btn btn-warning takedown-btn" data-slug="${p.slug}">Take Down</button>
+            </td>
+          </tr>`; 
+        }).join('');
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    var loadAnalytics = async function() {
+      try {
+        const res = await fetch('/api/admin/analytics', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); 
+        const data = await res.json();
+        
+        if ($('statTokensToday')) $('statTokensToday').textContent = (data.totalTokensToday || 0).toLocaleString();
+        
+        const list = $('topConsumersList');
+        if (!list) return;
+        if (!data.topConsumers || data.topConsumers.length === 0) {
+          list.innerHTML = '<p style="color:#64748b;">No AI usage today.</p>'; return;
+        }
+        list.innerHTML = data.topConsumers.map(c => {
+           return `<div class="consumer-row">
+             <span>${escapeHtml(c.email)}</span>
+             <span style="color:#fbbf24; font-weight:bold;">${c.tokens.toLocaleString()} tokens</span>
+           </div>`;
+        }).join('');
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    document.addEventListener('click', async function(e) {
+      if (e.target.classList.contains('toggle-premium-btn')) { 
+        const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; 
+        await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid: uid, action: 'toggle-premium' }) }); 
+        loadUsers(); 
+      }
+      if (e.target.classList.contains('delete-user-btn')) { 
+        if(!confirm('Delete permanently?')) return; 
+        const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; 
+        await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid: uid, action: 'delete' }) }); 
+        loadUsers(); 
+      }
+      if (e.target.classList.contains('takedown-btn')) {
+        if (!confirm('Are you sure? This will permanently delete this site.')) return;
+        const slug = e.target.getAttribute('data-slug'); e.target.disabled = true;
+        await fetch('/api/admin/projects/' + slug, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + await getToken() } });
+        showToast('Site taken down.', 'success');
+        loadProjects();
+      }
+    });
+
+    loadStats();
+  }
+
+  // ======================================================================
   // PROFILE PAGE LOGIC
   // ======================================================================
   if (location.pathname.includes('profile.html')) {
@@ -646,6 +764,7 @@ window.addEventListener('DOMContentLoaded', function () {
         // 2. Render Assets List
         function renderAssets() {
           const list = document.getElementById('assetFileList');
+          if (!list) return;
           list.innerHTML = '';
           
           const coreFiles = ['index.html', 'style.css', 'script.js'];
@@ -715,12 +834,10 @@ window.addEventListener('DOMContentLoaded', function () {
         document.getElementById('saveFilesBtn').onclick = async function() {
           this.disabled = true; this.textContent = 'Saving...';
           try {
-            // Get the latest text from the editors
             siteFiles['index.html'] = document.getElementById('edit-index-html').value;
             siteFiles['style.css'] = document.getElementById('edit-style-css').value;
             siteFiles['script.js'] = document.getElementById('edit-script-js').value;
 
-            // Check total size limit (Firestore documents max out at 1MB)
             if (JSON.stringify(siteFiles).length > 900 * 1024) {
               throw new Error("Total project size exceeds 900KB. Please delete some files or compress your images.");
             }
