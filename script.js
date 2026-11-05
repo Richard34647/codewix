@@ -650,9 +650,15 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!auth || !auth.currentUser) return;
       auth.currentUser.getIdToken().then(function (token) {
         fetch('/api/my-published', { headers: { 'Authorization': 'Bearer ' + token } })
-          .then(function (r) { return r.json(); })
+          .then(function (r) { 
+            if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || 'Failed to load sites.'); });
+            return r.json(); 
+          })
           .then(function (data) { renderPublishedSites(data.sites || []); })
-          .catch(function (err) { if(mySitesGrid) mySitesGrid.innerHTML = '<p class="my-sites-empty">Failed: ' + escapeHtml(err.message) + '</p>'; });
+          .catch(function (err) { 
+            if(mySitesGrid) mySitesGrid.innerHTML = '<p class="my-sites-empty" style="color:#f87171;">Failed: ' + escapeHtml(err.message) + '</p>'; 
+            if(mySitesCount) mySitesCount.textContent = 'Error';
+          });
       });
     }
 
@@ -725,12 +731,36 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     if (auth && db) {
-      auth.onAuthStateChanged(function(user) {
+      auth.onAuthStateChanged(async function(user) {
         if (!user) return;
-        db.collection('users').doc(user.uid).collection('projects').orderBy('updatedAt', 'desc').get().then(function(snap) {
+        try {
+          // FIX: Removed .orderBy to prevent missing index errors
+          var snap = await db.collection('users').doc(user.uid).collection('projects').get();
+          var projects = [];
+          snap.forEach(function(doc) { projects.push({ id: doc.id, data: doc.data() }); });
+          
+          // Sort in memory
+          projects.sort(function(a, b) {
+            var timeA = a.data.updatedAt ? a.data.updatedAt.toMillis() : 0;
+            var timeB = b.data.updatedAt ? b.data.updatedAt.toMillis() : 0;
+            return timeB - timeA;
+          });
+
           projectSelect.innerHTML = '<option value="">Choose a project…</option>';
-          snap.forEach(function(doc) { var opt = document.createElement('option'); opt.value = doc.id; opt.textContent = doc.data().name || 'Untitled'; projectSelect.appendChild(opt); });
-        });
+          if (projects.length === 0) {
+            projectSelect.innerHTML = '<option value="">No saved projects found</option>';
+          } else {
+            projects.forEach(function(p) {
+              var opt = document.createElement('option');
+              opt.value = p.id;
+              opt.textContent = p.data.name || 'Untitled';
+              projectSelect.appendChild(opt);
+            });
+          }
+        } catch (err) {
+          projectSelect.innerHTML = '<option value="">Error loading projects</option>';
+          alert("Error loading projects: " + err.message);
+        }
         loadPublishedSites();
       });
     }
