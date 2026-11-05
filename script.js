@@ -612,7 +612,15 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!storage) { showToast('Storage not initialized.', 'error'); this.value = ''; return; }
         
         var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024;
-        if (file.size > maxSize) { showToast('File too large. Max ' + (isUserPremium ? '5MB' : '300KB'), 'error'); this.value = ''; return; }
+        if (file.size > maxSize) { 
+            if (!isUserPremium) {
+                showToast('💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); 
+            } else {
+                showToast('File too large. Max 5MB.', 'error'); 
+            }
+            this.value = ''; 
+            return; 
+        }
         
         var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-');
         uploadFileBtn.textContent = 'Uploading...';
