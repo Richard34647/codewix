@@ -45,7 +45,39 @@ window.addEventListener('DOMContentLoaded', function () {
     setTimeout(function () { t.classList.remove('show'); setTimeout(function () { document.body.removeChild(t); }, 300); }, 2400);
   }
   function formatDate(ts) { if (!ts) return ''; var d = ts.toDate ? ts.toDate() : new Date(ts); return d.toLocaleDateString(); }
-  
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function extensionForLang(lang) {
+    var map = { 'javascript':'js','js':'js','jsx':'jsx','typescript':'ts','ts':'ts','tsx':'tsx','python':'py','py':'py','html':'html','xml':'html','css':'css','scss':'scss','json':'json','yaml':'yml','yml':'yml','bash':'sh','sh':'sh','shell':'sh','sql':'sql','java':'java','c':'c','cpp':'cpp','csharp':'cs','cs':'cs','go':'go','rust':'rs','php':'php','ruby':'rb','swift':'swift','kotlin':'kt','markdown':'md','md':'md','text':'txt','plaintext':'txt' };
+    return map[String(lang).toLowerCase()] || 'txt';
+  }
+  function readFileAsText(file) { return new Promise(function (resolve, reject) { var reader = new FileReader(); reader.onload = function () { resolve(reader.result); }; reader.onerror = function () { reject(reader.error); }; reader.readAsText(file); }); }
+  function readFileAsDataURL(file) { return new Promise(function (resolve, reject) { var reader = new FileReader(); reader.onload = function () { resolve(reader.result); }; reader.onerror = function () { reject(reader.error); }; reader.readAsDataURL(file); }); }
+  function resizeImage(file, maxWidth, maxHeight) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var img = new Image();
+        img.onload = function() {
+          var width = img.width, height = img.height;
+          if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+          if (height > maxHeight) { width = Math.round((width * maxHeight) / height); height = maxHeight; }
+          var canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height); resolve(canvas.toDataURL('image/jpeg', 0.8));
+        }; img.onerror = reject; img.src = e.target.result;
+      }; reader.onerror = reject; reader.readAsDataURL(file);
+    });
+  }
+  function dataUrlToBlob(dataUrl) {
+    var parts = dataUrl.split(','), mimeMatch = parts[0].match(/:(.*?);/), mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    var binary = atob(parts[1]), array = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+    return new Blob([array], { type: mime });
+  }
+
   // ======================================================================
   // NAV & THEME & POPUP
   // ======================================================================
@@ -144,11 +176,15 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   if (location.pathname.includes('profile.html')) {
     if (auth) {
-      auth.onAuthStateChanged(function(user) {
+      auth.onAuthStateChanged(async function(user) {
         if (!user) { location.href = 'login.html'; return; }
         
+        // FIX: Fetch the freshest token directly here so the badge is always correct
+        const tokenResult = await user.getIdTokenResult();
+        const isPremiumUser = tokenResult.claims.premium === true;
+
         var name = user.displayName || user.email.split('@')[0];
-        if($('profName')) $('profName').innerHTML = name + ' <span id="profBadge" class="badge ' + (isUserPremium ? 'pro' : 'free') + '">' + (isUserPremium ? '💎 PRO' : 'Free') + '</span>';
+        if($('profName')) $('profName').innerHTML = name + ' <span id="profBadge" class="badge ' + (isPremiumUser ? 'pro' : 'free') + '">' + (isPremiumUser ? '💎 PRO' : 'Free') + '</span>';
         if($('profEmail')) $('profEmail').textContent = user.email;
         if($('profAvatar')) $('profAvatar').textContent = name.charAt(0).toUpperCase();
 
@@ -162,6 +198,9 @@ window.addEventListener('DOMContentLoaded', function () {
             
             if (!data.sites || data.sites.length === 0) {
               grid.innerHTML = '<p style="color: #64748b;">You haven\'t published any sites yet. <a href="dashboard.html" style="color: #38bdf8;">Go build one!</a></p>';
+              // FIX: Set stats to 0 instead of leaving them as "-"
+              if($('statProjects')) $('statProjects').textContent = '0';
+              if($('statViews')) $('statViews').textContent = '0';
               return;
             }
             var totalViews = 0;
@@ -170,7 +209,7 @@ window.addEventListener('DOMContentLoaded', function () {
               var card = document.createElement('div'); card.className = 'site-card';
               
               let domainBtnHtml = '';
-              if (isUserPremium) {
+              if (isPremiumUser) {
                 domainBtnHtml = `<button class="domain-btn" onclick="window.promptDomain('${site.slug}')">🌐 Connect Domain</button>`;
                 if (site.customDomain) {
                   domainBtnHtml = `<button class="domain-btn" style="border-color:#34d399; color:#34d399;">🌐 ${escapeHtml(site.customDomain)}</button>`;
