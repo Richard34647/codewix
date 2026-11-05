@@ -18,6 +18,12 @@
         .file-editor-group { margin-bottom: 20px; }
         .file-editor-group label { display: block; margin-bottom: 8px; color: #94a3b8; font-size: 14px; }
         .file-editor-group textarea { width: 100%; height: 200px; background: #020617; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 13px; resize: vertical; }
+        
+        .asset-list { list-style: none; padding: 0; margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px; }
+        .asset-item { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 10px 15px; border-radius: 6px; border: 1px solid #334155; }
+        .asset-name { color: #38bdf8; font-family: monospace; font-size: 14px; }
+        .delete-asset-btn { background: transparent; border: 1px solid #f87171; color: #f87171; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .delete-asset-btn:hover { background: #f87171; color: #020617; }
     </style>
 </head>
 <body>
@@ -33,14 +39,13 @@
     <div class="settings-layout">
         <div class="settings-sidebar">
             <h2>Site Settings</h2>
-            <button class="settings-nav-btn active">📄 Files</button>
+            <button class="settings-nav-btn active">📄 Files & Assets</button>
             <div style="margin-top: 30px;">
                 <a href="#" id="viewLiveSiteBtn" target="_blank" class="studio-btn ghost-btn" style="width: 100%; justify-content: center;">View Live Site ↗</a>
             </div>
         </div>
 
         <div class="settings-content">
-            <!-- Tab: Files -->
             <div class="settings-tab active">
                 <h2>Edit Published Files</h2>
                 <p style="color: #94a3b8; font-size: 14px; margin-bottom: 20px;">Changes made here will update your live site immediately.</p>
@@ -57,8 +62,21 @@
                     <label>script.js</label>
                     <textarea id="edit-script-js" placeholder="JS code here..."></textarea>
                 </div>
+
+                <hr style="border-color: #334155; margin: 30px 0;">
                 
-                <button class="button" id="saveFilesBtn" style="width: 100%;">Save Changes</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="font-size: 18px;">Assets & Additional Files</h3>
+                    <button type="button" class="button" id="uploadAssetBtn" style="padding: 8px 16px; font-size: 14px;">📎 Upload File</button>
+                    <input type="file" id="assetUploadInput" style="display: none;" multiple>
+                </div>
+                <p style="color: #64748b; font-size: 13px; margin-bottom: 15px;">Upload images, JSON files, or text files. Use them in your HTML like: <code>&lt;img src="yourimage.png"&gt;</code></p>
+                
+                <ul class="asset-list" id="assetFileList">
+                    <li style="color: #64748b; font-size: 14px;">No extra files uploaded yet.</li>
+                </ul>
+                
+                <button class="button" id="saveFilesBtn" style="width: 100%;">Save All Changes</button>
             </div>
         </div>
     </div>
