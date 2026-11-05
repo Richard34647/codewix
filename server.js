@@ -115,46 +115,6 @@ async function requireAdmin(req, res, next) {
 }
 
 // ==========================================
-// CUSTOM DOMAIN MIDDLEWARE
-// ==========================================
-app.use(async (req, res, next) => {
-  const host = (req.get('x-forwarded-host') || req.get('host') || '').split(':')[0].toLowerCase();
-  
-  if (host.includes('onrender.com') || host.includes('localhost') || host.includes('127.0.0.1') || req.path.startsWith('/api')) {
-    return next();
-  }
-
-  try {
-    const snapshot = await admin.firestore().collection('published').where('customDomain', '==', host).limit(1).get();
-    if (!snapshot.empty) {
-      const doc = snapshot.docs[0];
-      const data = doc.data();
-      const files = data.files || {};
-      
-      let isPremiumOwner = false;
-      try {
-        const ownerRecord = await admin.auth().getUser(data.uid);
-        isPremiumOwner = ownerRecord.customClaims?.premium === true;
-      } catch (err) {}
-
-      doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
-      
-      let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
-      
-      let watermarkHtml = '';
-      if (!isPremiumOwner) {
-        watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
-      }
-
-      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || 'Untitled'}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, doc.id)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
-      
-      return res.send(html);
-    }
-  } catch (err) { console.error('Custom domain lookup error:', err); }
-  next();
-});
-
-// ==========================================
 // SELAR WEBHOOK
 // ==========================================
 app.post('/api/selar-webhook', async (req, res) => {
@@ -174,27 +134,6 @@ app.post('/api/selar-webhook', async (req, res) => {
     }
     res.status(200).send('Webhook received');
   } catch (err) { res.status(500).send('Webhook failed'); }
-});
-
-// ==========================================
-// API: CONNECT DOMAIN
-// ==========================================
-app.post('/api/connect-domain', requireAuth, async (req, res) => {
-  if (!req.isPremium) return res.status(403).json({ error: 'Premium required for custom domains.' });
-  const { projectId, domainName } = req.body || {};
-  if (!projectId || !domainName) return res.status(400).json({ error: 'Missing fields' });
-
-  try {
-    const cleanDomain = domainName.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').trim();
-    
-    const existing = await admin.firestore().collection('published').where('customDomain', '==', cleanDomain).get();
-    if (!existing.empty && existing.docs[0].id !== projectId) {
-      return res.status(409).json({ error: 'Domain is already connected to another site.' });
-    }
-
-    await admin.firestore().collection('published').doc(projectId).update({ customDomain: cleanDomain });
-    res.json({ ok: true, message: 'Domain saved successfully.' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
@@ -344,7 +283,7 @@ app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res)
 });
 
 // ==========================================
-// PUBLISH & MY-PUBLISHED
+// PUBLISH, MY-PUBLISHED, UPDATE FILES
 // ==========================================
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
@@ -389,24 +328,43 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
 
 app.get('/api/my-published', requireAuth, async (req, res) => {
   try {
-    // FIX: Removed .orderBy to prevent missing composite index errors
     const snap = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
     let sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
     
-    // Sort in memory
     sites.sort((a, b) => {
       const timeA = a.updatedAt ? (a.updatedAt._seconds || 0) : 0;
       const timeB = b.updatedAt ? (b.updatedAt._seconds || 0) : 0;
       return timeB - timeA;
     });
 
-    // Convert timestamps to ISO strings safely
     sites = sites.map(s => ({
       ...s,
       updatedAt: s.updatedAt ? new Date(s.updatedAt._seconds * 1000).toISOString() : null
     }));
 
     res.json({ sites });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/published/:slug', requireAuth, async (req, res) => {
+  try {
+    const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Site not found' });
+    if (doc.data().uid !== req.user.uid) return res.status(403).json({ error: 'Unauthorized' });
+    res.json({ site: { slug: doc.id, ...doc.data() } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/published/:slug', requireAuth, async (req, res) => {
+  try {
+    const ref = admin.firestore().collection('published').doc(req.params.slug);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Site not found' });
+    if (doc.data().uid !== req.user.uid) return res.status(403).json({ error: 'Unauthorized' });
+
+    const updates = req.body;
+    await ref.update(updates);
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
