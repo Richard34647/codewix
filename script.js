@@ -79,7 +79,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // NAV & THEME & POPUP
+  // NAV & THEME
   // ======================================================================
   var ADMIN_EMAIL = 'wilcoxr889@gmail.com';
   var isAdminPage = location.pathname.toLowerCase().includes('admin.html');
@@ -130,6 +130,117 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  var path = location.pathname.toLowerCase();
+  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html', 'publish.html', 'admin.html'];
+  if (auth && protectedPages.some(function (p) { return path.indexOf(p) !== -1; })) {
+    auth.onAuthStateChanged(function (user) {
+      if (!user) { location.replace('login.html'); return; }
+      if (!user.emailVerified) { alert('Please verify your email to access this page.'); auth.signOut().then(function () { location.replace('login.html'); }); return; }
+      if (isAdminPage && user.email !== ADMIN_EMAIL) { location.replace('dashboard.html'); return; }
+      if ($('dashUser')) $('dashUser').textContent = user.email.split('@')[0];
+      if ($('userEmail')) $('userEmail').textContent = user.email;
+    });
+  }
+
+  function logout(e) { if (e) e.preventDefault(); if (!auth) { location.href = 'login.html'; return; } auth.signOut().then(function () { location.replace('login.html'); }); }
+  if ($('logoutBtn')) $('logoutBtn').addEventListener('click', logout);
+  if ($('logoutLink')) $('logoutLink').addEventListener('click', logout);
+
+  // ======================================================================
+  // REGISTER, LOGIN, AUTH
+  // ======================================================================
+  if ($('registerForm')) {
+    $('registerForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = $('email').value.trim(), password = $('password').value, username = $('username') ? $('username').value.trim() : '';
+      var errBox = $('errorBox'); hideError(errBox); if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+      var submitBtn = $('registerForm').querySelector('button[type="submit"]'), orig = submitBtn ? submitBtn.textContent : 'Sign Up';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating…'; }
+
+      auth.createUserWithEmailAndPassword(email, password).then(function (uc) {
+        var user = uc.user; if (username && user.updateProfile) return user.updateProfile({ displayName: username }).then(function () { return user; }); return user;
+      }).then(function (user) {
+        return fetch('/api/send-verification-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: user.email, userName: username || user.email.split('@')[0], redirectUrl: window.location.origin + '/verify.html' }) })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+      }).then(function (result) {
+        if (!result.ok) { showError(errBox, 'Verification email failed: ' + (result.data.error || 'unknown')); if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } return; }
+        alert('Registration successful! Check your inbox.'); window.location.href = 'login.html';
+      }).catch(function (err) {
+        var msg = err.message; if (err.code === 'auth/email-already-in-use') msg = 'That email is already registered.'; else if (err.code === 'auth/weak-password') msg = 'Password must be at least 6 characters.';
+        showError(errBox, msg); if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; }
+      });
+    });
+  }
+
+  if ($('loginForm')) {
+    var pendingVerificationEmail = null;
+    $('loginForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = $('email').value.trim(), password = $('password').value, errBox = $('errorBox');
+      if (errBox) { errBox.className = 'error-box'; errBox.innerHTML = ''; errBox.style.display = 'none'; }
+      if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+      var submitBtn = $('loginForm').querySelector('button[type="submit"]'), orig = submitBtn ? submitBtn.textContent : 'Log In';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Logging in…'; }
+
+      auth.signInWithEmailAndPassword(email, password).then(function (uc) {
+        var user = uc.user;
+        if (!user.emailVerified) {
+          pendingVerificationEmail = user.email;
+          return auth.signOut().then(function () {
+            if (errBox) { errBox.innerHTML = '<div style="margin-bottom:10px;">Please verify your email before logging in.</div><button type="button" class="resend-verify-btn">Resend verification email</button>'; errBox.style.display = 'block'; }
+          });
+        }
+        alert('Login successful!'); window.location.href = 'dashboard.html';
+      }).catch(function (err) {
+        var msg = err.message; if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Incorrect email or password.'; else if (err.code === 'auth/user-not-found') msg = 'No account found.';
+        showError(errBox, msg);
+      }).finally(function () { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } });
+    });
+
+    var errBoxEl = $('errorBox');
+    if (errBoxEl) {
+      errBoxEl.addEventListener('click', function (e) {
+        var btn = e.target.closest('.resend-verify-btn'); if (!btn || !pendingVerificationEmail) return;
+        btn.disabled = true; btn.textContent = 'Sending…';
+        fetch('/api/send-verification-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: pendingVerificationEmail, redirectUrl: window.location.origin + '/verify.html' }) })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) { if (!res.ok) { errBoxEl.className = 'error-box'; errBoxEl.textContent = 'Could not resend: ' + (res.data.error || 'unknown'); return; } errBoxEl.className = 'success-box'; errBoxEl.textContent = '✅ New verification email sent.'; })
+          .catch(function () { errBoxEl.className = 'error-box'; errBoxEl.textContent = 'Could not reach server.'; });
+      });
+    }
+  }
+
+  function handleGoogleAuth(buttonId, errBoxId) {
+    if ($(buttonId)) {
+      $(buttonId).addEventListener('click', function () {
+        var errBox = $(errBoxId); hideError(errBox); if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+        auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(function (result) {
+          if (!result.user.emailVerified) { return auth.signOut().then(function () { showError(errBox, 'Please verify your Google email.'); }); }
+          window.location.href = 'dashboard.html';
+        }).catch(function (error) { if (error.code === 'auth/popup-closed-by-user') return; showError(errBox, error.message); });
+      });
+    }
+  }
+  handleGoogleAuth('googleLoginBtn', 'errorBox'); handleGoogleAuth('googleRegisterBtn', 'errorBox');
+
+  if ($('forgotForm')) {
+    $('forgotForm').addEventListener('submit', function (e) {
+      e.preventDefault(); var email = $('email').value.trim(); var errBox = $('errorBox'), okBox = $('successBox'); hideError(errBox); if (okBox) okBox.style.display = 'none';
+      if (!auth) { showError(errBox, 'Firebase not loaded.'); return; }
+      var submitBtn = $('forgotForm').querySelector('button[type="submit"]'), orig = submitBtn ? submitBtn.textContent : 'Send Link';
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
+      auth.sendPasswordResetEmail(email, { url: window.location.origin + '/login.html?reset=success', handleCodeInApp: false }).then(function () {
+        if (okBox) { okBox.textContent = 'If an account exists, we sent a link.'; okBox.style.display = 'block'; }
+      }).catch(function (err) {
+        if (err.code === 'auth/user-not-found') { if (okBox) { okBox.textContent = 'If an account exists, we sent a link.'; okBox.style.display = 'block'; } return; }
+        showError(errBox, err.message);
+      }).finally(function () { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } });
+    });
+  }
+
+  // ======================================================================
+  // UPGRADE POPUP
+  // ======================================================================
   function showUpgradePopup() {
     const validPages = ['dashboard.html', 'ai-assistant.html', 'publish.html', 'explore.html'];
     if (!validPages.some(p => location.pathname.includes(p))) return;
@@ -172,7 +283,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // ADMIN DASHBOARD LOGIC (FIXED)
+  // ADMIN DASHBOARD LOGIC
   // ======================================================================
   if (isAdminPage) {
     document.querySelectorAll('.nav-btn[data-target]').forEach(function(btn) {
@@ -293,7 +404,6 @@ window.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // FIX: Wait for auth before loading initial stats
     if (auth) {
       auth.onAuthStateChanged(function(user) {
         if (user) {
@@ -738,7 +848,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // SITE SETTINGS PAGE LOGIC (WITH ASSET UPLOADS)
+  // SITE SETTINGS PAGE LOGIC
   // ======================================================================
   if (location.pathname.includes('site-settings.html')) {
     const urlParams = new URLSearchParams(window.location.search);
@@ -755,11 +865,8 @@ window.addEventListener('DOMContentLoaded', function () {
         const tokenResult = await user.getIdTokenResult();
         isPremiumUser = tokenResult.claims.premium === true;
 
-        // 1. Load Site Data
         try {
-          const res = await fetch('/api/published/' + slug, {
-            headers: { 'Authorization': 'Bearer ' + token }
-          });
+          const res = await fetch('/api/published/' + slug, { headers: { 'Authorization': 'Bearer ' + token } });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error);
 
@@ -775,7 +882,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
         } catch (err) { alert("Error loading site: " + err.message); }
 
-        // 2. Render Assets List
         function renderAssets() {
           const list = document.getElementById('assetFileList');
           if (!list) return;
@@ -813,7 +919,6 @@ window.addEventListener('DOMContentLoaded', function () {
           });
         }
 
-        // 3. Upload Asset
         document.getElementById('uploadAssetBtn').onclick = function() {
           document.getElementById('assetUploadInput').click();
         };
@@ -822,7 +927,7 @@ window.addEventListener('DOMContentLoaded', function () {
           const files = Array.from(this.files);
           if (!files.length) return;
 
-          const maxSize = isPremiumUser ? 5 * 1024 * 1024 : 300 * 1024; // 5MB Pro / 300KB Free
+          const maxSize = isPremiumUser ? 5 * 1024 * 1024 : 300 * 1024;
 
           for (const file of files) {
             if (file.size > maxSize) {
@@ -844,7 +949,6 @@ window.addEventListener('DOMContentLoaded', function () {
           renderAssets();
         };
 
-        // 4. Save All Changes
         document.getElementById('saveFilesBtn').onclick = async function() {
           this.disabled = true; this.textContent = 'Saving...';
           try {
