@@ -19,7 +19,7 @@
     "express": "^4.19.2",
     "firebase-admin": "^12.1.0",
     "groq-sdk": "^1.6.0",
-    "msedge-tts": "^2.1.1", 
+    "node-edge-tts": "^1.2.11",
     "openai": "^7.36.0",
     "ws": "^8.22.0"
   }
