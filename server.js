@@ -7,7 +7,7 @@ const emailjs = require('@emailjs/nodejs');
 const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
-const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts'); // ADDED FOR TTS
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -298,7 +298,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   }
 });
 
-// TEXT TO SPEECH (PREMIUM ONLY)
+// TEXT TO SPEECH (PREMIUM ONLY) - UPDATED TO MP3
 app.post('/api/tts', requireAuth, async (req, res) => {
   if (!req.isPremium) {
     return res.status(403).json({ error: 'Text-to-Speech is a Pro feature.' });
@@ -309,13 +309,14 @@ app.post('/api/tts', requireAuth, async (req, res) => {
 
   try {
     const tts = new MsEdgeTTS();
-    await tts.setMetadata("en-US-AriaNeural", OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
-    const { audioStream } = tts.toStream(text);
+    // Changed to MP3 for better browser compatibility
+    await tts.setMetadata("en-US-AriaNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const readable = tts.toStream(text);
     
-    res.setHeader('Content-Type', 'audio/webm');
-    audioStream.pipe(res);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    readable.pipe(res);
 
-    audioStream.on('error', (err) => {
+    readable.on('error', (err) => {
       console.error('TTS Stream Error:', err);
       if (!res.headersSent) res.status(500).json({ error: 'Failed to generate audio stream.' });
       else res.end();
