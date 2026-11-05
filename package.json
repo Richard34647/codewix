@@ -4,13 +4,8 @@
   "description": "CodeWix - AI-powered coding platform",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "@emailjs/nodejs": "^1.0.0",
     "@fal-ai/client": "^1.0.0",
