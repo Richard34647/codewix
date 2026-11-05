@@ -79,7 +79,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // GLOBAL BAN CHECK & NAV & THEME
+  // GLOBAL BAN CHECK & NAV & THEME & NOTIFICATIONS
   // ======================================================================
   var ADMIN_EMAIL = 'wilcoxr889@gmail.com';
   var isAdminPage = location.pathname.toLowerCase().includes('admin.html');
@@ -95,13 +95,52 @@ window.addEventListener('DOMContentLoaded', function () {
       var isLight = document.body.classList.contains('light-mode');
       localStorage.setItem('codewix_theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '🌙' : '☀️';
     }); navMenu.appendChild(themeBtn);
+
+    // NOTIFICATION BELL
+    var notifBtn = document.createElement('button');
+    notifBtn.id = 'notifBellBtn';
+    notifBtn.className = 'theme-toggle-btn';
+    notifBtn.innerHTML = '🔔';
+    notifBtn.title = 'Notifications';
+    notifBtn.style.position = 'relative';
+    
+    var badge = document.createElement('span');
+    badge.id = 'notifBadge';
+    badge.style.cssText = 'position:absolute;top:0;right:0;width:8px;height:8px;background:#ef4444;border-radius:50%;display:none;';
+    notifBtn.appendChild(badge);
+    
+    navMenu.appendChild(notifBtn);
+    
+    // NOTIFICATION MODAL
+    var notifModal = document.createElement('div');
+    notifModal.id = 'notifModal';
+    notifModal.style.cssText = 'display:none; position:fixed; top:70px; right:20px; width:320px; background:#1e293b; border:1px solid #334155; border-radius:12px; z-index:10000; box-shadow:0 10px 30px rgba(0,0,0,0.5); overflow:hidden;';
+    notifModal.innerHTML = `
+      <div style="padding:12px; border-bottom:1px solid #334155; display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0; color:#e2e8f0; font-size:14px;">Notifications</h3>
+        <button id="closeNotifBtn" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:16px;">✕</button>
+      </div>
+      <div id="notifList" style="max-height:300px; overflow-y:auto; padding:0;">
+        <p style="padding:20px; text-align:center; color:#64748b;">Loading...</p>
+      </div>
+    `;
+    document.body.appendChild(notifModal);
+    
+    notifBtn.addEventListener('click', function() {
+      notifModal.style.display = notifModal.style.display === 'none' ? 'block' : 'none';
+      badge.style.display = 'none';
+    });
+    
+    document.getElementById('closeNotifBtn').addEventListener('click', function() {
+      notifModal.style.display = 'none';
+    });
   }
 
   if (auth) {
     auth.onAuthStateChanged(async function(user) {
       if (!user) return;
       
-      // GLOBAL BAN CHECK
+      // GLOBAL BAN CHECK (FOR LOGGED IN USERS)
       if (db) {
         try {
           const userDoc = await db.collection('users').doc(user.uid).get();
@@ -115,6 +154,43 @@ window.addEventListener('DOMContentLoaded', function () {
       const tokenResult = await user.getIdTokenResult();
       isUserPremium = tokenResult.claims.premium === true; 
       isUserAdmin = user.email === ADMIN_EMAIL;
+
+      // FETCH NOTIFICATIONS
+      if (db) {
+        try {
+          const snap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(10).get();
+          const notifList = document.getElementById('notifList');
+          const badge = document.getElementById('notifBadge');
+          
+          if (notifList) {
+            if (snap.empty) {
+              notifList.innerHTML = '<p style="padding:20px; text-align:center; color:#64748b;">No notifications yet.</p>';
+            } else {
+              let html = '';
+              let latestTime = 0;
+              snap.forEach(doc => {
+                const n = doc.data();
+                const time = n.createdAt ? n.createdAt.toMillis() : Date.now();
+                if (time > latestTime) latestTime = time;
+                
+                html += `
+                  <div style="padding:12px; border-bottom:1px solid #334155;">
+                    <h4 style="margin:0 0 4px 0; color:#38bdf8; font-size:13px;">${escapeHtml(n.title)}</h4>
+                    <p style="margin:0; color:#cbd5e1; font-size:12px; line-height:1.4;">${escapeHtml(n.message)}</p>
+                  </div>
+                `;
+              });
+              notifList.innerHTML = html;
+              
+              const lastRead = localStorage.getItem('lastReadNotif') || 0;
+              if (latestTime > lastRead && badge) {
+                badge.style.display = 'block';
+                localStorage.setItem('lastReadNotif', latestTime);
+              }
+            }
+          }
+        } catch(e) { console.error("Error loading notifications", e); }
+      }
 
       if (navMenu && !isAdminPage) {
         if (!document.getElementById('profileNavLink')) {
@@ -212,6 +288,12 @@ window.addEventListener('DOMContentLoaded', function () {
         }
         alert('Login successful!'); window.location.href = 'dashboard.html';
       }).catch(function (err) {
+        // CHECK FOR BANNED USER
+        if (err.code === 'auth/user-disabled') {
+          window.location.href = 'ban.html';
+          return;
+        }
+        
         var msg = err.message; if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Incorrect email or password.'; else if (err.code === 'auth/user-not-found') msg = 'No account found.';
         showError(errBox, msg);
       }).finally(function () { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } });
@@ -238,7 +320,12 @@ window.addEventListener('DOMContentLoaded', function () {
           if (!result.user.emailVerified) { return auth.signOut().then(function () { showError(errBox, 'Please verify your Google email.'); }); }
           if (db) db.collection('users').doc(result.user.uid).set({ email: result.user.email, displayName: result.user.displayName || '', createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
           window.location.href = 'dashboard.html';
-        }).catch(function (error) { if (error.code === 'auth/popup-closed-by-user') return; showError(errBox, error.message); });
+        }).catch(function (error) { 
+          if (error.code === 'auth/popup-closed-by-user') return; 
+          // CHECK FOR BANNED USER
+          if (error.code === 'auth/user-disabled') { window.location.href = 'ban.html'; return; }
+          showError(errBox, error.message); 
+        });
       });
     }
   }
@@ -319,6 +406,7 @@ window.addEventListener('DOMContentLoaded', function () {
         if (targetId === 'users') loadUsers(); 
         if (targetId === 'projects') loadProjects();
         if (targetId === 'analytics') loadAnalytics();
+        if (targetId === 'notifications') loadAdminNotifications();
       });
     });
     
@@ -411,6 +499,54 @@ window.addEventListener('DOMContentLoaded', function () {
       } catch (err) { showToast(err.message, 'error'); }
     };
 
+    var loadAdminNotifications = async function() {
+      try {
+        if (!db) return;
+        const snap = await db.collection('notifications').orderBy('createdAt', 'desc').get();
+        const tbody = $('adminNotifTable') ? $('adminNotifTable').querySelector('tbody') : null;
+        if (!tbody) return;
+        
+        if (snap.empty) { tbody.innerHTML = '<tr><td colspan="3">No notifications found.</td></tr>'; return; }
+        
+        let html = '';
+        snap.forEach(doc => {
+           const n = doc.data();
+           html += `<tr>
+              <td>${escapeHtml(n.title)}</td>
+              <td>${escapeHtml(n.message)}</td>
+              <td>
+                <button class="btn btn-danger delete-notif-btn" data-id="${doc.id}">Delete</button>
+              </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+
+    // Admin Add Notification Form Logic
+    if ($('addNotifForm')) {
+      $('addNotifForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const title = $('notifTitle').value.trim();
+        const message = $('notifMessage').value.trim();
+        if (!title || !message) return showToast('Fill both fields.', 'error');
+        
+        const btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = 'Adding...';
+        try {
+          await fetch('/api/admin/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() },
+            body: JSON.stringify({ title, message })
+          });
+          showToast('Notification added!', 'success');
+          this.reset();
+          loadAdminNotifications();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = 'Add Notification'; }
+      });
+    }
+
     document.addEventListener('click', async function(e) {
       // TOGGLE PREMIUM
       if (e.target.classList.contains('toggle-premium-btn')) {
@@ -444,6 +580,15 @@ window.addEventListener('DOMContentLoaded', function () {
         try {
           await db.collection('published').doc(slug).delete();
           showToast('Site taken down.', 'success'); loadProjects();
+        } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; }
+      }
+      // DELETE NOTIFICATION
+      if (e.target.classList.contains('delete-notif-btn')) {
+        if (!confirm('Delete this notification?')) return;
+        const id = e.target.getAttribute('data-id'); e.target.disabled = true;
+        try {
+          await fetch('/api/admin/notifications/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + await getToken() } });
+          showToast('Notification deleted.', 'success'); loadAdminNotifications();
         } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; }
       }
     });
@@ -787,21 +932,10 @@ window.addEventListener('DOMContentLoaded', function () {
       c.innerHTML = html;
     }
     
-    // UPDATED: TTS BUTTON LOGIC FIXED
     function setAssistantMessage(div, content, reasoning) { 
       var c = div.querySelector('.message-content'), html = ''; 
       if (reasoning) html += '<details class="reasoning-section"><summary>Thinking</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>'; 
       html += renderContent(content); 
-      
-      if (isUserPremium) {
-        const audioId = 'tts-audio-' + Date.now();
-        html += `
-            <div style="margin-top: 10px;">
-                <button class="btn read-aloud-btn" style="background: #38bdf8; color: #020617; padding: 6px 12px; font-size: 12px;">🔊 Read Aloud</button>
-                <audio id="${audioId}" style="display:none;"></audio>
-            </div>
-        `;
-      }
       c.innerHTML = html; 
     }
 
@@ -846,60 +980,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     chatContainer.addEventListener('click', async function (e) {
-      var btn = e.target.closest('button'); if (!btn) return; 
-      
-      // NEW TTS LOGIC HERE
-      if (btn.classList.contains('read-aloud-btn')) {
-        if (!isUserPremium) return showToast('Text-to-Speech is a Pro feature.', 'error');
-        
-        const messageContentEl = btn.closest('.message-content');
-        let textToRead = "";
-        messageContentEl.querySelectorAll('.text-part').forEach(el => {
-            textToRead += el.innerText + " ";
-        });
-        textToRead = textToRead.trim();
-
-        if (!textToRead) return showToast('No text to read.', 'error');
-
-        const originalText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = 'Generating...';
-
-        try {
-            const token = await auth.currentUser.getIdToken();
-            const response = await fetch('/api/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ text: textToRead })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to generate audio.');
-            }
-
-            const audioBlob = await response.blob();
-            const audioUrl = URL.createObjectURL(audioBlob);
-            
-            const audioElement = btn.parentElement.querySelector('audio');
-            if (audioElement) {
-                audioElement.src = audioUrl;
-                audioElement.play();
-                audioElement.onended = () => URL.revokeObjectURL(audioUrl);
-            } else {
-                const audio = new Audio(audioUrl);
-                audio.play();
-            }
-        } catch (err) {
-            showToast(err.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = originalText;
-        }
-        return;
-      }
-
-      var block = btn.closest('.code-block'); if (!block) return;
+      var btn = e.target.closest('button'); if (!btn) return; var block = btn.closest('.code-block'); if (!block) return;
       var codeEl = block.querySelector('pre code'), code = codeEl ? codeEl.textContent : '', lang = block.getAttribute('data-lang') || 'txt', filename = block.getAttribute('data-filename') || ('snippet.' + lang);
       if (btn.classList.contains('copy-btn')) { (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { showToast('Code copied'); }).catch(function () { showToast('Copy failed', 'error'); }); }
       else if (btn.classList.contains('download-code-btn')) { var blob = new Blob([code], { type: 'text/plain' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); }
