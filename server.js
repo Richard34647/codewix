@@ -136,56 +136,16 @@ app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// BAN / UNBAN USER
-app.post('/api/admin/ban-user', requireAuth, requireAdmin, async (req, res) => {
-  const { uid, action } = req.body;
-  try {
-    if (action === 'ban') {
-      await admin.auth().updateUser(uid, { disabled: true });
-      await admin.firestore().collection('users').doc(uid).set({ banned: true, strikes: 3 }, { merge: true });
-      res.json({ ok: true, message: 'User banned successfully.' });
-    } else if (action === 'unban') {
-      await admin.auth().updateUser(uid, { disabled: false });
-      await admin.firestore().collection('users').doc(uid).set({ banned: false, strikes: 0 }, { merge: true });
-      res.json({ ok: true, message: 'User unbanned successfully.' });
-    } else {
-      res.status(400).json({ error: 'Invalid action.' });
-    }
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// AUTO-BAN SYSTEM (Strikes)
-app.post('/api/report-violation', requireAuth, async (req, res) => {
-  const { targetUid, reason } = req.body;
-  if (!targetUid) return res.status(400).json({ error: 'Target UID required.' });
-  
-  try {
-    const userRef = admin.firestore().collection('users').doc(targetUid);
-    const userDoc = await userRef.get();
-    
-    let currentStrikes = userDoc.exists ? (userDoc.data().strikes || 0) : 0;
-    currentStrikes += 1;
-    
-    if (currentStrikes >= 3) {
-      await admin.auth().updateUser(targetUid, { disabled: true });
-      await userRef.set({ banned: true, strikes: currentStrikes, banReason: reason || 'Violated Terms of Service' }, { merge: true });
-      res.json({ ok: true, message: 'User automatically banned due to 3 strikes.' });
-    } else {
-      await userRef.set({ strikes: currentStrikes, lastViolation: reason || 'Rule violation' }, { merge: true });
-      res.json({ ok: true, message: `Warning issued. Strike ${currentStrikes}/3.` });
-    }
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const listUsersResult = await admin.auth().listUsers(1000);
     const users = listUsersResult.users.map(u => ({ 
       uid: u.uid, 
-      email: u.email || '', 
+      email: u.email || 'No Email', 
       displayName: u.displayName || 'No Name', 
       premium: u.customClaims?.premium === true,
-      joined: new Date(u.metadata.creationTime).toLocaleDateString()
+      joined: new Date(u.metadata.creationTime).toLocaleDateString(),
+      banned: u.disabled === true
     }));
     res.json({ users });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -202,6 +162,23 @@ app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) =
     } else if (action === 'delete') { 
       await admin.auth().deleteUser(uid); 
       res.json({ ok: true }); 
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/ban-user', requireAuth, requireAdmin, async (req, res) => {
+  const { uid, action } = req.body;
+  try {
+    if (action === 'ban') {
+      await admin.auth().updateUser(uid, { disabled: true });
+      await admin.firestore().collection('users').doc(uid).set({ banned: true, strikes: 3 }, { merge: true });
+      res.json({ ok: true, message: 'User banned successfully.' });
+    } else if (action === 'unban') {
+      await admin.auth().updateUser(uid, { disabled: false });
+      await admin.firestore().collection('users').doc(uid).set({ banned: false, strikes: 0 }, { merge: true });
+      res.json({ ok: true, message: 'User unbanned successfully.' });
+    } else {
+      res.status(400).json({ error: 'Invalid action.' });
     }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
