@@ -120,7 +120,6 @@ async function requireAdmin(req, res, next) {
 app.use(async (req, res, next) => {
   const host = (req.get('x-forwarded-host') || req.get('host') || '').split(':')[0].toLowerCase();
   
-  // Ignore requests for the main app, API, or localhost
   if (host.includes('onrender.com') || host.includes('localhost') || host.includes('127.0.0.1') || req.path.startsWith('/api')) {
     return next();
   }
@@ -142,7 +141,6 @@ app.use(async (req, res, next) => {
       
       let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
       
-      // Inject Watermark for Free Users (Shouldn't happen on custom domain, but just in case)
       let watermarkHtml = '';
       if (!isPremiumOwner) {
         watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
@@ -189,7 +187,6 @@ app.post('/api/connect-domain', requireAuth, async (req, res) => {
   try {
     const cleanDomain = domainName.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').trim();
     
-    // Check if domain is already in use
     const existing = await admin.firestore().collection('published').where('customDomain', '==', cleanDomain).get();
     if (!existing.empty && existing.docs[0].id !== projectId) {
       return res.status(409).json({ error: 'Domain is already connected to another site.' });
@@ -347,11 +344,14 @@ app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res)
 });
 
 // ==========================================
-// PUBLISH (WITH FREE LIMIT ENFORCEMENT)
+// PUBLISH (WITH FREE LIMIT & FIXED DESCRIPTION)
 // ==========================================
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
+  
+  // FIX: Ensure description is never undefined
+  const safeDescription = description || '';
   
   if (!req.isPremium) {
     const existing = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
@@ -367,10 +367,10 @@ app.post('/api/publish', requireAuth, async (req, res) => {
       const doc = await tx.get(pubRef);
       if (doc.exists) {
         if (doc.data().uid !== req.user.uid) throw new Error('SLUG_TAKEN');
-        tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, password: finalPassword, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description: safeDescription, files, password: finalPassword, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         return;
       }
-      tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, password: finalPassword, views: 0, publishedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description: safeDescription, files, password: finalPassword, views: 0, publishedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     });
     res.json({ ok: true, url: '/s/' + slug, fullUrl: req.protocol + '://' + req.get('host') + '/s/' + slug });
   } catch (err) {
