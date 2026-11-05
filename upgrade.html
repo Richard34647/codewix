@@ -42,14 +42,16 @@
         .pricing-features li { padding: 8px 0; border-bottom: 1px solid #334155; color: #cbd5e1; font-size: 14px; }
         .pricing-features li::before { content: '✓'; color: #34d399; margin-right: 8px; font-weight: bold; }
         
-        /* Modal */
-        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; }
-        .modal-content { background: #1e293b; padding: 30px; border-radius: 12px; width: 100%; max-width: 400px; border: 1px solid #334155; }
-        .modal-content h3 { margin-bottom: 15px; color: #38bdf8; }
-        .pay-btn { display: block; width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; }
-        .btn-card { background: #38bdf8; color: #020617; }
-        .btn-crypto { background: #fbbf24; color: #020617; }
-        .btn-cancel { background: transparent; color: #f87171; border: 1px solid #f87171; margin-top: 15px; }
+        .success-banner {
+            display: none;
+            background: #064e3b;
+            color: #a7f3d0;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -92,7 +94,7 @@
                     <li>Password-Protected Sites</li>
                     <li>Priority Support</li>
                 </ul>
-                <button class="button" style="width: 100%; background: #fbbf24;" onclick="openCheckout('Pro', 5)">Upgrade to Pro</button>
+                <button class="button" style="width: 100%; background: #fbbf24;" onclick="goToCheckout()">Upgrade to Pro</button>
             </div>
 
             <!-- Premium Plan -->
@@ -106,53 +108,35 @@
                     <li>Early Access to New Features</li>
                     <li>1-on-1 Onboarding</li>
                 </ul>
-                <button class="button" style="width: 100%;" onclick="openCheckout('Premium', 15)">Upgrade to Premium</button>
+                <button class="button" style="width: 100%;" onclick="goToCheckout()">Upgrade to Premium</button>
             </div>
         </div>
-    </div>
 
-    <!-- Checkout Modal -->
-    <div class="modal-overlay" id="checkoutModal">
-        <div class="modal-content">
-            <h3 id="modalTitle">Checkout</h3>
-            <p style="color: #94a3b8; margin-bottom: 20px; font-size: 14px;">Choose your payment method for <strong id="modalPlan" style="color: white;"></strong>.</p>
-            
-            <button class="pay-btn btn-card" onclick="processPayment('Card')">💳 Pay with Card</button>
-            <button class="pay-btn btn-crypto" onclick="processPayment('Crypto')">🪙 Pay with Crypto (LTC)</button>
-            <button class="pay-btn btn-cancel" onclick="closeCheckout()">Cancel</button>
+        <!-- Success Banner (shown after redirect) -->
+        <div id="successBanner" class="success-banner">
+            ✅ Payment received! We are verifying your transaction. Your account will be upgraded within a few minutes. 
+            <a href="dashboard.html" style="color: #38bdf8; text-decoration: underline;">Go to Dashboard</a>
         </div>
     </div>
 
     <script>
-        // Function to open the modal
-        function openCheckout(planName, price) {
-            document.getElementById('modalPlan').innerText = planName + ' Plan ($' + price + '/mo)';
-            document.getElementById('checkoutModal').style.display = 'flex';
+        // Your live Selar checkout link
+        const SELAR_CHECKOUT_URL = "https://selar.com/7173b13874";
+
+        function goToCheckout() {
+            // Optional: Redirect with user email so Selar can pre-fill it.
+            // However, the user must manually ensure the email matches their CodeWix login.
+            window.location.href = SELAR_CHECKOUT_URL;
         }
 
-        // Function to close the modal
-        function closeCheckout() {
-            document.getElementById('checkoutModal').style.display = 'none';
-        }
-
-        // Function to handle payment routing
-        function processPayment(method) {
-            if (method === 'Card') {
-                // Here you would typically redirect to Stripe, Paystack, or a payment link
-                alert("Redirecting to secure card checkout... (Integration required)");
-                // window.location.href = "https://checkout.stripe.com/your-link";
-            } else if (method === 'Crypto') {
-                alert("Redirecting to Crypto payment gateway... (Integration required)");
-                // window.location.href = "crypto-payment.html";
-            }
-        }
-
-        // Close modal if clicking outside
-        window.onclick = function(event) {
-            var modal = document.getElementById('checkoutModal');
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
+        // Check if the user is returning from a successful Selar payment
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('status') && urlParams.get('status') === 'success') {
+            document.getElementById('successBanner').style.display = 'block';
+            
+            // Here you could trigger a frontend check to your server 
+            // to see if the webhook has already processed the upgrade.
+            // For now, we show the banner and instruct the user to wait.
         }
     </script>
 </body>
