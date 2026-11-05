@@ -697,52 +697,74 @@ window.addEventListener('DOMContentLoaded', function () {
         if (!codeEditor) return;
         if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
 
-        const token = prompt('Enter your GitHub Personal Access Token (PAT):\n(Create one at github.com/settings/tokens with "repo" scope)');
+        // 1. Ask for the Repository URL
+        const repoUrl = prompt('Enter your GitHub Repository Link:\n(e.g., https://github.com/your-username/your-repo)');
+        if (!repoUrl) return;
+
+        // 2. Parse the URL to get owner and repo name
+        const match = repoUrl.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^\/]+)\/([^\/]+)/);
+        if (!match) {
+            return showToast('Invalid GitHub URL. Please use the format: https://github.com/username/repo', 'error');
+        }
+        const owner = match[1];
+        const repo = match[2].replace('.git', '').replace(/\//g, '');
+
+        // 3. Ask for the Token with clear instructions matching your Google search
+        const tokenPrompt = `To push files to GitHub, you need a Personal Access Token (PAT).\n\nHere is exactly how to get it:\n1. Log into GitHub and click your profile picture (top right) -> Settings.\n2. Scroll down the left sidebar and click Developer settings.\n3. Expand Personal access tokens -> Tokens (classic).\n4. Click Generate new token (classic).\n5. Give it a name, set an expiration.\n6. IMPORTANT: Check the 'repo' checkbox (this allows code upload).\n7. Click Generate token at the bottom.\n8. Copy the token (starts with ghp_...) and paste it here:`;
+        const token = prompt(tokenPrompt);
         if (!token) return;
-        const repoName = prompt('Enter a name for your new GitHub repository:');
-        if (!repoName) return;
 
         exportGithubBtn.disabled = true;
         exportGithubBtn.textContent = 'Exporting...';
+        showToast('Connecting to GitHub...', 'success');
 
         try {
-            // 1. Get User Info
+            // 4. Validate Token and get User
             const userRes = await fetch('https://api.github.com/user', {
                 headers: { 'Authorization': `token ${token}` }
             });
-            if (!userRes.ok) throw new Error('Invalid GitHub token.');
-            const userData = await userRes.json();
-            const username = userData.login;
-
-            // 2. Create Repository
-            const createRepoRes = await fetch('https://api.github.com/user/repos', {
-                method: 'POST',
-                headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: repoName, description: 'Exported from CodeWix', private: false, auto_init: false })
-            });
-            if (!createRepoRes.ok && createRepoRes.status !== 422) { 
-                const err = await createRepoRes.json();
-                throw new Error(err.message || 'Failed to create repository.');
-            }
-
-            // 3. Upload Files
+            if (!userRes.ok) throw new Error('Invalid Token. Please make sure you copied it correctly.');
+            
+            // 5. Loop through files and upload/update them
             for (const [filename, content] of Object.entries(files)) {
                 if (filename.startsWith('asset:')) continue; 
+
+                let sha = null;
+                const getFileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, {
+                    headers: { 'Authorization': `token ${token}` }
+                });
                 
+                if (getFileRes.ok) {
+                    const fileData = await getFileRes.json();
+                    sha = fileData.sha;
+                }
+
                 const contentBytes = new TextEncoder().encode(content);
                 const base64Content = btoa(String.fromCharCode.apply(null, contentBytes));
+                
+                const body = {
+                    message: `Update ${filename} via CodeWix`,
+                    content: base64Content
+                };
+                if (sha) body.sha = sha;
 
-                await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${filename}`, {
+                const putRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, {
                     method: 'PUT',
                     headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: `Add ${filename} from CodeWix`, content: base64Content })
+                    body: JSON.stringify(body)
                 });
+
+                if (!putRes.ok) {
+                    const errData = await putRes.json();
+                    throw new Error(errData.message || `Failed to upload ${filename}`);
+                }
             }
 
-            showToast('Successfully exported to GitHub!', 'success');
-            window.open(`https://github.com/${username}/${repoName}`, '_blank');
+            showToast('Successfully deployed to GitHub!', 'success');
+            window.open(`https://github.com/${owner}/${repo}`, '_blank');
 
         } catch (err) {
+            console.error(err);
             showToast(err.message, 'error');
         } finally {
             exportGithubBtn.disabled = false;
