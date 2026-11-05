@@ -502,10 +502,24 @@ app.put('/api/published/:slug', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// UPDATED: EXPLORE ROUTE TO ATTACH PREMIUM STATUS
 app.get('/api/explore', async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').orderBy('updatedAt', 'desc').limit(60).get();
-    res.json({ sites: snap.docs.map(doc => ({ slug: doc.id, ...doc.data(), updatedAt: doc.data().updatedAt?.toDate().toISOString() })) });
+    const sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
+    
+    // Bulk fetch users to get premium status for verification badges
+    const uids = [...new Set(sites.map(s => s.uid))];
+    const usersResult = await admin.auth().getUsers(uids.map(uid => ({ uid })));
+    const premiumUids = new Set(usersResult.users.filter(u => u.customClaims?.premium).map(u => u.uid));
+
+    const enrichedSites = sites.map(s => ({
+      ...s,
+      updatedAt: s.updatedAt?.toDate().toISOString(),
+      isPremiumOwner: premiumUids.has(s.uid)
+    }));
+
+    res.json({ sites: enrichedSites });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
