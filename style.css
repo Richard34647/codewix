@@ -15,7 +15,7 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden; /* Prevents horizontal scrolling globally */
+    overflow-x: hidden;
 }
 
 /* ---- Header ---- */
@@ -1525,78 +1525,94 @@ body.light-mode .code-window { background: #0f172a; }
 .footer-status-widget.up .footer-status-dot { background: #34d399; box-shadow: 0 0 8px #34d399; }
 .footer-status-widget.down .footer-status-dot { background: #f87171; box-shadow: 0 0 8px #f87171; }
 
+
 /* ==========================================================================
-   ADMIN PANEL STYLES (Extracted from Inline)
+   FIXED ADMIN PANEL LAYOUT
    ========================================================================== */
-.admin-body {
+
+/* Override the global body flex for the admin page only */
+body.admin-body {
     margin: 0;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--bg-dark);
-    color: var(--text-main);
-    display: flex;
+    background-color: #0f172a;
+    color: #e2e8f0;
     height: 100vh;
-    overflow: hidden;
+    overflow: hidden; /* Prevent body scroll */
+    display: block; /* Override the global flex-column */
 }
-:root {
-    --bg-dark: #0f172a;
-    --bg-panel: #1e293b;
-    --text-main: #e2e8f0;
-    --text-muted: #94a3b8;
-    --accent: #38bdf8;
-    --border: #334155;
-}
+
+/* Fixed Sidebar */
 .sidebar {
     width: 250px;
-    background-color: var(--bg-panel);
-    border-right: 1px solid var(--border);
+    background-color: #1e293b;
+    border-right: 1px solid #334155;
     display: flex;
     flex-direction: column;
-    flex-shrink: 0;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
 }
+
 .sidebar h2 {
-    color: var(--accent);
+    color: #38bdf8;
     text-align: center;
     padding: 20px 0;
     margin: 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid #334155;
+    font-size: 22px;
 }
+
 .nav-btn {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: #94a3b8;
     padding: 15px 20px;
     text-align: left;
     font-size: 16px;
     cursor: pointer;
     transition: 0.2s;
     border-left: 4px solid transparent;
+    width: 100%;
+    font-family: inherit;
 }
-.nav-btn:hover { background-color: rgba(56, 189, 248, 0.1); color: var(--text-main); }
+.nav-btn:hover { background-color: rgba(56, 189, 248, 0.1); color: #e2e8f0; }
 .nav-btn.active {
     background-color: rgba(56, 189, 248, 0.1);
-    color: var(--accent);
-    border-left-color: var(--accent);
+    color: #38bdf8;
+    border-left-color: #38bdf8;
     font-weight: bold;
 }
 .back-link {
     margin-top: auto;
     padding: 20px;
-    color: var(--text-muted);
+    color: #94a3b8;
     text-decoration: none;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid #334155;
+    display: block;
 }
-.back-link:hover { color: var(--text-main); }
+.back-link:hover { color: #e2e8f0; }
 
+/* Main Content Area */
 .main-content {
-    flex: 1;
-    padding: 30px;
-    overflow-y: auto;
-    min-width: 0;
+    margin-left: 250px; /* Push past the fixed sidebar */
+    padding: 40px;
+    height: 100vh;
+    overflow-y: auto; /* Allow main content to scroll */
+    box-sizing: border-box;
 }
-.tab-section { display: none; }
-.tab-section.active { display: block; }
-.main-content h1 { margin-top: 0; color: var(--text-main); }
 
+.main-content h1 {
+    margin-top: 0;
+    color: #e2e8f0;
+    font-size: 28px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 12px;
+}
+
+/* Stats Grid */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1604,30 +1620,38 @@ body.light-mode .code-window { background: #0f172a; }
     margin-bottom: 30px;
 }
 .stat-card {
-    background-color: var(--bg-panel);
+    background-color: #1e293b;
     padding: 20px;
     border-radius: 12px;
-    border: 1px solid var(--border);
+    border: 1px solid #334155;
 }
-.stat-card h3 { margin: 0 0 10px 0; font-size: 14px; color: var(--text-muted); text-transform: uppercase; }
-.stat-card .value { font-size: 32px; font-weight: bold; color: var(--accent); }
+.stat-card h3 { margin: 0 0 10px 0; font-size: 14px; color: #94a3b8; text-transform: uppercase; }
+.stat-card .value { font-size: 32px; font-weight: bold; color: #38bdf8; }
 
+/* Tables */
 table {
     width: 100%;
     border-collapse: collapse;
-    background-color: var(--bg-panel);
+    background-color: #1e293b;
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 1px solid #334155;
 }
 th, td {
-    padding: 15px;
+    padding: 16px;
     text-align: left;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid #334155;
 }
-th { background-color: rgba(0,0,0,0.2); color: var(--text-muted); font-weight: 600; }
+th {
+    background-color: rgba(0,0,0,0.2);
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 14px;
+}
 tr:last-child td { border-bottom: none; }
+tr:hover td { background-color: rgba(255,255,255,0.02); }
 
+/* Buttons & Badges */
 .btn {
     padding: 8px 12px;
     border-radius: 6px;
@@ -1636,24 +1660,32 @@ tr:last-child td { border-bottom: none; }
     font-weight: bold;
     font-size: 13px;
     transition: 0.2s;
+    font-family: inherit;
 }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-primary { background-color: var(--accent); color: #020617; }
+.btn-primary { background-color: #38bdf8; color: #020617; }
 .btn-primary:hover { background-color: #0ea5e9; }
 .btn-danger { background-color: #ef4444; color: white; }
 .btn-danger:hover { background-color: #dc2626; }
 .btn-success { background-color: #10b981; color: white; }
 .btn-warning { background-color: #f59e0b; color: #020617; }
 
-.badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+.badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    display: inline-block;
+}
 .badge.premium { background-color: #fbbf24; color: #020617; }
 .badge.free { background-color: #64748b; color: white; }
 
+/* Forms */
 .admin-form {
-    background-color: var(--bg-panel);
-    padding: 20px;
+    background-color: #1e293b;
+    padding: 24px;
     border-radius: 12px;
-    border: 1px solid var(--border);
+    border: 1px solid #334155;
     margin-bottom: 30px;
     display: flex;
     flex-direction: column;
@@ -1662,15 +1694,19 @@ tr:last-child td { border-bottom: none; }
 .admin-form input, .admin-form textarea {
     padding: 12px;
     border-radius: 8px;
-    border: 1px solid var(--border);
-    background-color: var(--bg-dark);
+    border: 1px solid #334155;
+    background-color: #0f172a;
     color: white;
     font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
 }
-.admin-form textarea { resize: vertical; min-height: 80px; }
+.admin-form textarea { resize: vertical; min-height: 100px; }
+.admin-form h3 { margin-top: 0; color: #e2e8f0; font-size: 18px; margin-bottom: 4px; }
+
 
 /* ==========================================================================
-   RESPONSIVE FIXES FOR DASHBOARD, IDE & ADMIN PANEL
+   RESPONSIVE FIXES
    ========================================================================== */
 
 /* --- 1. User Dashboard (IDE) Fixes --- */
@@ -1731,44 +1767,36 @@ tr:last-child td { border-bottom: none; }
     }
 }
 
-/* --- 2. Admin Panel Fixes --- */
+/* --- 2. Admin Panel Mobile Fixes --- */
 @media (max-width: 768px) {
-    .admin-body {
-        flex-direction: column;
-        overflow-y: auto;
+    body.admin-body {
         height: auto;
-        min-height: 100vh;
+        overflow-y: auto;
     }
-
+    
     .sidebar {
+        position: relative;
         width: 100%;
         height: auto;
         border-right: none;
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid #334155;
+        padding-bottom: 10px;
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        padding-bottom: 10px;
     }
-
-    .sidebar h2 {
-        width: 100%;
-        padding: 15px 0;
-        border-bottom: 1px solid var(--border);
-    }
-
+    
+    .sidebar h2 { width: 100%; border-bottom: none; padding: 15px 0; }
+    
     .nav-btn {
+        width: auto;
         padding: 10px 15px;
         font-size: 14px;
         border-left: none;
         border-bottom: 3px solid transparent;
     }
-
-    .nav-btn.active {
-        border-left: none;
-        border-bottom-color: var(--accent);
-    }
-
+    .nav-btn.active { border-left: none; border-bottom-color: #38bdf8; }
+    
     .back-link {
         width: 100%;
         text-align: center;
@@ -1776,19 +1804,21 @@ tr:last-child td { border-bottom: none; }
         margin-top: 10px;
         padding: 10px;
     }
-
+    
     .main-content {
-        padding: 15px;
-        width: 100%;
+        margin-left: 0;
+        padding: 20px;
+        height: auto;
+        overflow-y: visible;
     }
-
+    
     table {
         display: block;
         overflow-x: auto;
         white-space: nowrap;
         -webkit-overflow-scrolling: touch;
     }
-
+    
     .stats-grid {
         grid-template-columns: 1fr;
     }
