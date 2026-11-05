@@ -400,7 +400,6 @@ window.addEventListener('DOMContentLoaded', function () {
       hamburger.id = 'cwHamburger'; hamburger.innerHTML = '☰'; document.body.appendChild(hamburger); if (window.innerWidth < 800) chatArea.classList.add('cw-sidebar-collapsed');
     }
 
-    // FIX: Added the search input back into the sidebar HTML
     sidebar.innerHTML = `
       <div class="cw-sb-head">
         <span>Chats</span>
@@ -413,10 +412,8 @@ window.addEventListener('DOMContentLoaded', function () {
       <div class="cw-sb-list" id="cwHistoryList"></div>
     `;
     var historyListBox = $('cwHistoryList');
-    var historySearchEl = $('cwSbSearch'); // FIX: Define the variable
-    if (historySearchEl) {
-      historySearchEl.addEventListener('input', renderHistoryList); // FIX: Add listener so it actually searches
-    }
+    var historySearchEl = $('cwSbSearch');
+    if (historySearchEl) { historySearchEl.addEventListener('input', renderHistoryList); }
 
     function setSidebarOpen(open) { if (chatArea) { chatArea.classList.toggle('cw-sidebar-collapsed', !open); hamburger.style.display = open ? 'none' : 'block'; } }
     hamburger.onclick = function() { setSidebarOpen(true); refreshHistory(); }; $('cwSbClose').onclick = function() { setSidebarOpen(false); }; $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
@@ -622,8 +619,7 @@ window.addEventListener('DOMContentLoaded', function () {
   // LEARN, EXPLORE, PROFILE, PUBLISH
   // ======================================================================
   if ($('lessonTitle') && $('lessonBody')) {
-    // (Keep your original lesson logic here)
-    var LESSONS = [{ title: 'HTML: Page Structure', level: 'Beginner', lang: 'html', concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.', code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>', exercise: 'Create an HTML page with an <h1> that says "I am learning" and a <p> that says "HTML is fun".', hint: 'Use <code>&lt;h1&gt;I am learning&lt;/h1&gt;</code>' }]; // Shortened for brevity, use your full array
+    var LESSONS = [{ title: 'HTML: Page Structure', level: 'Beginner', lang: 'html', concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.', code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>', exercise: 'Create an HTML page with an <h1> that says "I am learning" and a <p> that says "HTML is fun".', hint: 'Use <code>&lt;h1&gt;I am learning&lt;/h1&gt;</code>' }];
     var progressData = { completed: {}, streak: 1, startDate: null }, authUserL = null;
     function progressDocRef() { if (!db || !authUserL) return null; return db.collection('users').doc(authUserL.uid).collection('progress').doc('state'); }
     function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -667,4 +663,22 @@ window.addEventListener('DOMContentLoaded', function () {
       } catch (err) { showToast(err.message, 'error'); } finally { btn.disabled = false; btn.textContent = 'Publish'; }
     });
   }
+
+  // ======================================================================
+  // UPGRADE PAGE TOKEN REFRESH
+  // ======================================================================
+  // If the user is redirected back to the dashboard with ?status=success
+  if (window.location.search.includes('status=success') && auth && auth.currentUser) {
+      showToast('Verifying payment... please wait.', 'success');
+      // Force a token refresh to pull the new "premium" claim from Firebase
+      auth.currentUser.getIdToken(true).then(function() {
+          showToast('Upgrade successful! Welcome to Pro.', 'success');
+          // Remove the query param so it doesn't refresh forever
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setTimeout(function() { window.location.reload(); }, 2000);
+      }).catch(function(error) {
+          console.error("Error refreshing token:", error);
+      });
+  }
+
 }); // end DOMContentLoaded
