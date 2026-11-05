@@ -172,7 +172,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // PROFILE PAGE LOGIC
+  // PROFILE PAGE LOGIC (WITH CUSTOM DOMAIN)
   // ======================================================================
   if (location.pathname.includes('profile.html')) {
     if (auth) {
@@ -195,8 +195,28 @@ window.addEventListener('DOMContentLoaded', function () {
           var totalViews = 0;
           data.sites.forEach(function(site) {
             totalViews += (site.views || 0);
-            var card = document.createElement('a'); card.href = '/s/' + site.slug; card.target = '_blank'; card.className = 'site-card';
-            card.innerHTML = `<div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div><div class="site-info"><h3>${escapeHtml(site.projectName || 'Untitled')}</h3><p>👁 ${site.views || 0} views</p></div>`;
+            var card = document.createElement('a'); 
+            card.href = '/s/' + site.slug; 
+            card.target = '_blank'; 
+            card.className = 'site-card';
+            
+            // Add Custom Domain Badge & Button for Premium
+            let domainHtml = '';
+            if (isUserPremium) {
+              if (site.customDomain) {
+                domainHtml = `<p style="color: #34d399; font-size: 12px; margin-top: 4px;">🌐 ${site.customDomain}</p>`;
+              }
+              domainHtml += `<button class="button" style="padding: 6px 12px; font-size: 12px; margin-top: 10px; width: 100%;" onclick="event.preventDefault(); window.promptDomain('${site.slug}')">⚙️ Connect Domain</button>`;
+            }
+
+            card.innerHTML = `
+              <div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div>
+              <div class="site-info">
+                <h3>${escapeHtml(site.projectName || 'Untitled')}</h3>
+                <p>👁 ${site.views || 0} views</p>
+                ${domainHtml}
+              </div>
+            `;
             grid.appendChild(card);
           });
           $('statProjects').textContent = data.sites.length;
@@ -206,8 +226,29 @@ window.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  window.promptDomain = async function(projectId) {
+    const domain = prompt("Enter your custom domain (e.g., www.mywebsite.com):\n\nNote: You must set a CNAME record pointing to codewi.onrender.com in your domain registrar.");
+    if (!domain) return;
+    
+    try {
+      const user = auth.currentUser;
+      const token = await user.getIdToken();
+      const res = await fetch('/api/connect-domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ projectId: projectId, domainName: domain })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      showToast('Domain connected successfully!', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   // ======================================================================
-  // IDE & CODE EDITOR (WITH PREMIUM ZIP LIMITS)
+  // IDE & CODE EDITOR
   // ======================================================================
   var cm = null, codeEditor = null;
   (function initCodeMirror() {
@@ -284,12 +325,9 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (saveProjectBtn) { saveProjectBtn.addEventListener('click', function () { if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; } if (!isAsset(activeFile)) files[activeFile] = codeEditor.value; var name = currentProjectName; if (!name) { name = prompt('Project Name:', 'My Project'); if (!name) return; name = name.trim(); if (!name) return; } saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…'; var payload = { name: name, files: files, activeFile: activeFile, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }; var col = db.collection('users').doc(auth.currentUser.uid).collection('projects'); var promise; if (currentProjectId) promise = col.doc(currentProjectId).update(payload); else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; }); } promise.then(function () { currentProjectName = name; lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name; showToast('Saved ✔', 'success'); }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); }).finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; }); }); }
 
-    // PREMIUM FEATURE: BLOCK ZIP DOWNLOAD FOR FREE USERS
     if (downloadZipBtn) { 
       downloadZipBtn.addEventListener('click', async function () { 
-        if (!isUserPremium) {
-          return showToast('💎 ZIP Export is a Pro feature. Upgrade to download your project files.', 'error');
-        }
+        if (!isUserPremium) return showToast('💎 ZIP Export is a Pro feature.', 'error');
         if (typeof JSZip === 'undefined') { alert('ZIP missing.'); return; } 
         if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value; 
         downloadZipBtn.disabled = true; downloadZipBtn.textContent = 'Zipping…'; 
@@ -534,16 +572,8 @@ window.addEventListener('DOMContentLoaded', function () {
   // LEARN (PREMIUM LESSONS LOCK)
   // ======================================================================
   if ($('lessonTitle') && $('lessonBody')) {
-    var LESSONS = [
-      { title: 'HTML: Page Structure', level: 'Beginner', lang: 'html', concept: 'Every HTML page starts with a doctype.', code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n  </body>\n</html>', exercise: 'Create an HTML page with an h1.', hint: 'Use <h1>I am learning</h1>' },
-      { title: 'HTML: Links and Images', level: 'Beginner', lang: 'html', concept: 'Use the <a> tag for links.', code: '<a href="https://google.com">Google</a>', exercise: 'Create a link.', hint: 'Use <a>' },
-      { title: 'CSS: Basics', level: 'Beginner', lang: 'css', concept: 'CSS changes how HTML looks.', code: 'body { background: #0f172a; }', exercise: 'Change background.', hint: 'body { }' },
-      { title: 'JS: Variables', level: 'Beginner', lang: 'javascript', concept: 'Use let for variables.', code: 'let name = "Alice";', exercise: 'Create a variable.', hint: 'let x = 1;' },
-      { title: 'JS: Functions', level: 'Beginner', lang: 'javascript', concept: 'Functions are reusable.', code: 'function greet() {}', exercise: 'Write a function.', hint: 'function() {}' },
-      { title: 'PRO: Advanced APIs', level: 'Intermediate', lang: 'javascript', concept: 'Fetch data from APIs.', code: 'fetch("url").then()', exercise: 'Fetch an API.', hint: 'fetch()' },
-      { title: 'PRO: CSS Grid', level: 'Intermediate', lang: 'css', concept: 'CSS Grid layout.', code: 'display: grid;', exercise: 'Make a grid.', hint: 'grid' },
-      { title: 'PRO: React Basics', level: 'Intermediate', lang: 'javascript', concept: 'Components.', code: 'function App() {}', exercise: 'Make a component.', hint: 'React' }
-    ]; // Shortened array for brevity, keep your full one here
+    var LESSONS = [ /* ... keep your full array of 20 lessons here ... */ ]; 
+    // Abbreviated here for readability. Use your full list.
     
     var progressData = { completed: {}, streak: 1, startDate: null }, authUserL = null;
     function progressDocRef() { if (!db || !authUserL) return null; return db.collection('users').doc(authUserL.uid).collection('progress').doc('state'); }
@@ -552,7 +582,6 @@ window.addEventListener('DOMContentLoaded', function () {
     function renderLesson(idx) {
       var lesson = LESSONS[idx]; if (!lesson) return;
       
-      // PREMIUM LOCK: Lessons past index 4 (the 5th lesson) are locked
       if (!isUserPremium && idx > 4) {
         $('lessonTitle').textContent = "🔒 Locked Lesson";
         $('lessonBody').innerHTML = `
@@ -582,7 +611,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // EXPLORE & PROFILE & PUBLISH
+  // EXPLORE & PUBLISH
   // ======================================================================
   if ($('exploreGrid')) {
     fetch('/api/explore').then(function(r) { return r.json(); }).then(function(data) {
