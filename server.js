@@ -97,7 +97,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
       model: finalModel, messages: messages,
       temperature: typeof temperature === 'number' ? temperature : 0.7,
       max_completion_tokens: max_completion_tokens || 2048, stream: true,
-      stream_options: { include_usage: true } // 👈 Tells Groq to send token usage at the end
+      stream_options: { include_usage: true } // Tells Groq to send token usage at the end
     };
     if (reasoning_effort && req.isPremium) body.reasoning_effort = reasoning_effort;
 
@@ -217,7 +217,7 @@ app.post('/api/admin/update-user', requireAuth, async (req, res) => {
 });
 
 // ==========================================
-// GENERAL ROUTES
+// GENERAL ROUTES (Images, Run Code, Publish)
 // ==========================================
 app.post('/api/generate-image', requireAuth, async (req, res) => {
   const { prompt } = req.body;
@@ -269,6 +269,7 @@ app.post('/api/run', requireAuth, async (req, res) => {
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
+  if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(slug)) return res.status(400).json({ error: 'Invalid slug.' });
   
   let finalPassword = null;
   if (password && req.isPremium) finalPassword = password;
@@ -290,6 +291,34 @@ app.post('/api/publish', requireAuth, async (req, res) => {
     if (err.message === 'SLUG_TAKEN') return res.status(409).json({ error: 'Slug taken.' });
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/s/:slug', async (req, res, next) => {
+  if (!admin.apps.length) return next();
+  try {
+    const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
+    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    
+    const data = doc.data();
+    if (data.password && data.password !== req.query.pw) {
+      return res.send(`
+        <html><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:100px;">
+          <h2>🔒 Password Protected Site</h2>
+          <p style="color:#94a3b8;">This site was locked by its owner.</p>
+          <form method="GET" style="margin-top:20px;">
+            <input type="password" name="pw" placeholder="Enter password" style="padding:10px;border-radius:5px;border:none;outline:none;">
+            <button type="submit" style="padding:10px 20px;background:#38bdf8;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">Unlock</button>
+          </form>
+        </body></html>
+      `);
+    }
+
+    const files = data.files || {};
+    doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
+    let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
+    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (data.projectName || req.params.slug) + '</title><style>' + (files['style.css'] || '') + '</style></head><body>' + rewritePublishedLinks(rawHtml, req.params.slug) + '<script>' + (files['script.js'] || '') + '<\/script></body></html>';
+    res.send(html);
+  } catch (err) { next(); }
 });
 
 // Fallbacks
