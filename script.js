@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File with AI Apply to IDE)
+// CodeWix — script.js (Full Master File)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -682,6 +682,75 @@ window.addEventListener('DOMContentLoaded', function () {
     if (codeEditor) { codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); lastSavedSnapshot = snapshot(); codeEditor.addEventListener('input', function () { if (isAsset(activeFile)) return; files[activeFile] = codeEditor.value; markUnsaved(); }); }
 
     // ==========================================
+    // EXPORT TO GITHUB (PRO FEATURE)
+    // ==========================================
+    var exportGithubBtn = document.createElement('button');
+    exportGithubBtn.className = 'studio-btn';
+    exportGithubBtn.innerHTML = '🐙 Export to GitHub';
+    exportGithubBtn.style.marginLeft = '10px';
+    if (downloadZipBtn && downloadZipBtn.parentNode) {
+        downloadZipBtn.parentNode.insertBefore(exportGithubBtn, downloadZipBtn.nextSibling);
+    }
+
+    exportGithubBtn.addEventListener('click', async function() {
+        if (!isUserPremium) return showToast('💎 GitHub Export is a Pro feature.', 'error');
+        if (!codeEditor) return;
+        if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
+
+        const token = prompt('Enter your GitHub Personal Access Token (PAT):\n(Create one at github.com/settings/tokens with "repo" scope)');
+        if (!token) return;
+        const repoName = prompt('Enter a name for your new GitHub repository:');
+        if (!repoName) return;
+
+        exportGithubBtn.disabled = true;
+        exportGithubBtn.textContent = 'Exporting...';
+
+        try {
+            // 1. Get User Info
+            const userRes = await fetch('https://api.github.com/user', {
+                headers: { 'Authorization': `token ${token}` }
+            });
+            if (!userRes.ok) throw new Error('Invalid GitHub token.');
+            const userData = await userRes.json();
+            const username = userData.login;
+
+            // 2. Create Repository
+            const createRepoRes = await fetch('https://api.github.com/user/repos', {
+                method: 'POST',
+                headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: repoName, description: 'Exported from CodeWix', private: false, auto_init: false })
+            });
+            if (!createRepoRes.ok && createRepoRes.status !== 422) { 
+                const err = await createRepoRes.json();
+                throw new Error(err.message || 'Failed to create repository.');
+            }
+
+            // 3. Upload Files
+            for (const [filename, content] of Object.entries(files)) {
+                if (filename.startsWith('asset:')) continue; 
+                
+                const contentBytes = new TextEncoder().encode(content);
+                const base64Content = btoa(String.fromCharCode.apply(null, contentBytes));
+
+                await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${filename}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: `Add ${filename} from CodeWix`, content: base64Content })
+                });
+            }
+
+            showToast('Successfully exported to GitHub!', 'success');
+            window.open(`https://github.com/${username}/${repoName}`, '_blank');
+
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            exportGithubBtn.disabled = false;
+            exportGithubBtn.textContent = '🐙 Export to GitHub';
+        }
+    });
+
+    // ==========================================
     // APPLY TO IDE: LOAD FROM AI
     // ==========================================
     async function loadProjectFromAI() {
@@ -693,7 +762,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
         try {
             var data = JSON.parse(pending);
-            if (Date.now() - data.ts < 60000) { // Valid for 1 min
+            if (Date.now() - data.ts < 60000) { 
                 let projectName = 'AI Generated Project';
                 let existingFiles = {};
                 
@@ -943,7 +1012,7 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    var SYSTEM_PROMPT = { role: 'system', content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. Tone: encouraging, never condescending. ALWAYS wrap code in triple-backticks. You cannot generate images or videos directly. CRITICAL: WHENEVER the user asks you to modify or write code, you MUST output the ENTIRE updated file content inside a code block with the filename specified on the first line (e.g., ```html filename="index.html"). NEVER provide partial snippets.' };
+    var SYSTEM_PROMPT = { role: 'system', content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. ALWAYS wrap code in triple-backticks. CRITICAL: Whenever you write code that is meant to be a complete file (HTML, CSS, JS), put the filename on the first line of the code block (e.g., ```html filename="index.html"). For normal snippets, just use standard code blocks.' };
     var conversation = [SYSTEM_PROMPT], currentChatId = null, currentChatTitle = '', saveTimer = null, authUser = null, currentUserName = 'User', historyCache = [];
 
     function getUsername() { if (auth && auth.currentUser) { if (auth.currentUser.displayName) return auth.currentUser.displayName.trim(); if (auth.currentUser.email) return auth.currentUser.email.split('@')[0]; } return 'User'; }
@@ -968,16 +1037,39 @@ window.addEventListener('DOMContentLoaded', function () {
     function showWelcome() { chatContainer.innerHTML = '<div class="chat-message assistant-message"><div class="message-role">Assistant</div><div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! Ask me anything.</div></div></div>'; }
 
     function renderContent(text) {
-      var parts = String(text).split(/```/), html = '', blockCount = 0; for (var b = 1; b < parts.length; b += 2) if (parts[b] && parts[b].trim()) blockCount++;
+      var parts = String(text).split(/```/), html = '', blockCount = 0;
+      for (var b = 1; b < parts.length; b += 2) if (parts[b] && parts[b].trim()) blockCount++;
+      
       for (var i = 0; i < parts.length; i++) {
-        if (i % 2 === 0) { var chunk = parts[i]; if (!chunk) continue; var escaped = escapeHtml(chunk).replace(/`([^`\n]+)`/g, '<code>$1</code>'); html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>'; } 
+        if (i % 2 === 0) { 
+            var chunk = parts[i]; 
+            if (!chunk) continue; 
+            var escaped = escapeHtml(chunk).replace(/`([^`\n]+)`/g, '<code>$1</code>'); 
+            html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>'; 
+        } 
         else {
           var body = parts[i], lang = 'code', filename = null, nl = body.indexOf('\n');
-          if (nl !== -1) { var firstLine = body.substring(0, nl).trim(), m = firstLine.match(/^([a-zA-Z0-9_-]+)(?:\s+(?:filename=["']?([^"'\s]+)["']?|([^"'\s]+)))?$/); if (m) { lang = m[1]; if (m[2]) filename = m[2]; else if (m[3]) filename = m[3]; body = body.substring(nl + 1); } }
-          body = body.replace(/\n$/, ''); var displayTitle = filename || lang;
-          html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '"' + (filename ? ' data-filename="' + escapeHtml(filename) + '"' : '') + '><div class="code-header"><span class="code-lang">' + escapeHtml(displayTitle) + '</span><div class="code-actions"><button type="button" class="apply-ide-btn">🔥 Apply to IDE</button><button type="button" class="download-code-btn">⬇</button><button type="button" class="copy-btn">Copy</button></div></div><pre><code>' + escapeHtml(body) + '</code></pre></div>';
+          
+          if (nl !== -1) { 
+              var firstLine = body.substring(0, nl).trim();
+              var m = firstLine.match(/^([a-zA-Z0-9_-]+)(?:\s+(?:filename=["']?([^"'\s]+)["']?|([^"'\s]+)))?$/); 
+              if (m) { 
+                  lang = m[1]; 
+                  if (m[2]) filename = m[2]; 
+                  else if (m[3] && m[3].includes('.')) filename = m[3]; 
+                  body = body.substring(nl + 1); 
+              } 
+          }
+          
+          body = body.replace(/\n$/, ''); 
+          var displayTitle = filename || lang;
+          
+          var applyBtnHtml = filename ? `<button type="button" class="apply-ide-btn">🔥 Apply to IDE</button>` : '';
+
+          html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '"' + (filename ? ' data-filename="' + escapeHtml(filename) + '"' : '') + '><div class="code-header"><span class="code-lang">' + escapeHtml(displayTitle) + '</span><div class="code-actions">' + applyBtnHtml + '<button type="button" class="download-code-btn">⬇</button><button type="button" class="copy-btn">Copy</button></div></div><pre><code>' + escapeHtml(body) + '</code></pre></div>';
         }
-      } return html;
+      } 
+      return html;
     }
 
     function appendMessage(role) { var div = document.createElement('div'); div.className = 'chat-message ' + (role === 'user' ? 'user-message' : 'assistant-message'); div.innerHTML = '<div class="message-role">' + (role === 'user' ? 'You' : 'Assistant') + '</div><div class="message-content"></div>'; chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; return div; }
@@ -1046,6 +1138,9 @@ window.addEventListener('DOMContentLoaded', function () {
         var blob = new Blob([code], { type: 'text/plain' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); 
       }
       else if (btn.classList.contains('apply-ide-btn')) { 
+        if (!isUserPremium) {
+          return showToast('💎 Apply to IDE is a Pro feature. Upgrade to unlock!', 'error');
+        }
         if (!auth.currentUser) return showToast('Sign in first.', 'error');
         
         const origText = btn.textContent;
@@ -1220,6 +1315,7 @@ window.addEventListener('DOMContentLoaded', function () {
         <div class="lesson-actions"><a href="dashboard.html" class="button">Try in Workspace →</a><button type="button" class="complete-btn${isDone ? ' done' : ''}" id="completeBtn" data-index="${idx}">${isDone ? '✓ Completed' : 'Mark Complete'}</button></div>
       `;
 
+      // ADDED EVENT LISTENER FOR MARK COMPLETE
       const completeBtn = document.getElementById('completeBtn');
       if (completeBtn) {
         completeBtn.addEventListener('click', async () => {
@@ -1233,10 +1329,10 @@ window.addEventListener('DOMContentLoaded', function () {
           try {
             await progressDocRef().set({ completed: progressData.completed }, { merge: true });
             showToast(isNowDone ? 'Lesson completed! 🎉' : 'Marked as incomplete.', 'success');
-            renderLesson(idx);
+            renderLesson(idx); // Re-render to update the button
           } catch (err) {
             showToast('Failed to save progress: ' + err.message, 'error');
-            progressData.completed[idx] = !isNowDone;
+            progressData.completed[idx] = !isNowDone; // Revert on failure
             completeBtn.disabled = false;
             completeBtn.textContent = isNowDone ? 'Mark Complete' : '✓ Completed';
           }
