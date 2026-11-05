@@ -140,7 +140,7 @@ window.addEventListener('DOMContentLoaded', function () {
     auth.onAuthStateChanged(async function(user) {
       if (!user) return;
       
-      // GLOBAL BAN CHECK (FOR LOGGED IN USERS)
+      // GLOBAL BAN CHECK
       if (db) {
         try {
           const userDoc = await db.collection('users').doc(user.uid).get();
@@ -446,7 +446,7 @@ window.addEventListener('DOMContentLoaded', function () {
               <td>${escapeHtml(u.email)}</td>
               <td>${escapeHtml(u.displayName)}</td>
               <td>${isBanned ? '<span style="color:#ef4444;font-weight:bold;">BANNED</span>' : 'Active'}</td>
-              <td><span class="badge ${isPremium ? 'premium' : 'free'}">${isPremium ? 'Premium ☑️' : 'Free'}</span></td>
+              <td><span class="badge ${isPremium ? 'premium' : 'free'}">${isPremium ? 'Premium' : 'Free'}</span></td>
               <td>
                 <button class="btn btn-warning toggle-premium-btn" data-uid="${u.uid}">${isPremium ? 'Revoke Pro' : 'Make Pro'}</button>
                 ${isBanned 
@@ -608,7 +608,6 @@ window.addEventListener('DOMContentLoaded', function () {
         const isPremiumUser = tokenResult.claims.premium === true;
 
         var name = user.displayName || user.email.split('@')[0];
-        // ADDED VERIFICATION CHECKMARK
         if($('profName')) $('profName').innerHTML = name + ' <span id="profBadge" class="badge ' + (isPremiumUser ? 'pro' : 'free') + '">' + (isPremiumUser ? '💎 PRO' : 'Free') + '</span>' + (isPremiumUser ? ' <span style="color:#38bdf8; font-size:16px;" title="Verified Pro User">☑️</span>' : '');
         if($('profEmail')) $('profEmail').textContent = user.email;
         if($('profAvatar')) $('profAvatar').textContent = name.charAt(0).toUpperCase();
@@ -1423,7 +1422,6 @@ window.addEventListener('DOMContentLoaded', function () {
       if(!data.sites || !data.sites.length) { grid.innerHTML = '<p style="color:#64748b;text-align:center;">No sites published yet.</p>'; return; }
       data.sites.forEach(function(site) {
         var card = document.createElement('a'); card.href = '/s/' + site.slug; card.target = '_blank'; card.className = 'site-card';
-        // ADDED VERIFICATION CHECKMARK FOR PRO CREATORS
         const verifiedBadge = site.isPremiumOwner ? '<span style="color:#38bdf8; font-size:14px; margin-left:4px;" title="Verified Pro Creator">☑️</span>' : '';
         card.innerHTML = `<div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div><div class="site-info"><h3>${escapeHtml(site.projectName || 'Untitled')}${verifiedBadge}</h3><p>@${escapeHtml(site.username)}</p></div>`;
         grid.appendChild(card);
