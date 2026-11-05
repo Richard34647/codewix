@@ -6,52 +6,17 @@
     <title>Upgrade — CodeWix</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .pricing-container {
-            display: flex;
-            justify-content: center;
-            gap: 24px;
-            flex-wrap: wrap;
-            margin-top: 40px;
-            padding: 0 20px;
-        }
-        .pricing-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 16px;
-            padding: 32px;
-            width: 100%;
-            max-width: 340px;
-            text-align: center;
-            position: relative;
-            transition: transform 0.2s;
-        }
+        .pricing-container { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-top: 40px; padding: 0 20px; }
+        .pricing-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; width: 100%; max-width: 340px; text-align: center; position: relative; transition: transform 0.2s; }
         .pricing-card:hover { transform: translateY(-5px); border-color: #38bdf8; }
         .pricing-card.featured { border-color: #fbbf24; box-shadow: 0 0 20px rgba(251, 191, 36, 0.2); }
-        .pricing-card.featured::before {
-            content: 'MOST POPULAR';
-            position: absolute;
-            top: -12px; left: 50%; transform: translateX(-50%);
-            background: #fbbf24; color: #020617;
-            padding: 4px 12px; border-radius: 20px;
-            font-size: 11px; font-weight: bold;
-        }
+        .pricing-card.featured::before { content: 'MOST POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #fbbf24; color: #020617; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; }
         .pricing-card h2 { font-size: 24px; margin-bottom: 8px; }
         .pricing-card .price { font-size: 48px; font-weight: bold; color: #38bdf8; margin-bottom: 20px; }
         .pricing-card .price span { font-size: 16px; color: #64748b; font-weight: normal; }
         .pricing-features { list-style: none; text-align: left; margin-bottom: 24px; }
         .pricing-features li { padding: 8px 0; border-bottom: 1px solid #334155; color: #cbd5e1; font-size: 14px; }
         .pricing-features li::before { content: '✓'; color: #34d399; margin-right: 8px; font-weight: bold; }
-        
-        .success-banner {
-            display: none;
-            background: #064e3b;
-            color: #a7f3d0;
-            padding: 16px;
-            border-radius: 8px;
-            margin-top: 20px;
-            text-align: center;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
@@ -59,14 +24,14 @@
         <div class="logo"><a href="index.html">CodeWix</a></div>
         <nav>
             <a href="dashboard.html">Workspace</a>
-            <a href="upgrade.html" class="active">Upgrade</a>
+            <a href="profile.html">Profile</a>
             <a href="#" id="logoutBtn">Logout</a>
         </nav>
     </header>
 
     <div class="container" style="text-align: center; padding-top: 100px;">
         <h1 style="font-size: 40px; margin-bottom: 10px;">Upgrade your <span style="color: #38bdf8;">CodeWix</span></h1>
-        <p style="color: #94a3b8; margin-bottom: 40px;">Unlock the full power of AI, larger uploads, and password-protected sites.</p>
+        <p style="color: #94a3b8; margin-bottom: 40px;">Unlock the full power of AI, larger uploads, and professional publishing.</p>
 
         <div class="pricing-container">
             <!-- Free Plan -->
@@ -77,8 +42,8 @@
                     <li>50,000 AI Tokens / day</li>
                     <li>Access to Fast Models</li>
                     <li>300 KB File Uploads</li>
-                    <li>Public Projects Only</li>
-                    <li>Community Support</li>
+                    <li>1 Live Project</li>
+                    <li>CodeWix Watermark</li>
                 </ul>
                 <a href="dashboard.html" class="button" style="width: 100%; text-decoration: none;">Current Plan</a>
             </div>
@@ -91,10 +56,11 @@
                     <li>Unlimited AI Tokens</li>
                     <li>Access to 70B Smart Models</li>
                     <li>5 MB File Uploads</li>
-                    <li>Password-Protected Sites</li>
+                    <li>Unlimited Live Projects</li>
+                    <li>Remove CodeWix Watermark</li>
                     <li>Priority Support</li>
                 </ul>
-                <button class="button" style="width: 100%; background: #fbbf24;" onclick="goToCheckout()">Upgrade to Pro</button>
+                <button class="button" style="width: 100%; background: #fbbf24;" onclick="window.location.href='https://selar.com/7173b13874'">Upgrade to Pro</button>
             </div>
 
             <!-- Premium Plan -->
@@ -104,40 +70,13 @@
                 <ul class="pricing-features">
                     <li>Everything in Pro</li>
                     <li>Highest Priority AI Queue</li>
-                    <li>Custom Domain Support</li>
+                    <li>Export Code to GitHub</li>
                     <li>Early Access to New Features</li>
-                    <li>1-on-1 Onboarding</li>
+                    <li>1-on-1 Onboarding Call</li>
                 </ul>
-                <button class="button" style="width: 100%;" onclick="goToCheckout()">Upgrade to Premium</button>
+                <button class="button" style="width: 100%;" onclick="window.location.href='https://selar.com/7173b13874'">Upgrade to Premium</button>
             </div>
         </div>
-
-        <!-- Success Banner (shown after redirect) -->
-        <div id="successBanner" class="success-banner">
-            ✅ Payment received! We are verifying your transaction. Your account will be upgraded within a few minutes. 
-            <a href="dashboard.html" style="color: #38bdf8; text-decoration: underline;">Go to Dashboard</a>
-        </div>
     </div>
-
-    <script>
-        // Your live Selar checkout link
-        const SELAR_CHECKOUT_URL = "https://selar.com/7173b13874";
-
-        function goToCheckout() {
-            // Optional: Redirect with user email so Selar can pre-fill it.
-            // However, the user must manually ensure the email matches their CodeWix login.
-            window.location.href = SELAR_CHECKOUT_URL;
-        }
-
-        // Check if the user is returning from a successful Selar payment
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('status') && urlParams.get('status') === 'success') {
-            document.getElementById('successBanner').style.display = 'block';
-            
-            // Here you could trigger a frontend check to your server 
-            // to see if the webhook has already processed the upgrade.
-            // For now, we show the banner and instruct the user to wait.
-        }
-    </script>
 </body>
 </html>
