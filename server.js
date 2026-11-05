@@ -15,7 +15,7 @@ const DAILY_TOKEN_LIMIT = 100000; // 100k tokens for free users
 const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY;
 
 // ==========================================
-// FIREBASE INITIALIZATION
+// FIREBASE ADMIN INITIALIZATION (RENDER READY)
 // ==========================================
 try {
   const localPath = path.join(__dirname, 'firebase-service-account.json');
@@ -54,12 +54,37 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
 app.use(express.json({ limit: '50mb' }));
 
 // ---- Helpers & Auth Middleware ---------------------------------------------
+function rewritePublishedLinks(html, slug) {
+  if (!html) return '';
+  return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
+    if (url.startsWith('/s/') || url.startsWith('/api/')) return match;
+    if (url.startsWith('/')) return attr + '=' + quote + '/s/' + slug + url + quote;
+    return attr + '=' + quote + '/s/' + slug + '/' + url + quote;
+  });
+}
+
+function resolveAssetUrls(html, files) {
+  if (!html) return '';
+  return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) {
+    if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match;
+    var key = 'asset:' + url;
+    if (files[key]) return attr + '=' + quote + files[key] + quote;
+    return match;
+  });
+}
+
 async function requireAuth(req, res, next) {
   if (!admin.apps.length) return res.status(500).json({ error: 'Auth not configured.' });
   const header = req.headers.authorization || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return res.status(401).json({ error: 'Missing auth token.' });
-  try { req.user = await admin.auth().verifyIdToken(idToken); req.isPremium = req.user.premium === true; next(); } catch (err) { return res.status(401).json({ error: 'Invalid auth token.' }); }
+  try { 
+    req.user = await admin.auth().verifyIdToken(idToken); 
+    req.isPremium = req.user.premium === true; 
+    next(); 
+  } catch (err) { 
+    return res.status(401).json({ error: 'Invalid auth token.' }); 
+  }
 }
 
 async function checkRateLimit(req, res, next) {
@@ -146,13 +171,10 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     }
     res.end();
 
-    // Process any leftover data in the buffer (for final token count)
     if (buffer.trim().startsWith('data: ') && buffer.trim() !== 'data: [DONE]') {
       try {
         const parsed = JSON.parse(buffer.trim().slice(6));
-        if (parsed.usage && parsed.usage.total_tokens) {
-          totalTokensUsed = parsed.usage.total_tokens;
-        }
+        if (parsed.usage && parsed.usage.total_tokens) totalTokensUsed = parsed.usage.total_tokens;
       } catch (e) {}
     }
 
@@ -171,19 +193,42 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
 // ==========================================
 app.get('/api/user/usage', requireAuth, async (req, res) => {
   if (req.isPremium) return res.json({ isPremium: true, tokensUsed: 0, limit: DAILY_TOKEN_LIMIT });
-
   try {
     const today = new Date().toISOString().slice(0, 10);
     const doc = await admin.firestore().collection('users').doc(req.user.uid).collection('usage').doc(today).get();
     const tokensUsed = doc.exists ? (doc.data().tokens || 0) : 0;
     res.json({ isPremium: false, tokensUsed: tokensUsed, limit: DAILY_TOKEN_LIMIT });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// CONTACT FORM ROUTE
+// ==========================================
+app.post('/api/contact', async (req, res) => {
+  const { name, email, subject, message } = req.body || {};
+  if (!name || !email || !message) return res.status(400).json({ error: 'Name, email, and message are required.' });
+
+  try {
+    if (emailjsReady && process.env.EMAILJS_CONTACT_TEMPLATE_ID) {
+      await emailjs.send(
+        process.env.EMAILJS_SERVICE_ID, 
+        process.env.EMAILJS_CONTACT_TEMPLATE_ID, 
+        { from_name: name, from_email: email, subject: subject || 'New Contact Form Submission', message: message, to_email: 'codewix@proton.me' }
+      );
+      res.json({ ok: true, message: 'Message sent successfully' });
+    } else {
+      console.log('--- NEW CONTACT FORM SUBMISSION ---');
+      console.log('Name:', name, '| Email:', email, '| Subject:', subject);
+      console.log('Message:', message);
+      res.json({ ok: true, message: 'Message received (logged to server)' });
+    }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to send message: ' + err.message });
   }
 });
 
 // ==========================================
-// ADMIN ROUTES
+// ADMIN & LESSONS ROUTES
 // ==========================================
 const ADMIN_EMAIL = 'wilcoxr889@gmail.com';
 
@@ -203,9 +248,7 @@ app.get('/api/admin/users', requireAuth, async (req, res) => {
   if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
   try {
     const listUsersResult = await admin.auth().listUsers(1000);
-    const users = listUsersResult.users.map(u => ({
-      uid: u.uid, email: u.email, displayName: u.displayName || 'No Name', premium: u.customClaims?.premium === true
-    }));
+    const users = listUsersResult.users.map(u => ({ uid: u.uid, email: u.email, displayName: u.displayName || 'No Name', premium: u.customClaims?.premium === true }));
     res.json({ users });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -226,6 +269,30 @@ app.post('/api/admin/update-user', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/lessons', async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get();
+    res.json({ lessons: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/lessons', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
+  const { title, description, difficulty, content } = req.body;
+  try {
+    const ref = await admin.firestore().collection('lessons').add({ title, description, difficulty, content, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    res.json({ ok: true, id: ref.id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/admin/lessons/:id', requireAuth, async (req, res) => {
+  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
+  try {
+    await admin.firestore().collection('lessons').doc(req.params.id).delete();
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ==========================================
 // GENERAL ROUTES (Images, Run Code, Publish)
 // ==========================================
@@ -235,12 +302,10 @@ app.post('/api/generate-image', requireAuth, async (req, res) => {
   const model = req.isPremium ? 'flux' : 'sana';
   const endpoint = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${model}&width=1024&height=1024`;
   try {
-    const headers = {};
-    if (POLLINATIONS_API_KEY) headers['Authorization'] = `Bearer ${POLLINATIONS_API_KEY}`;
+    const headers = {}; if (POLLINATIONS_API_KEY) headers['Authorization'] = `Bearer ${POLLINATIONS_API_KEY}`;
     const response = await fetch(endpoint, { headers });
     if (!response.ok) throw new Error('Image generation failed');
-    const buffer = await response.arrayBuffer();
-    res.set('Content-Type', 'image/jpeg').send(Buffer.from(buffer));
+    res.set('Content-Type', 'image/jpeg').send(Buffer.from(await response.arrayBuffer()));
   } catch (err) { res.status(500).json({ error: 'Failed to generate image: ' + err.message }); }
 });
 
@@ -255,8 +320,7 @@ app.post('/api/run', requireAuth, async (req, res) => {
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
     exec(`${pythonCmd} "${tempFile}"`, { timeout: 120000 }, (error, stdout, stderr) => {
       try { fs.unlinkSync(tempFile); } catch (e) {}
-      let finalErr = stderr;
-      if (error && !stderr) finalErr = error.message;
+      let finalErr = stderr; if (error && !stderr) finalErr = error.message;
       res.json({ output: stdout || '', stderr: finalErr || '', code: error ? 1 : 0 });
     });
     return;
@@ -286,21 +350,52 @@ app.post('/api/publish', requireAuth, async (req, res) => {
 
   const pubRef = admin.firestore().collection('published').doc(slug);
   try {
-    const result = await admin.firestore().runTransaction(async (tx) => {
+    await admin.firestore().runTransaction(async (tx) => {
       const doc = await tx.get(pubRef);
       if (doc.exists) {
         if (doc.data().uid !== req.user.uid) throw new Error('SLUG_TAKEN');
         tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, password: finalPassword, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        return { created: false };
+        return;
       }
       tx.set(pubRef, { uid: req.user.uid, username: req.user.email.split('@')[0], slug, projectName, description, files, password: finalPassword, views: 0, publishedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      return { created: true };
     });
     res.json({ ok: true, url: '/s/' + slug, fullUrl: req.protocol + '://' + req.get('host') + '/s/' + slug });
   } catch (err) {
     if (err.message === 'SLUG_TAKEN') return res.status(409).json({ error: 'Slug taken.' });
     res.status(500).json({ error: err.message });
   }
+});
+
+app.post('/api/unpublish', requireAuth, async (req, res) => {
+  const { slug } = req.body;
+  try {
+    const doc = await admin.firestore().collection('published').doc(slug).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Not found' });
+    if (doc.data().uid !== req.user.uid) return res.status(403).json({ error: 'Unauthorized' });
+    await admin.firestore().collection('published').doc(slug).delete();
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/my-published', requireAuth, async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
+    res.json({ sites: snap.docs.map(doc => ({ slug: doc.id, ...doc.data() })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/explore', async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection('published').orderBy('updatedAt', 'desc').limit(50).get();
+    res.json({ sites: snap.docs.map(doc => ({ slug: doc.id, ...doc.data() })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/user/:username', async (req, res) => {
+  try {
+    const snap = await admin.firestore().collection('published').where('username', '==', req.params.username).orderBy('updatedAt', 'desc').get();
+    res.json({ username: req.params.username, count: snap.size, sites: snap.docs.map(doc => ({ slug: doc.id, ...doc.data() })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/s/:slug', async (req, res, next) => {
@@ -314,7 +409,6 @@ app.get('/s/:slug', async (req, res, next) => {
       return res.send(`
         <html><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:100px;">
           <h2>🔒 Password Protected Site</h2>
-          <p style="color:#94a3b8;">This site was locked by its owner.</p>
           <form method="GET" style="margin-top:20px;">
             <input type="password" name="pw" placeholder="Enter password" style="padding:10px;border-radius:5px;border:none;outline:none;">
             <button type="submit" style="padding:10px 20px;background:#38bdf8;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">Unlock</button>
@@ -332,66 +426,8 @@ app.get('/s/:slug', async (req, res, next) => {
 });
 
 // ==========================================
-// MISSING ROUTES: VERIFICATION & LESSONS
+// FALLBACKS & SERVER START
 // ==========================================
-
-// 1. Send Verification Email
-app.post('/api/send-verification-email', async (req, res) => {
-  const { userEmail, userName, redirectUrl } = req.body;
-  if (!userEmail) return res.status(400).json({ error: 'Email required' });
-
-  try {
-    const link = await admin.auth().generateEmailVerificationLink(userEmail, { url: redirectUrl });
-    
-    if (emailjsReady) {
-      await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
-        to_email: userEmail,
-        user_name: userName,
-        verification_link: link
-      });
-    } else {
-      console.log('⚠️ EmailJS not configured. Verification link:', link);
-    }
-    
-    res.json({ ok: true, message: 'Verification email sent' });
-  } catch (err) {
-    console.error('Verify Email Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 2. Get all lessons (Public)
-app.get('/api/lessons', async (req, res) => {
-  try {
-    const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get();
-    const lessons = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ lessons });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// 3. Create a new lesson (Admin Only)
-app.post('/api/admin/lessons', requireAuth, async (req, res) => {
-  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
-  const { title, description, difficulty, content } = req.body;
-  try {
-    const ref = await admin.firestore().collection('lessons').add({
-      title, description, difficulty, content, 
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    res.json({ ok: true, id: ref.id });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// 4. Delete a lesson (Admin Only)
-app.delete('/api/admin/lessons/:id', requireAuth, async (req, res) => {
-  if (req.user.email !== ADMIN_EMAIL) return res.status(403).json({ error: 'Unauthorized' });
-  try {
-    await admin.firestore().collection('lessons').doc(req.params.id).delete();
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Fallbacks
 app.use('/api', (req, res) => res.status(404).json({ error: 'Unknown API route.' }));
 app.use(express.static(path.join(__dirname)));
 app.use((req, res) => {
