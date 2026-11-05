@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File)
+// CodeWix — script.js (Full Master File with AI Apply to IDE)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -288,12 +288,7 @@ window.addEventListener('DOMContentLoaded', function () {
         }
         alert('Login successful!'); window.location.href = 'dashboard.html';
       }).catch(function (err) {
-        // CHECK FOR BANNED USER
-        if (err.code === 'auth/user-disabled') {
-          window.location.href = 'ban.html';
-          return;
-        }
-        
+        if (err.code === 'auth/user-disabled') { window.location.href = 'ban.html'; return; }
         var msg = err.message; if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Incorrect email or password.'; else if (err.code === 'auth/user-not-found') msg = 'No account found.';
         showError(errBox, msg);
       }).finally(function () { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = orig; } });
@@ -322,7 +317,6 @@ window.addEventListener('DOMContentLoaded', function () {
           window.location.href = 'dashboard.html';
         }).catch(function (error) { 
           if (error.code === 'auth/popup-closed-by-user') return; 
-          // CHECK FOR BANNED USER
           if (error.code === 'auth/user-disabled') { window.location.href = 'ban.html'; return; }
           showError(errBox, error.message); 
         });
@@ -687,7 +681,69 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (codeEditor) { codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); lastSavedSnapshot = snapshot(); codeEditor.addEventListener('input', function () { if (isAsset(activeFile)) return; files[activeFile] = codeEditor.value; markUnsaved(); }); }
 
+    // ==========================================
+    // APPLY TO IDE: LOAD FROM AI
+    // ==========================================
+    async function loadProjectFromAI() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectId = urlParams.get('project');
+        const pending = localStorage.getItem('cw_pending_code');
+        
+        if (!pending || !projectId || !db || !auth.currentUser) return;
+
+        try {
+            var data = JSON.parse(pending);
+            if (Date.now() - data.ts < 60000) { // Valid for 1 min
+                let projectName = 'AI Generated Project';
+                let existingFiles = {};
+                
+                if (projectId !== 'new') {
+                    const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).get();
+                    if (doc.exists) {
+                        const projData = doc.data();
+                        existingFiles = projData.files || {};
+                        projectName = projData.name || 'Untitled Project';
+                    }
+                }
+
+                if (data.filename) {
+                    existingFiles[data.filename] = data.code;
+                }
+
+                loadFilesIntoEditor(existingFiles, projectId === 'new' ? null : projectId, projectName, null);
+                
+                const payload = { 
+                    name: projectName, 
+                    files: existingFiles, 
+                    activeFile: data.filename,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
+                };
+
+                if (projectId === 'new') {
+                    payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                    const ref = await db.collection('users').doc(auth.currentUser.uid).collection('projects').add(payload);
+                    currentProjectId = ref.id;
+                    window.history.replaceState({}, '', '?project=' + ref.id);
+                } else {
+                    await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).update(payload);
+                }
+
+                showToast('🤖 AI Code applied and saved!', 'success');
+                lastSavedSnapshot = snapshot();
+                if (unsavedIndicator) unsavedIndicator.style.display = 'none';
+                if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + projectName;
+            }
+        } catch(e) { console.error("Error applying AI code:", e); }
+        
+        localStorage.removeItem('cw_pending_code');
+        window.history.replaceState({}, document.title, window.location.pathname + (currentProjectId ? '?project=' + currentProjectId : ''));
+    }
+    
+    if (auth) { auth.onAuthStateChanged(user => { if (user) loadProjectFromAI(); }); }
+
+    // ==========================================
     // MY PROJECTS MODAL LOGIC
+    // ==========================================
     if (myProjectsBtn) {
       myProjectsBtn.addEventListener('click', async function() {
         if (!db || !auth.currentUser) return showToast('Sign in first.', 'error');
@@ -887,7 +943,7 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    var SYSTEM_PROMPT = { role: 'system', content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. Tone: encouraging, never condescending. ALWAYS wrap code in triple-backticks. You cannot generate images or videos directly.' };
+    var SYSTEM_PROMPT = { role: 'system', content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. Tone: encouraging, never condescending. ALWAYS wrap code in triple-backticks. You cannot generate images or videos directly. CRITICAL: WHENEVER the user asks you to modify or write code, you MUST output the ENTIRE updated file content inside a code block with the filename specified on the first line (e.g., ```html filename="index.html"). NEVER provide partial snippets.' };
     var conversation = [SYSTEM_PROMPT], currentChatId = null, currentChatTitle = '', saveTimer = null, authUser = null, currentUserName = 'User', historyCache = [];
 
     function getUsername() { if (auth && auth.currentUser) { if (auth.currentUser.displayName) return auth.currentUser.displayName.trim(); if (auth.currentUser.email) return auth.currentUser.email.split('@')[0]; } return 'User'; }
@@ -918,8 +974,8 @@ window.addEventListener('DOMContentLoaded', function () {
         else {
           var body = parts[i], lang = 'code', filename = null, nl = body.indexOf('\n');
           if (nl !== -1) { var firstLine = body.substring(0, nl).trim(), m = firstLine.match(/^([a-zA-Z0-9_-]+)(?:\s+(?:filename=["']?([^"'\s]+)["']?|([^"'\s]+)))?$/); if (m) { lang = m[1]; if (m[2]) filename = m[2]; else if (m[3]) filename = m[3]; body = body.substring(nl + 1); } }
-          body = body.replace(/\n$/, ''); var publishLabel = blockCount > 1 ? '🚀 Publish All' : '🚀 Publish', displayTitle = filename || lang;
-          html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '"' + (filename ? ' data-filename="' + escapeHtml(filename) + '"' : '') + '><div class="code-header"><span class="code-lang">' + escapeHtml(displayTitle) + '</span><div class="code-actions"><button type="button" class="publish-ai-btn">' + publishLabel + '</button><button type="button" class="send-to-editor-btn">⚡ Send to Editor</button><button type="button" class="download-code-btn">⬇</button><button type="button" class="copy-btn">Copy</button></div></div><pre><code>' + escapeHtml(body) + '</code></pre></div>';
+          body = body.replace(/\n$/, ''); var displayTitle = filename || lang;
+          html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '"' + (filename ? ' data-filename="' + escapeHtml(filename) + '"' : '') + '><div class="code-header"><span class="code-lang">' + escapeHtml(displayTitle) + '</span><div class="code-actions"><button type="button" class="apply-ide-btn">🔥 Apply to IDE</button><button type="button" class="download-code-btn">⬇</button><button type="button" class="copy-btn">Copy</button></div></div><pre><code>' + escapeHtml(body) + '</code></pre></div>';
         }
       } return html;
     }
@@ -982,10 +1038,75 @@ window.addEventListener('DOMContentLoaded', function () {
     chatContainer.addEventListener('click', async function (e) {
       var btn = e.target.closest('button'); if (!btn) return; var block = btn.closest('.code-block'); if (!block) return;
       var codeEl = block.querySelector('pre code'), code = codeEl ? codeEl.textContent : '', lang = block.getAttribute('data-lang') || 'txt', filename = block.getAttribute('data-filename') || ('snippet.' + lang);
-      if (btn.classList.contains('copy-btn')) { (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { showToast('Code copied'); }).catch(function () { showToast('Copy failed', 'error'); }); }
-      else if (btn.classList.contains('download-code-btn')) { var blob = new Blob([code], { type: 'text/plain' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); }
-      else if (btn.classList.contains('send-to-editor-btn')) { try { localStorage.setItem('cw_pending_code', JSON.stringify({ code: code, lang: lang, filename: filename, ts: Date.now() })); window.dispatchEvent(new CustomEvent('codewix:send-to-editor', { detail: { code: code, lang: lang, filename: filename } })); showToast('Sent to editor'); } catch (_) { showToast('Failed to send', 'error'); } }
-      else if (btn.classList.contains('publish-ai-btn')) { try { localStorage.setItem('cw_publish_code', JSON.stringify({ code: code, lang: lang, filename: filename, ts: Date.now() })); window.dispatchEvent(new CustomEvent('codewix:publish-code', { detail: { code: code, lang: lang, filename: filename } })); showToast('Publish requested'); } catch (_) { showToast('Failed to publish', 'error'); } }
+      
+      if (btn.classList.contains('copy-btn')) { 
+        (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { showToast('Code copied'); }).catch(function () { showToast('Copy failed', 'error'); }); 
+      }
+      else if (btn.classList.contains('download-code-btn')) { 
+        var blob = new Blob([code], { type: 'text/plain' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); 
+      }
+      else if (btn.classList.contains('apply-ide-btn')) { 
+        if (!auth.currentUser) return showToast('Sign in first.', 'error');
+        
+        const origText = btn.textContent;
+        btn.textContent = 'Loading...';
+        btn.disabled = true;
+
+        try { 
+          let targetFile = filename;
+          if (!targetFile || targetFile.startsWith('snippet')) {
+             if (lang === 'html') targetFile = 'index.html';
+             else if (lang === 'css') targetFile = 'style.css';
+             else if (lang === 'js' || lang === 'javascript') targetFile = 'script.js';
+             else targetFile = 'index.html';
+          }
+
+          const snap = await db.collection('users').doc(auth.currentUser.uid).collection('projects').get();
+          let projects = [];
+          snap.forEach(doc => projects.push({ id: doc.id, name: doc.data().name || 'Untitled' }));
+
+          let modalHtml = `
+            <div id="applyIdeModal" class="modal-backdrop" style="display:flex; z-index:99999;">
+              <div class="modal" style="max-width:400px;">
+                <div class="modal-header">
+                  <h2>Apply to Project</h2>
+                  <button class="modal-close" id="closeApplyModal">×</button>
+                </div>
+                <div class="modal-body">
+                  <p style="color:#94a3b8; font-size:14px; margin-bottom:15px;">Where do you want to apply this <strong>${escapeHtml(targetFile)}</strong> code?</p>
+                  <select id="targetProjectSelect" class="publish-select" style="margin-bottom:15px;">
+                    <option value="new">✨ Create New Project</option>
+          `;
+          
+          projects.forEach(p => {
+            modalHtml += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+          });
+
+          modalHtml += `
+                  </select>
+                  <button id="confirmApplyBtn" class="button" style="width:100%;">Apply Code & Open IDE</button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+          document.getElementById('closeApplyModal').onclick = () => document.getElementById('applyIdeModal').remove();
+
+          document.getElementById('confirmApplyBtn').onclick = () => {
+             const selectedId = document.getElementById('targetProjectSelect').value;
+             localStorage.setItem('cw_pending_code', JSON.stringify({ code: code, filename: targetFile, projectId: selectedId, ts: Date.now() })); 
+             window.location.href = 'dashboard.html?project=' + selectedId;
+          };
+
+        } catch (err) { 
+          showToast('Failed to load projects: ' + err.message, 'error'); 
+        } finally {
+          btn.textContent = origText;
+          btn.disabled = false;
+        }
+      }
     });
 
     async function sendToGroq(userText) {
@@ -1099,7 +1220,6 @@ window.addEventListener('DOMContentLoaded', function () {
         <div class="lesson-actions"><a href="dashboard.html" class="button">Try in Workspace →</a><button type="button" class="complete-btn${isDone ? ' done' : ''}" id="completeBtn" data-index="${idx}">${isDone ? '✓ Completed' : 'Mark Complete'}</button></div>
       `;
 
-      // ADDED EVENT LISTENER FOR MARK COMPLETE
       const completeBtn = document.getElementById('completeBtn');
       if (completeBtn) {
         completeBtn.addEventListener('click', async () => {
@@ -1113,10 +1233,10 @@ window.addEventListener('DOMContentLoaded', function () {
           try {
             await progressDocRef().set({ completed: progressData.completed }, { merge: true });
             showToast(isNowDone ? 'Lesson completed! 🎉' : 'Marked as incomplete.', 'success');
-            renderLesson(idx); // Re-render to update the button
+            renderLesson(idx);
           } catch (err) {
             showToast('Failed to save progress: ' + err.message, 'error');
-            progressData.completed[idx] = !isNowDone; // Revert on failure
+            progressData.completed[idx] = !isNowDone;
             completeBtn.disabled = false;
             completeBtn.textContent = isNowDone ? 'Mark Complete' : '✓ Completed';
           }
