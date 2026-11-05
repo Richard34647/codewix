@@ -543,6 +543,7 @@ footer a:hover { color: #38bdf8; }
 .file-explorer {
     width: 240px; background: #0b0f19;
     border-right: 1px solid #1e293b; height: 100%;
+    flex-shrink: 0;
 }
 .action-icon-btn {
     background: transparent; border: none;
@@ -559,8 +560,11 @@ footer a:hover { color: #38bdf8; }
     border-left: 3px solid #38bdf8;
 }
 
+/* --- FIX: Enforced split 50/50 and prevented squeezing --- */
 .editor-area {
-    flex: 1.2; display: flex; flex-direction: column;
+    flex: 1 1 50%; 
+    min-width: 0; /* Prevents flexbox blowout */
+    display: flex; flex-direction: column;
     border-right: 1px solid #1e293b; height: 100%;
 }
 .active-tab-indicator {
@@ -599,7 +603,9 @@ footer a:hover { color: #38bdf8; }
 }
 #codeEditorSource { display: none; }
 .CodeMirror {
-    flex: 1; height: 100% !important;
+    flex: 1; 
+    height: 100% !important;
+    width: 100% !important; /* FIX: Forces CodeMirror to not overflow */
     background: #020617 !important; color: #e2e8f0;
     font-family: 'Courier New', Courier, monospace !important;
     font-size: 14px; line-height: 1.5;
@@ -640,8 +646,11 @@ footer a:hover { color: #38bdf8; }
 .cm-s-dracula .cm-tag { color: #38bdf8 !important; }
 .cm-s-dracula .cm-attribute { color: #c084fc !important; }
 
+/* --- FIX: Enforced preview size --- */
 .preview-area {
-    flex: 1; display: flex; flex-direction: column;
+    flex: 1 1 50%;
+    min-width: 350px; /* Prevents it from being squeezed */
+    display: flex; flex-direction: column;
     height: 100%; background: #090d16;
 }
 .preview-frame-container {
@@ -1421,7 +1430,7 @@ footer a:hover { color: #38bdf8; }
 
     footer { flex-direction: column; gap: 10px; padding: 20px 16px; }
 
-    .studio-header { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 8px; width: 400px; overflow: hidden }
+    .studio-header { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 8px; overflow: hidden; width: 100%; }
     .studio-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; }
     .studio-nav a { margin: 4px 8px; font-size: 13px; }
     .user-session { font-size: 12px; gap: 8px; }
@@ -1431,11 +1440,11 @@ footer a:hover { color: #38bdf8; }
     .file-explorer { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #1e293b; }
     .file-list { display: flex; overflow-x: auto; padding: 6px; gap: 6px; }
     .file-item { padding: 8px 14px; white-space: nowrap; border-left: none !important; border-radius: 6px; flex-shrink: 0; }
-    .editor-area { flex: none; height: 55vh; min-height: 350px; border-right: none; border-bottom: 1px solid #1e293b; width: 100%; }
+    .editor-area { flex: none; height: 55vh; min-height: 350px; border-right: none; border-bottom: 1px solid #1e293b; width: 100%; min-width: 100%; }
     .panel-header { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 6px; }
     .editor-controls { flex-wrap: wrap; gap: 4px; width: 100%; padding-top: 4px; }
     .studio-btn { font-size: 10px; padding: 5px 8px; flex-shrink: 0; }
-    .preview-area { flex: none; height: 60vh; min-height: 380px; width: 100%; }
+    .preview-area { flex: none; height: 60vh; min-height: 380px; width: 100%; min-width: 100%; }
     .preview-frame-container { margin: 10px; }
 
     .modal { max-width: 100%; max-height: 90vh; border-radius: 10px; margin: 10px; }
@@ -1487,7 +1496,7 @@ footer a:hover { color: #38bdf8; }
 
     .components-workspace { padding: 20px 14px 40px; }
     .components-hero h1 { font-size: 24px; }
-    .component-card{ width: 400px;}
+    .component-card { width: 100%; }
     .components-grid { grid-template-columns: 1fr; gap: 14px; }
     .component-preview { height: 220px; }
     .category-filter { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; width: -webkit-fill-available; }
@@ -1497,7 +1506,7 @@ footer a:hover { color: #38bdf8; }
 }
 
 /* =========================================
-   GOOGLE AUTH STYLES (Add to bottom)
+   GOOGLE AUTH STYLES
    ========================================= */
 
 .auth-divider {
