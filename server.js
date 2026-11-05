@@ -7,6 +7,7 @@ const emailjs = require('@emailjs/nodejs');
 const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts'); // ADDED FOR TTS
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -244,7 +245,7 @@ app.post('/api/selar-webhook', async (req, res) => {
 });
 
 // ==========================================
-// AI CHAT ROUTE
+// AI CHAT & TTS ROUTES
 // ==========================================
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY.' });
@@ -294,6 +295,34 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
     }
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: 'Failed to reach Groq' }); else res.end();
+  }
+});
+
+// TEXT TO SPEECH (PREMIUM ONLY)
+app.post('/api/tts', requireAuth, async (req, res) => {
+  if (!req.isPremium) {
+    return res.status(403).json({ error: 'Text-to-Speech is a Pro feature.' });
+  }
+
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: 'Text is required.' });
+
+  try {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata("en-US-AriaNeural", OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
+    const { audioStream } = tts.toStream(text);
+    
+    res.setHeader('Content-Type', 'audio/webm');
+    audioStream.pipe(res);
+
+    audioStream.on('error', (err) => {
+      console.error('TTS Stream Error:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to generate audio stream.' });
+      else res.end();
+    });
+  } catch (err) {
+    console.error('TTS Init Error:', err);
+    res.status(500).json({ error: 'Failed to initialize Text-to-Speech.' });
   }
 });
 
