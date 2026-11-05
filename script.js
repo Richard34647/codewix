@@ -606,22 +606,22 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // SITE SETTINGS PAGE LOGIC
+  // SITE SETTINGS PAGE LOGIC (WITH ASSET UPLOADS)
   // ======================================================================
   if (location.pathname.includes('site-settings.html')) {
     const urlParams = new URLSearchParams(window.location.search);
     const slug = urlParams.get('slug');
+    let siteFiles = {}; 
+    let isPremiumUser = false;
 
     if (!slug) { alert("No site specified."); location.href = 'profile.html'; return; }
-
-    window.copyToClipboard = function(text) {
-      navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success'));
-    };
 
     if (auth) {
       auth.onAuthStateChanged(async function(user) {
         if (!user) { location.href = 'login.html'; return; }
         const token = await user.getIdToken();
+        const tokenResult = await user.getIdTokenResult();
+        isPremiumUser = tokenResult.claims.premium === true;
 
         // 1. Load Site Data
         try {
@@ -632,42 +632,114 @@ window.addEventListener('DOMContentLoaded', function () {
           if (!res.ok) throw new Error(data.error);
 
           const site = data.site;
-          
-          // Set View Link
-          document.getElementById('viewLiveSiteBtn').href = '/s/' + slug;
+          siteFiles = site.files || {};
 
-          // Populate File Editors
-          document.getElementById('edit-index-html').value = site.files['index.html'] || '';
-          document.getElementById('edit-style-css').value = site.files['style.css'] || '';
-          document.getElementById('edit-script-js').value = site.files['script.js'] || '';
+          document.getElementById('viewLiveSiteBtn').href = '/s/' + slug;
+          document.getElementById('edit-index-html').value = siteFiles['index.html'] || '';
+          document.getElementById('edit-style-css').value = siteFiles['style.css'] || '';
+          document.getElementById('edit-script-js').value = siteFiles['script.js'] || '';
+          
+          renderAssets();
 
         } catch (err) { alert("Error loading site: " + err.message); }
 
-        // 2. Save Files
+        // 2. Render Assets List
+        function renderAssets() {
+          const list = document.getElementById('assetFileList');
+          list.innerHTML = '';
+          
+          const coreFiles = ['index.html', 'style.css', 'script.js'];
+          const assets = Object.keys(siteFiles).filter(name => !coreFiles.includes(name));
+
+          if (assets.length === 0) {
+            list.innerHTML = '<li style="color: #64748b; font-size: 14px;">No extra files uploaded yet.</li>';
+            return;
+          }
+
+          assets.forEach(name => {
+            const li = document.createElement('li');
+            li.className = 'asset-item';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'asset-name';
+            nameSpan.textContent = name;
+            li.appendChild(nameSpan);
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-asset-btn';
+            delBtn.textContent = '🗑️ Delete';
+            delBtn.onclick = function() {
+              if (!confirm(`Delete ${name}?`)) return;
+              delete siteFiles[name];
+              renderAssets();
+              showToast('File removed. Click Save to apply.', 'success');
+            };
+            li.appendChild(delBtn);
+            
+            list.appendChild(li);
+          });
+        }
+
+        // 3. Upload Asset
+        document.getElementById('uploadAssetBtn').onclick = function() {
+          document.getElementById('assetUploadInput').click();
+        };
+
+        document.getElementById('assetUploadInput').onchange = async function() {
+          const files = Array.from(this.files);
+          if (!files.length) return;
+
+          const maxSize = isPremiumUser ? 5 * 1024 * 1024 : 300 * 1024; // 5MB Pro / 300KB Free
+
+          for (const file of files) {
+            if (file.size > maxSize) {
+              showToast(`File "${file.name}" is too large. Max ${isPremiumUser ? '5MB' : '300KB'}.`, 'error');
+              continue;
+            }
+
+            try {
+              const isImage = file.type.startsWith('image/');
+              const data = isImage ? await resizeImage(file, 1024, 1024) : await readFileAsDataURL(file);
+              
+              siteFiles[file.name] = data;
+              showToast(`Added ${file.name}`, 'success');
+            } catch (err) {
+              showToast(`Failed to read ${file.name}`, 'error');
+            }
+          }
+          this.value = '';
+          renderAssets();
+        };
+
+        // 4. Save All Changes
         document.getElementById('saveFilesBtn').onclick = async function() {
           this.disabled = true; this.textContent = 'Saving...';
           try {
-            const files = {
-              'index.html': document.getElementById('edit-index-html').value,
-              'style.css': document.getElementById('edit-style-css').value,
-              'script.js': document.getElementById('edit-script-js').value,
-            };
-            
-            // Preserve existing assets
-            const currentSiteRes = await fetch('/api/published/' + slug, { headers: { 'Authorization': 'Bearer ' + token } });
-            const currentData = await currentSiteRes.json();
-            const allFiles = Object.assign({}, currentData.site.files, files);
+            // Get the latest text from the editors
+            siteFiles['index.html'] = document.getElementById('edit-index-html').value;
+            siteFiles['style.css'] = document.getElementById('edit-style-css').value;
+            siteFiles['script.js'] = document.getElementById('edit-script-js').value;
+
+            // Check total size limit (Firestore documents max out at 1MB)
+            if (JSON.stringify(siteFiles).length > 900 * 1024) {
+              throw new Error("Total project size exceeds 900KB. Please delete some files or compress your images.");
+            }
 
             const res = await fetch('/api/published/' + slug, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-              body: JSON.stringify({ files: allFiles })
+              body: JSON.stringify({ files: siteFiles })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
-            showToast('Files updated successfully!', 'success');
-          } catch (err) { showToast(err.message, 'error'); }
-          finally { this.disabled = false; this.textContent = 'Save Changes'; }
+            
+            showToast('All changes saved successfully!', 'success');
+          } catch (err) { 
+            showToast(err.message, 'error'); 
+          } finally { 
+            this.disabled = false; 
+            this.textContent = 'Save All Changes'; 
+          }
         };
       });
     }
