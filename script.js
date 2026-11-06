@@ -884,7 +884,31 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    var SYSTEM_PROMPT = { role: 'system', content: 'You are the CodeWix AI Assistant. Help users learn to code, debug, and build projects. ALWAYS wrap code in triple-backticks. CRITICAL: Whenever you write code that is meant to be a complete file (HTML, CSS, JS), put the filename on the first line of the code block (e.g., ```html filename="index.html"). For normal snippets, just use standard code blocks.' };
+    // ==========================================
+    // THE ULTIMATE STRICT SYSTEM PROMPT
+    // ==========================================
+    var SYSTEM_PROMPT = { 
+        role: 'system', 
+        content: `You are the CodeWix AI Assistant, an expert programming helper. 
+        
+CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using triple backticks (\`\`\`).
+
+If you are providing a complete file (like HTML, CSS, or JS), you MUST put the filename on the first line of the code block using this EXACT format:
+\`\`\`html filename="index.html"
+<!DOCTYPE html>
+<html>
+  <body>Hello</body>
+</html>
+\`\`\`
+
+If you are providing a small snippet, use the standard format:
+\`\`\`javascript
+console.log("Hello World");
+\`\`\`
+
+NEVER output raw, unformatted code. If you do not use triple backticks, the user's system will break. Always use triple backticks.` 
+    };
+    
     var conversation = [SYSTEM_PROMPT], currentChatId = null, currentChatTitle = '', saveTimer = null, authUser = null, currentUserName = 'User', historyCache = [];
 
     function getUsername() { if (auth && auth.currentUser) { if (auth.currentUser.displayName) return auth.currentUser.displayName.trim(); if (auth.currentUser.email) return auth.currentUser.email.split('@')[0]; } return 'User'; }
@@ -908,8 +932,24 @@ window.addEventListener('DOMContentLoaded', function () {
     function startNewChat() { currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT]; updateTitleBar(); showWelcome(); chatInput.focus(); markActiveInSidebar(null); }
     function showWelcome() { chatContainer.innerHTML = '<div class="chat-message assistant-message"><div class="message-role">Assistant</div><div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! Ask me anything.</div></div></div>'; }
 
+    // ==========================================
+    // SMART RENDER CONTENT (THE SAFETY NET)
+    // ==========================================
     function renderContent(text) {
       var parts = String(text).split(/```/), html = '', blockCount = 0;
+      
+      // FALLBACK: If no backticks at all, but it looks like code, wrap it automatically
+      if (parts.length === 1) {
+          var lower = text.toLowerCase();
+          if (lower.includes('<!doctype') || lower.includes('<html>')) {
+              parts = ['Here is your code:', '\nhtml filename="index.html"\n' + text.trim()];
+          } else if (lower.includes('function ') || lower.includes('const ') || lower.includes('console.log')) {
+               parts = ['Here is your code:', '\njavascript filename="script.js"\n' + text.trim()];
+          } else if (lower.includes('{') && lower.includes('}') && (lower.includes('color:') || lower.includes('background:'))) {
+               parts = ['Here is your code:', '\ncss filename="style.css"\n' + text.trim()];
+          }
+      }
+
       for (var b = 1; b < parts.length; b += 2) if (parts[b] && parts[b].trim()) blockCount++;
       
       for (var i = 0; i < parts.length; i++) {
@@ -1097,7 +1137,8 @@ window.addEventListener('DOMContentLoaded', function () {
         if (hasImages) { var history = conversation.filter(function (m) { return m.role !== 'system'; }); messagesToSend = history.map(function (m, index) { if (index === history.length - 1 && m.role === 'user') { if (typeof m.content === 'string') return { role: 'user', content: dynamicSystemPrompt.content + '\n\n' + m.content }; if (Array.isArray(m.content)) return { role: 'user', content: m.content.map(function (part) { if (part.type === 'text') return { type: 'text', text: dynamicSystemPrompt.content + '\n\n' + part.text }; return part; }) }; } return m; }); }
         else { messagesToSend = [dynamicSystemPrompt].concat(conversation.filter(function (m) { return m.role !== 'system'; })); }
         
-        var payload = { model: model, messages: messagesToSend, temperature: 0.7, max_completion_tokens: 2048 }; if (showThinking && !/vision/.test(model)) payload.reasoning_effort = 'medium';
+        // TEMPERATURE SET TO 0.2 TO FORCE STRICT ADHERENCE TO PROMPT
+        var payload = { model: model, messages: messagesToSend, temperature: 0.2, max_completion_tokens: 2048 }; if (showThinking && !/vision/.test(model)) payload.reasoning_effort = 'medium';
         
         var response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify(payload) });
         
