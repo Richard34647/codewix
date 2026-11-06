@@ -7,14 +7,62 @@
     <meta name="description" content="CodeWix is a coding platform where you write code in a live IDE, get AI help, and publish your projects to a live URL with one click.">
     <meta property="og:title" content="CodeWix — Learn to Code, Build Projects, Publish Them Live">
     <meta property="og:description" content="Live IDE + AI pair programmer + one-click publishing.">
+    
+    <!-- Icons & PWA -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#38bdf8">
+    
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Splash Screen CSS (Inline to load instantly) -->
+    <style>
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            background-color: #020617; /* Deep dark blue */
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.6s ease-in-out;
+        }
+        #splash-screen img {
+            width: 120px;
+            height: 120px;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+        #splash-screen h1 {
+            color: #38bdf8;
+            font-family: Arial, sans-serif;
+            margin-top: 20px;
+            font-size: 24px;
+            letter-spacing: 2px;
+            animation: fadeIn 1s ease-in-out;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+    </style>
 </head>
 <body>
+
+    <!-- SPLASH SCREEN -->
+    <div id="splash-screen">
+        <!-- Replace this with your actual logo path if you have one, e.g., /web-app-manifest-192x192.png -->
+        <img src="/favicon.svg" alt="CodeWix Logo" onerror="this.src='/web-app-manifest-192x192.png'">
+        <h1>CodeWix</h1>
+    </div>
 
     <header>
         <div class="logo"><a href="index.html">CodeWix</a></div>
@@ -24,25 +72,26 @@
             <a href="learn.html">Learn</a>
             <a href="explore.html">Explore</a>
             <a href="about.html">About</a>
-            <a href="register.html">Register</a>
-            <a href="login.html">Login</a>
             <a href="play.html">Play Game</a>
+            <a href="login.html" style="margin-left: 15px;">Login</a>
+            <a href="register.html" class="button" style="padding: 8px 16px; font-size: 14px;">Get Started</a>
         </nav>
     </header>
 
     <section class="hero hero-refresh">
         <div class="hero-inner">
             <div class="hero-copy">
-                <span class="hero-badge">🚀 Publish your projects live</span>
+                <span class="hero-badge">🚀 The Ultimate AI Workspace</span>
                 <h1>Learn to code.<br><span>Ship it live.</span></h1>
                 <p>CodeWix is a platform where beginners become developers. Write code in a live editor, get help from an AI assistant, and publish your work to a real URL in one click.</p>
                 <div class="hero-cta">
-                    <a href="register.html" class="button">Start Coding →</a>
+                    <a href="register.html" class="button" style="box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);">Start Coding for Free →</a>
                     <a href="explore.html" class="button ghost">Browse Community Sites</a>
                 </div>
                 <div class="hero-meta">
                     <span>✓ Free forever plan</span>
                     <span>✓ Real URLs for your projects</span>
+                    <span>✓ AI Pair Programmer</span>
                 </div>
             </div>
             <div class="hero-code">
@@ -84,7 +133,7 @@
             <div class="feature-card">
                 <div class="feature-icon">📚</div>
                 <h3>Daily Coding Lessons</h3>
-                <p>Twenty lessons covering the fundamentals. Track progress and keep your streak alive.</p>
+                <p>Fifteen lessons covering the fundamentals. Track progress and keep your streak alive.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🚀</div>
@@ -124,10 +173,10 @@
     </section>
 
     <section class="cta-section">
-        <div class="cta-card">
+        <div class="cta-card" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-color: #38bdf8;">
             <h2>Ready to write your first line of code?</h2>
             <p>Join CodeWix and start building today.</p>
-            <a href="register.html" class="button">Create Free Account →</a>
+            <a href="register.html" class="button" style="background: #38bdf8; box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);">Create Free Account →</a>
         </div>
     </section>
 
@@ -139,5 +188,27 @@
         <a href="contact.html">Contact Us</a>
     </footer>
 
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="script.js"></script>
+    
+    <!-- Splash Screen Logic -->
+    <script>
+        window.addEventListener('load', function() {
+            // Wait 1.5 seconds after the page loads, then fade out the splash screen
+            setTimeout(function() {
+                var splash = document.getElementById('splash-screen');
+                if (splash) {
+                    splash.style.opacity = '0';
+                    // Remove it from the DOM after the fade transition is complete
+                    setTimeout(function() {
+                        splash.style.display = 'none';
+                    }, 600); 
+                }
+            }, 1500); 
+        });
+    </script>
 </body>
 </html>
