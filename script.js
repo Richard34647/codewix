@@ -4,6 +4,17 @@
 
 console.log('[CodeWix] script.js evaluated');
 
+// ==========================================================================
+// PWA (PROGRESSIVE WEB APP) REGISTRATION
+// ==========================================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(registration => console.log('[CodeWix] Service Worker registered!'))
+      .catch(error => console.log('[CodeWix] Service Worker registration failed:', error));
+  });
+}
+
 document.addEventListener('contextmenu', event => event.preventDefault());
 document.addEventListener('keydown', function (e) {
   if (e.keyCode === 123) { e.preventDefault(); return false; }
@@ -169,7 +180,7 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   var path = location.pathname.toLowerCase();
-  var protectedPages = ['dashboard.html', 'ai-assistant.html', 'learn.html', 'publish.html', 'admin.html'];
+  var protectedPages = ['dashboard.html', 'ai-assistance.html', 'learn.html', 'publish.html', 'admin.html'];
   if (auth && protectedPages.some(function (p) { return path.indexOf(p) !== -1; })) {
     auth.onAuthStateChanged(async function (user) {
       if (!user) { location.replace('login.html'); return; }
@@ -270,7 +281,7 @@ window.addEventListener('DOMContentLoaded', function () {
   // UPGRADE POPUP
   // ======================================================================
   function showUpgradePopup() {
-    const validPages = ['dashboard.html', 'ai-assistant.html', 'publish.html', 'explore.html'];
+    const validPages = ['dashboard.html', 'ai-assistance.html', 'publish.html', 'explore.html'];
     if (!validPages.some(p => location.pathname.includes(p))) return;
     const lastPrompt = localStorage.getItem('lastUpgradePrompt');
     const now = Date.now();
@@ -779,7 +790,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (renameFileBtn) { renameFileBtn.addEventListener('click', function () { if (!activeFile) return; var currentName = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile; var newName = prompt('Rename to:', currentName); if (!newName) return; newName = newName.trim().toLowerCase(); if (!newName || newName === currentName) return; var key = isAsset(activeFile) ? 'asset:' + newName : newName; if (files[key] !== undefined) { alert('Exists.'); return; } files[key] = files[activeFile]; delete files[activeFile]; activeFile = key; rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Renamed'); }); }
 
-    if (uploadFileBtn && hiddenFileInput) { uploadFileBtn.addEventListener('click', function () { hiddenFileInput.click(); }); hiddenFileInput.addEventListener('change', async function () { var file = this.files && this.files[0]; if (!file) return; if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); this.value = ''; return; } var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024; if (file.size > maxSize) { showToast('File too large.', 'error'); this.value = ''; return; } var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-'); try { files['asset:' + safeName] = await readFileAsDataURL(file); rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Added', 'success'); } catch (err) { showToast('Failed', 'error'); } finally { hiddenFileInput.value = ''; } }); }
+    if (uploadFileBtn && hiddenFileInput) { uploadFileBtn.addEventListener('click', function () { hiddenFileInput.click(); }); hiddenFileInput.addEventListener('change', async function () { var file = this.files && this.files[0]; if (!file) return; if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); this.value = ''; return; } var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024; if (file.size > maxSize) { if (!isUserPremium) { showToast('💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); } else { showToast('File too large. Max 5MB.', 'error'); } this.value = ''; return; } var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-'); try { files['asset:' + safeName] = await readFileAsDataURL(file); rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Added', 'success'); } catch (err) { showToast('Failed', 'error'); } finally { hiddenFileInput.value = ''; } }); }
 
     if (saveProjectBtn) { saveProjectBtn.addEventListener('click', function () { if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; } if (!isAsset(activeFile)) files[activeFile] = codeEditor.value; var name = currentProjectName; if (!name) { name = prompt('Project Name:', 'My Project'); if (!name) return; name = name.trim(); if (!name) return; } saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…'; var payload = { name: name, files: files, activeFile: activeFile, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }; var col = db.collection('users').doc(auth.currentUser.uid).collection('projects'); var promise; if (currentProjectId) promise = col.doc(currentProjectId).update(payload); else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; }); } promise.then(function () { currentProjectName = name; lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name; showToast('Saved ✔', 'success'); }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); }).finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; }); }); }
 
