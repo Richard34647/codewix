@@ -1,10 +1,10 @@
 {
   "name": "CodeWix",
   "short_name": "CodeWix",
-  "description": "AI-powered coding platform to build, test, and host websites.",
+  "description": "AI-powered coding platform.",
   "start_url": "/index.html",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "background_color": "#020617",
   "theme_color": "#38bdf8",
   "icons": [
     {
