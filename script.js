@@ -891,7 +891,7 @@ window.addEventListener('DOMContentLoaded', function () {
         role: 'system', 
         content: `You are the CodeWix AI Assistant, an expert programming helper. 
         
-CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using EXACTLY THREE backticks (\`\`\`). Never use two backticks.
+CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using triple backticks (\`\`\`).
 
 If you are providing a complete file (like HTML, CSS, or JS), you MUST put the filename on the first line of the code block using this EXACT format:
 \`\`\`html filename="index.html"
@@ -928,65 +928,23 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
     }
 
     function renderConversation() { chatContainer.innerHTML = ''; conversation.forEach(function (m) { if (m.role === 'user') { var d = appendMessage('user'); setUserMessage(d, m.content); } else if (m.role === 'assistant') { var d2 = appendMessage('assistant'); setAssistantMessage(d2, m.content, ''); } }); chatContainer.scrollTop = chatContainer.scrollHeight; }
-    function loadChat(id, data) { currentChatId = id || null; currentChatTitle = (data && data.title) || ''; 
-      var msgs = (data && data.messages) || [];
-      conversation = [SYSTEM_PROMPT].concat(msgs);
-      renderConversation();
-      updateTitleBar();
-      if (historyListBox) { document.querySelectorAll('.history-row').forEach(el => el.classList.remove('active')); var row = historyListBox.querySelector(`[data-id="${id}"]`); if (row) row.classList.add('active'); }
-    }
-
-    function startNewChat() { currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT]; renderConversation(); updateTitleBar(); if (historyListBox) document.querySelectorAll('.history-row').forEach(el => el.classList.remove('active')); chatInput.value = ''; setStatus(''); }
-
-    async function refreshHistory() {
-      if (!db || !authUser) return;
-      try {
-        const snap = await chatsCollection().orderBy('updatedAt', 'desc').limit(50).get();
-        historyCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderHistoryList();
-      } catch(e) { console.warn(e); }
-    }
-
-    function renderHistoryList() {
-      if (!historyListBox) return;
-      const search = (historySearchEl ? historySearchEl.value : '').toLowerCase().trim();
-      const filtered = historyCache.filter(c => (c.title || '').toLowerCase().includes(search));
-      if (filtered.length === 0) { historyListBox.innerHTML = '<p style="padding:12px;color:#64748b;font-size:12px;">No chats found.</p>'; return; }
-      historyListBox.innerHTML = filtered.map(c => `
-        <div class="history-row" data-id="${c.id}">
-          <div class="history-info">
-            <h3>${escapeHtml(c.title || 'Untitled Chat')}</h3>
-            <p>${c.updatedAt ? formatDate(c.updatedAt) : 'New'}</p>
-          </div>
-        </div>
-      `).join('');
-      historyListBox.querySelectorAll('.history-row').forEach(row => {
-        row.addEventListener('click', async () => {
-          const id = row.getAttribute('data-id');
-          const data = historyCache.find(x => x.id === id);
-          if (data) { loadChat(id, data); setSidebarOpen(false); }
-        });
-      });
-      if (currentChatId) { const active = historyListBox.querySelector(`[data-id="${currentChatId}"]`); if (active) active.classList.add('active'); }
-    }
-
-    function appendMessage(role) { var d = document.createElement('div'); d.className = 'message ' + role; var bubble = document.createElement('div'); bubble.className = 'bubble'; d.appendChild(bubble); chatContainer.appendChild(d); chatContainer.scrollTop = chatContainer.scrollHeight; return bubble; }
-    function setUserMessage(el, content) { if (Array.isArray(content)) { el.innerHTML = content.map(function (c) { if (c.type === 'text') return escapeHtml(c.text).replace(/\n/g, '<br>'); if (c.type === 'image_url') return '<img src="' + c.image_url.url + '" style="max-width:180px;border-radius:8px;display:block;margin:4px 0;">'; return ''; }).join(''); } else { el.innerHTML = escapeHtml(String(content)).replace(/\n/g, '<br>'); } }
-    function setAssistantMessage(el, text, extra) { el.innerHTML = renderContent(text); }
+    function loadChat(id, data) { currentChatId = id || null; currentChatTitle = (data && data.title) || ''; var saved = (data && data.messages) || []; conversation = [SYSTEM_PROMPT].concat(saved); updateTitleBar(); if (saved.length) renderConversation(); else showWelcome(); markActiveInSidebar(currentChatId); }
+    function startNewChat() { currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT]; updateTitleBar(); showWelcome(); chatInput.focus(); markActiveInSidebar(null); }
+    function showWelcome() { chatContainer.innerHTML = '<div class="chat-message assistant-message"><div class="message-role">Assistant</div><div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! Ask me anything.</div></div></div>'; }
 
     // ==========================================
     // SMART RENDER CONTENT (THE SAFETY NET)
     // ==========================================
     function renderContent(text) {
-      var parts;
-      if (text.indexOf('```') !== -1) {
-          parts = String(text).split(/```/);
-      } else if (text.indexOf('``') !== -1) {
-          parts = String(text).split(/``/);
+      // FIX #1: accept 3 backticks OR 2 backticks (AI sometimes hallucinates `` instead of ```)
+      var raw = String(text), parts;
+      if (raw.indexOf('```') !== -1) {
+          parts = raw.split(/```/);
+      } else if (raw.indexOf('``') !== -1) {
+          parts = raw.split(/``/);
       } else {
-          parts = [text];
+          parts = [raw];
       }
-
       var html = '', blockCount = 0;
       
       // FALLBACK: If no backticks at all, but it looks like code, wrap it automatically
@@ -994,9 +952,9 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
           var lower = text.toLowerCase();
           if (lower.includes('<!doctype') || lower.includes('<html>')) {
               parts = ['Here is your code:', '\nhtml filename="index.html"\n' + text.trim()];
-          } else if (lower.includes('function ') || lower.includes('const ') || lower.includes('console.log') || lower.includes('let ')) {
+          } else if (lower.includes('function ') || lower.includes('const ') || lower.includes('console.log')) {
                parts = ['Here is your code:', '\njavascript filename="script.js"\n' + text.trim()];
-          } else if (lower.includes('{') && lower.includes('}') && (lower.includes('color:') || lower.includes('background:') || lower.includes('display:'))) {
+          } else if (lower.includes('{') && lower.includes('}') && (lower.includes('color:') || lower.includes('background:'))) {
                parts = ['Here is your code:', '\ncss filename="style.css"\n' + text.trim()];
           }
       }
@@ -1012,8 +970,8 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
         } 
         else {
           var body = parts[i], lang = 'code', filename = null;
-          
-          // Trim leading spaces and newlines
+
+          // FIX #2: strip leading whitespace so ` ```\nhtml ` works, not just ` ```html\n `
           body = body.replace(/^\s+/, '');
           var nl = body.indexOf('\n');
           
@@ -1039,127 +997,587 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
       return html;
     }
 
-    // ==========================================
-    // SEND MESSAGE & STREAMING
-    // ==========================================
-    async function sendMessage() {
-      var text = chatInput.value.trim();
-      if (!text && pendingAttachments.length === 0) return;
-      if (!authUser) { showToast('Please sign in.', 'error'); return; }
+    function appendMessage(role) { var div = document.createElement('div'); div.className = 'chat-message ' + (role === 'user' ? 'user-message' : 'assistant-message'); div.innerHTML = '<div class="message-role">' + (role === 'user' ? 'You' : 'Assistant') + '</div><div class="message-content"></div>'; chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; return div; }
+    function setUserMessage(div, content) {
+      var c = div.querySelector('.message-content'), html = '';
+      if (typeof content === 'string') html = '<div class="text-part">' + escapeHtml(content).replace(/\n/g, '<br>') + '</div>';
+      else if (Array.isArray(content)) { content.forEach(function (part) { if (part.type === 'text') { if (part.text.indexOf('--- File:') === -1) html += '<div class="text-part">' + escapeHtml(part.text).replace(/\n/g, '<br>') + '</div>'; } else if (part.type === 'image_url') { html += '<div style="margin-top:8px;"><img src="' + part.image_url.url + '" style="max-width:200px;border-radius:8px;border:1px solid #334155;"/></div>'; } }); }
+      c.innerHTML = html;
+    }
+    
+    function setAssistantMessage(div, content, reasoning) { 
+      var c = div.querySelector('.message-content'), html = ''; 
+      if (reasoning) html += '<details class="reasoning-section"><summary>Thinking</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>'; 
+      html += renderContent(content); 
+      c.innerHTML = html; 
+    }
 
-      var contentParts = [];
-      if (text) contentParts.push({ type: 'text', text: text });
-      pendingAttachments.forEach(function (att) {
-        if (att.type === 'image') contentParts.push({ type: 'image_url', image_url: { url: att.data } });
-        else contentParts.push({ type: 'text', text: '\n\n[File: ' + att.name + ']\n' + att.data });
+    function onUserReady(user) { authUser = user; currentUserName = getUsername(); updateTokenUsage(); var col = chatsCollection(); if (!col) { startNewChat(); return; } col.orderBy('updatedAt', 'desc').limit(1).get().then(function (snap) { if (snap.empty) startNewChat(); else { var doc = snap.docs[0]; loadChat(doc.id, doc.data()); if (!doc.data().messages || doc.data().messages.length === 0) showWelcome(); } refreshHistory(); }).catch(function () { startNewChat(); }); }
+    if (auth) auth.onAuthStateChanged(function (user) { if (user) onUserReady(user); });
+
+    async function refreshHistory() {
+      if (!historyListBox) return; var col = chatsCollection(); if (!col) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">Sign in first.</p>'; return; }
+      try { var snap = await col.orderBy('updatedAt', 'desc').limit(100).get(); historyCache = snap.docs.map(function (d) { return { id: d.id, data: d.data() || {} }; }); renderHistoryList(); } 
+      catch (err) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">Failed: ' + escapeHtml(err.message) + '</p>'; }
+    }
+    
+    function renderHistoryList() {
+      if (!historyListBox) return; 
+      var q = (historySearchEl && historySearchEl.value || '').toLowerCase().trim(), items = historyCache;
+      if (q) items = items.filter(function (it) { return (it.data.title || 'Untitled').toLowerCase().indexOf(q) !== -1; });
+      historyListBox.innerHTML = '';
+      if (!items.length) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">' + (q ? 'No matches.' : 'No history yet.') + '</p>'; return; }
+      items.forEach(function (it) {
+        var data = it.data, count = (data.messages || []).length, row = document.createElement('div');
+        row.className = 'history-row' + (it.id === currentChatId ? ' active' : ''); row.setAttribute('data-id', it.id);
+        row.innerHTML = '<div class="history-info"><h3>' + escapeHtml(data.title || 'Untitled') + '</h3><p>' + formatDate(data.updatedAt) + ' · ' + count + ' msg' + (count === 1 ? '' : 's') + '</p></div><div class="history-actions"><button type="button" data-action="delete" data-id="' + it.id + '" class="danger" title="Delete">🗑️</button></div>';
+        historyListBox.appendChild(row);
       });
+    }
+    function markActiveInSidebar(id) { if (!historyListBox) return; Array.prototype.forEach.call(historyListBox.querySelectorAll('.history-row'), function (row) { row.classList.toggle('active', row.getAttribute('data-id') === id); }); }
 
-      conversation.push({ role: 'user', content: contentParts.length === 1 && contentParts[0].type === 'text' ? contentParts[0].text : contentParts });
-      chatInput.value = ''; pendingAttachments = []; renderAttachPreview(); setLoading(true); setStatus('Sending...');
+    if (historyListBox) {
+      historyListBox.addEventListener('click', async function (e) {
+        var btn = e.target.closest('button[data-action]'), row = e.target.closest('.history-row');
+        if (btn) {
+          e.stopPropagation(); var id = btn.getAttribute('data-id');
+          if (btn.getAttribute('data-action') === 'delete') {
+            if (!confirm('Delete this chat?')) return;
+            try { await chatsCollection().doc(id).delete(); if (id === currentChatId) startNewChat(); showToast('Deleted'); refreshHistory(); } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+          } return;
+        }
+        if (!row) return; var rid = row.getAttribute('data-id');
+        if (rid === currentChatId) { if (window.innerWidth < 800) setSidebarOpen(false); return; }
+        try { var doc = await chatsCollection().doc(rid).get(); if (!doc.exists) { showToast('Not found.', 'error'); return; } loadChat(doc.id, doc.data()); if (window.innerWidth < 800) setSidebarOpen(false); setStatus('Loaded'); } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+      });
+    }
 
-      var userBubble = appendMessage('user');
-      setUserMessage(userBubble, contentParts.length === 1 && contentParts[0].type === 'text' ? contentParts[0].text : contentParts);
+    chatContainer.addEventListener('click', async function (e) {
+      var btn = e.target.closest('button'); if (!btn) return; var block = btn.closest('.code-block'); if (!block) return;
+      var codeEl = block.querySelector('pre code'), code = codeEl ? codeEl.textContent : '', lang = block.getAttribute('data-lang') || 'txt', filename = block.getAttribute('data-filename') || ('snippet.' + lang);
+      
+      if (btn.classList.contains('copy-btn')) { 
+        (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { showToast('Code copied'); }).catch(function () { showToast('Copy failed', 'error'); }); 
+      }
+      else if (btn.classList.contains('download-code-btn')) { 
+        var blob = new Blob([code], { type: 'text/plain' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); 
+      }
+      else if (btn.classList.contains('apply-ide-btn')) { 
+        if (!isUserPremium) {
+          return showToast('💎 Apply to IDE is a Pro feature. Upgrade to unlock!', 'error');
+        }
+        if (!auth.currentUser) return showToast('Sign in first.', 'error');
+        
+        const origText = btn.textContent;
+        btn.textContent = 'Loading...';
+        btn.disabled = true;
 
-      var assistantBubble = appendMessage('assistant');
-      assistantBubble.innerHTML = '<span class="typing-dots">●●●</span>';
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+        try { 
+          let targetFile = filename;
+          if (!targetFile || targetFile.startsWith('snippet')) {
+             if (lang === 'html') targetFile = 'index.html';
+             else if (lang === 'css') targetFile = 'style.css';
+             else if (lang === 'js' || lang === 'javascript') targetFile = 'script.js';
+             else targetFile = 'index.html';
+          }
 
-      var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b';
-      var requestBody = { messages: conversation, model: model };
+          const snap = await db.collection('users').doc(auth.currentUser.uid).collection('projects').get();
+          let projects = [];
+          snap.forEach(doc => projects.push({ id: doc.id, name: doc.data().name || 'Untitled' }));
 
+          let modalHtml = `
+            <div id="applyIdeModal" class="modal-backdrop" style="display:flex; z-index:99999;">
+              <div class="modal" style="max-width:400px;">
+                <div class="modal-header">
+                  <h2>Apply to Project</h2>
+                  <button class="modal-close" id="closeApplyModal">×</button>
+                </div>
+                <div class="modal-body">
+                  <p style="color:#94a3b8; font-size:14px; margin-bottom:15px;">Where do you want to apply this <strong>${escapeHtml(targetFile)}</strong> code?</p>
+                  <select id="targetProjectSelect" class="publish-select" style="margin-bottom:15px;">
+                    <option value="new">✨ Create New Project</option>
+          `;
+          
+          projects.forEach(p => {
+            modalHtml += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+          });
+
+          modalHtml += `
+                  </select>
+                  <button id="confirmApplyBtn" class="button" style="width:100%;">Apply Code & Open IDE</button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+          document.getElementById('closeApplyModal').onclick = () => document.getElementById('applyIdeModal').remove();
+
+          document.getElementById('confirmApplyBtn').onclick = () => {
+             const selectedId = document.getElementById('targetProjectSelect').value;
+             localStorage.setItem('cw_pending_code', JSON.stringify({ code: code, filename: targetFile, projectId: selectedId, ts: Date.now() })); 
+             window.location.href = 'dashboard.html?project=' + selectedId;
+          };
+
+        } catch (err) { 
+          showToast('Failed to load projects: ' + err.message, 'error'); 
+        } finally {
+          btn.textContent = origText;
+          btn.disabled = false;
+        }
+      }
+    });
+
+    async function sendToGroq(userText) {
+      var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b', showThinking = thinkingToggle ? thinkingToggle.checked : false;
+      if (!authUser) { showToast('Sign in first.', 'error'); return; }
+      var hasImages = pendingAttachments.some(function (a) { return a.type === 'image'; });
+      if (hasImages && !/vision/.test(model)) { model = 'meta-llama/llama-4-scout-17b-16e-instruct'; if (modelSelect) modelSelect.value = model; showToast('Switched to vision model', 'success'); }
+      if (modelIndicator) modelIndicator.textContent = model; currentUserName = getUsername();
+      var dynamicSystemPrompt = { role: 'system', content: SYSTEM_PROMPT.content + '\n\nBegin EVERY response with: "Dear ' + currentUserName + ', "' };
+      if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
+      var userContentPayload = userText;
+      if (pendingAttachments.length > 0) { userContentPayload = [{ type: 'text', text: userText }]; pendingAttachments.forEach(function (att) { if (att.type === 'image') userContentPayload.push({ type: 'image_url', image_url: { url: att.data } }); else userContentPayload[0].text += '\n\n--- File: ' + att.name + ' ---\n' + att.data + '\n--- End File ---'; }); }
+      conversation.push({ role: 'user', content: userContentPayload }); var userDiv = appendMessage('user'); setUserMessage(userDiv, userContentPayload); scheduleSave(); pendingAttachments = []; renderAttachPreview();
+      
+      var assistantDiv = appendMessage('assistant'), messageContent = assistantDiv.querySelector('.message-content');
+      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span></div>';
+      setLoading(true); setStatus(showThinking ? 'Thinking…' : 'Generating…');
+      
       try {
-        var idToken = await authUser.getIdToken();
-        var response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-          body: JSON.stringify(requestBody)
-        });
-
+        var idToken = await authUser.getIdToken(), messagesToSend;
+        if (hasImages) { var history = conversation.filter(function (m) { return m.role !== 'system'; }); messagesToSend = history.map(function (m, index) { if (index === history.length - 1 && m.role === 'user') { if (typeof m.content === 'string') return { role: 'user', content: dynamicSystemPrompt.content + '\n\n' + m.content }; if (Array.isArray(m.content)) return { role: 'user', content: m.content.map(function (part) { if (part.type === 'text') return { type: 'text', text: dynamicSystemPrompt.content + '\n\n' + part.text }; return part; }) }; } return m; }); }
+        else { messagesToSend = [dynamicSystemPrompt].concat(conversation.filter(function (m) { return m.role !== 'system'; })); }
+        
+        // TEMPERATURE SET TO 0.2 TO FORCE STRICT ADHERENCE TO PROMPT
+        var payload = { model: model, messages: messagesToSend, temperature: 0.2, max_completion_tokens: 2048 }; if (showThinking && !/vision/.test(model)) payload.reasoning_effort = 'medium';
+        
+        var response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify(payload) });
+        
         if (!response.ok) {
-          var errData = await response.json().catch(function () { return {}; });
-          throw new Error(errData.error || 'API error ' + response.status);
+          if (response.status === 429) { messageContent.innerHTML = '<div class="text-part" style="color:#fbbf24;padding:15px;background:#1e293b;border-radius:8px;border:1px solid #fbbf24;">👋 <strong>You\'re on a roll!</strong> You\'ve used up your free daily tokens.<br><br>Upgrade to <strong>CodeWix Pro</strong> for unlimited AI, the 70B smart model, and 5MB uploads. <a href="upgrade.html" style="color:#fbbf24;text-decoration:underline;font-weight:bold;">Upgrade now →</a></div>'; conversation.pop(); setStatus('Limit reached'); updateTokenUsage(); return; }
+          if (response.status === 401) { messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please sign in again.</div>'; conversation.pop(); setStatus('Expired'); return; }
+          var errText = ''; try { errText = await response.text(); } catch (_) {}
+          messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Error ' + response.status + ': ' + escapeHtml((errText || response.statusText || 'Request failed').slice(0, 300)) + '</div>'; conversation.pop(); setStatus('Failed'); return;
         }
 
-        var reader = response.body.getReader();
-        var decoder = new TextDecoder();
-        var fullText = '';
+        if (!response.body) throw new Error('No response body');
+        var reader = response.body.getReader(), decoder = new TextDecoder('utf-8'), reply = '', reasoning = '', buffer = '', streamDone = false, uiScheduled = false;
+        function scheduleUI() { if (uiScheduled) return; uiScheduled = true; requestAnimationFrame(function () { uiScheduled = false; messageContent.innerHTML = '<div class="text-part">' + escapeHtml(reply).replace(/\n/g, '<br>') + '</div>'; chatContainer.scrollTop = chatContainer.scrollHeight; }); }
 
-        while (true) {
-          var { done, value } = await reader.read();
-          if (done) break;
-          var chunk = decoder.decode(value, { stream: true });
-          fullText += chunk;
-          assistantBubble.innerHTML = renderContent(fullText);
-          chatContainer.scrollTop = chatContainer.scrollHeight;
+        while (!streamDone) {
+          var chunk = await reader.read(); if (chunk.done) break; buffer += decoder.decode(chunk.value, { stream: true });
+          var lines = buffer.split(/\r?\n/); buffer = lines.pop(); 
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim(); if (!line || line.indexOf('data:') !== 0) continue; var dataStr = line.slice(5).trim();
+            if (dataStr === '[DONE]') { streamDone = true; break; }
+            try { var parsed = JSON.parse(dataStr), delta = parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].delta; if (delta) { if (delta.content) { reply += delta.content; scheduleUI(); } if (delta.reasoning_content) reasoning += delta.reasoning_content; else if (delta.reasoning) reasoning += delta.reasoning; } } catch (parseErr) {}
+          }
         }
-
-        // Final cleanup
-        if (!fullText.trim()) { fullText = '[No response]'; }
-        assistantBubble.innerHTML = renderContent(fullText);
-        conversation.push({ role: 'assistant', content: fullText });
-
-        // Auto-apply code if applicable
-        var codeMatch = fullText.match(/```[\s\S]*?```/);
-        if (codeMatch) {
-          try {
-            var codeText = codeMatch[0].replace(/```/g, '').trim();
-            var lines = codeText.split('\n');
-            var firstLine = lines[0].trim();
-            var filenameMatch = firstLine.match(/filename=["']?([^"'\s]+)/);
-            var filename = filenameMatch ? filenameMatch[1] : null;
-            var language = firstLine.split(/\s+/)[0] || 'html';
-            var code = lines.slice(1).join('\n').trim();
-
-            if (!filename && (language === 'html' || code.toLowerCase().includes('<!doctype'))) filename = 'index.html';
-            else if (!filename && language === 'css') filename = 'style.css';
-            else if (!filename && language === 'javascript') filename = 'script.js';
-
-            if (filename && code) {
-              var applyPayload = { code: code, filename: filename, ts: Date.now() };
-              localStorage.setItem('cw_pending_code', JSON.stringify(applyPayload));
-              var applyBtn = document.createElement('button');
-              applyBtn.className = 'apply-ide-btn-inline';
-              applyBtn.textContent = '🔥 Apply to IDE';
-              applyBtn.style.cssText = 'display:block;margin-top:8px;padding:6px 12px;background:#38bdf8;color:#020617;border:none;border-radius:6px;cursor:pointer;font-weight:bold;';
-              applyBtn.onclick = function () {
-                window.open('ide.html?project=new', '_blank');
-              };
-              var parent = assistantBubble.querySelector('.code-block');
-              if (parent && !parent.querySelector('.apply-ide-btn-inline')) parent.appendChild(applyBtn);
-            }
-          } catch (e) {}
-        }
-
-        setStatus('');
-        updateTokenUsage();
-        scheduleSave();
-
+        if (buffer.trim().indexOf('data:') === 0) { var tail = buffer.trim().slice(5).trim(); if (tail && tail !== '[DONE]') { try { var p2 = JSON.parse(tail), d2 = p2 && p2.choices && p2.choices[0] && p2.choices[0].delta; if (d2 && d2.content) reply += d2.content; } catch (_) {} } }
+        if (!reply) reply = '(No content returned)';
+        setAssistantMessage(assistantDiv, reply, reasoning); conversation.push({ role: 'assistant', content: reply }); scheduleSave(); setStatus('Ready'); updateTokenUsage();
       } catch (err) {
-        assistantBubble.innerHTML = '<span style="color:#f87171;">Error: ' + escapeHtml(err.message) + '</span>';
-        setStatus('Error');
-      } finally {
-        setLoading(false);
-        chatInput.focus();
+        messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(err.message || String(err)) + '</div>'; conversation.pop(); setStatus('Failed');
+      } finally { setLoading(false); chatContainer.scrollTop = chatContainer.scrollHeight; chatInput.focus(); }
+    }
+
+    function handleSend() { var text = chatInput.value.trim(); if (!text && pendingAttachments.length === 0) return; chatInput.value = ''; chatInput.style.height = 'auto'; sendToGroq(text); }
+    sendBtn.addEventListener('click', handleSend); chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+    if (newChatBtn) newChatBtn.addEventListener('click', function () { clearTimeout(saveTimer); saveChatNow(); startNewChat(); pendingAttachments = []; renderAttachPreview(); setStatus('New chat'); showToast('New chat started'); });
+  }
+
+  // ======================================================================
+  // LEARN (PREMIUM LESSONS LOCK & PROGRESS)
+  // ======================================================================
+  if ($('lessonTitle') && $('lessonBody')) {
+    var LESSONS = [
+      { title: 'HTML: Page Structure', level: 'Beginner', lang: 'html', concept: 'Every HTML page starts with a <code>doctype</code>, followed by <code>&lt;html&gt;</code>, <code>&lt;head&gt;</code>, and <code>&lt;body&gt;</code>.', code: '<!DOCTYPE html>\n<html>\n  <head>\n    <title>My First Page</title>\n  </head>\n  <body>\n    <h1>Hello World!</h1>\n    <p>This is my first paragraph.</p>\n  </body>\n</html>', exercise: 'Create an HTML page with an <h1> that says "I am learning" and a <p> that says "HTML is fun".', hint: 'Use <code>&lt;h1&gt;I am learning&lt;/h1&gt;</code>' },
+      { title: 'HTML: Links and Images', level: 'Beginner', lang: 'html', concept: 'Use the <code>&lt;a&gt;</code> tag for links and the <code>&lt;img&gt;</code> tag for images. Images use <code>src</code> and links use <code>href</code>.', code: '<h2>My Favorite Site</h2>\n<a href="https://google.com">Go to Google</a>\n<br><br>\n<img src="https://via.placeholder.com/150" alt="Placeholder Image">', exercise: 'Create a link to your favorite website and an image of a cat.', hint: 'Use <code>&lt;a href="url"&gt;Text&lt;/a&gt;</code>' },
+      { title: 'HTML: Lists', level: 'Beginner', lang: 'html', concept: 'Use <code>&lt;ul&gt;</code> for unordered (bullet) lists and <code>&lt;ol&gt;</code> for ordered (numbered) lists. Inside them, use <code>&lt;li&gt;</code> for each item.', code: '<ul>\n  <li>Apples</li>\n  <li>Bananas</li>\n  <li>Cherries</li>\n</ul>', exercise: 'Make an ordered list of your top 3 favorite movies.', hint: 'Use <code>&lt;ol&gt;</code> and <code>&lt;li&gt;</code>' },
+      { title: 'CSS: Basics and Selectors', level: 'Beginner', lang: 'css', concept: 'CSS changes how HTML looks. You target elements using selectors (like <code>body</code> or <code>.my-class</code>) and change properties like <code>color</code> and <code>background</code>.', code: 'body {\n  background-color: #0f172a;\n  color: white;\n  font-family: Arial, sans-serif;\n}\n\nh1 {\n  color: #38bdf8;\n}', exercise: 'Change the background of the body to black, and make all h1 tags red.', hint: 'Use <code>background-color: black;</code>' },
+      { title: 'CSS: Classes and IDs', level: 'Beginner', lang: 'css', concept: 'Classes start with a dot (<code>.class</code>) and can be used multiple times. IDs start with a hash (<code>#id</code>) and must be unique.', code: '.text-red {\n  color: red;\n}\n\n#main-header {\n  font-size: 32px;\n}', exercise: 'Create a class called <code>.highlight</code> that gives an element a yellow background.', hint: 'Use <code>.highlight { background-color: yellow; }</code>' },
+      { title: 'CSS: Flexbox Layout', level: 'Intermediate', lang: 'css', concept: 'Flexbox is for aligning items. Apply <code>display: flex;</code> to a container to align its children easily.', code: '.container {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  height: 100vh;\n}', exercise: 'Create a flex container that spaces items evenly using <code>justify-content: space-between;</code>.', hint: 'Use <code>display: flex;</code>' },
+      { title: 'JS: Variables & Data Types', level: 'Beginner', lang: 'javascript', concept: 'Use <code>let</code> for variables that change and <code>const</code> for constants. JS has strings, numbers, and booleans.', code: 'let name = "Alice";\nconst age = 25;\nlet isStudent = true;\n\nconsole.log(name, age, isStudent);', exercise: 'Create a variable called <code>score</code> set to 100.', hint: '<code>let score = 100;</code>' },
+      { title: 'JS: Functions', level: 'Beginner', lang: 'javascript', concept: 'Functions are reusable blocks of code. Define them with the <code>function</code> keyword and call them by their name.', code: 'function greet(name) {\n  return "Hello, " + name + "!";\n}\n\nconsole.log(greet("World"));', exercise: 'Write a function called <code>add</code> that takes two numbers and returns their sum.', hint: '<code>function add(a, b) { return a + b; }</code>' },
+      { title: 'JS: DOM Manipulation', level: 'Intermediate', lang: 'javascript', concept: 'You can change HTML using JavaScript. <code>document.getElementById()</code> finds an element, and <code>.innerText</code> changes its text.', code: '// Assuming HTML has: <h1 id="title">Hello</h1>\nlet heading = document.getElementById("title");\nheading.innerText = "Changed by JS!";\nheading.style.color = "red";', exercise: 'Change the background color of the body using JS: <code>document.body.style.backgroundColor = "black";</code>', hint: 'Select body with <code>document.body</code>' },
+      { title: 'PHP: Introduction & Echo', level: 'Beginner', lang: 'php', concept: 'PHP is a server-side language. Code goes inside <code>&lt;?php ... ?&gt;</code>. Use <code>echo</code> to print text.', code: '<?php\necho "Hello, PHP!";\n$name = "Alice";\necho "<br>Welcome, $name";\n?>', exercise: 'Create a PHP script that echoes "My first PHP script".', hint: '<code>&lt;?php echo "My first PHP script"; ?&gt;</code>' },
+      { title: 'PHP: Variables & Math', level: 'Beginner', lang: 'php', concept: 'PHP variables start with a <code>$</code>. You can do math just like in JavaScript.', code: '<?php\n$price = 10;\n$tax = 2;\n$total = $price + $tax;\necho "Total is: $total";\n?>', exercise: 'Calculate the area of a rectangle (width = 5, height = 10) and echo the result.', hint: '<code>$area = 5 * 10; echo $area;</code>' },
+      { title: 'PHP: Arrays', level: 'Intermediate', lang: 'php', concept: 'Arrays hold multiple values. You can access them by their index (starting at 0).', code: '<?php\n$colors = array("Red", "Green", "Blue");\necho $colors[0]; // Outputs: Red\n?>', exercise: 'Create an array of 3 animals and echo the second one.', hint: '<code>echo $animals[1];</code>' },
+      { title: 'Python: Hello World', level: 'Beginner', lang: 'python', concept: 'Python is famous for being readable. No semicolons needed! Just use <code>print()</code> to output text.', code: 'print("Hello, World!")\nname = "Alice"\nprint(f"Welcome, {name}")', exercise: 'Print your name using the <code>print()</code> function.', hint: 'print("Your Name")' },
+      { title: 'Python: Lists & Loops', level: 'Beginner', lang: 'python', concept: 'A list holds multiple items. A <code>for</code> loop goes through each item in the list.', code: 'fruits = ["apple", "banana", "cherry"]\nfor fruit in fruits:\n    print(fruit)', exercise: 'Create a list of numbers and loop through them to print each one.', hint: 'for num in my_list:' },
+      { title: 'Python: Functions', level: 'Intermediate', lang: 'python', concept: 'Define a function using <code>def</code>. Indentation (spaces) is extremely important in Python.', code: 'def greet(name):\n    return "Hello, " + name\n\nresult = greet("Python")\nprint(result)', exercise: 'Create a function called <code>multiply(a, b)</code> that returns the product.', hint: 'def multiply(a, b): return a * b' }
+    ];
+    
+    var progressData = { completed: {}, streak: 1, startDate: null }, authUserL = null;
+    function progressDocRef() { if (!db || !authUserL) return null; return db.collection('users').doc(authUserL.uid).collection('progress').doc('state'); }
+    function todayISO() { return new Date().toISOString().slice(0, 10); }
+    
+    function renderLesson(idx) {
+      var lesson = LESSONS[idx]; if (!lesson) return;
+      
+      if (!isUserPremium && idx > 4) {
+        $('lessonTitle').textContent = "🔒 Locked Lesson";
+        $('lessonBody').innerHTML = `
+          <div style="text-align:center; padding: 40px 20px; background: #1e293b; border-radius: 12px; border: 1px solid #334155; margin-top: 20px;">
+            <h2 style="color: #fbbf24; margin-bottom: 12px;">💎 Upgrade to Pro</h2>
+            <p style="color: #cbd5e1; margin-bottom: 24px;">This is an advanced lesson. Free users only have access to the first 5 foundational lessons.</p>
+            <a href="upgrade.html" class="button" style="background: #fbbf24; color: #020617; text-decoration: none;">Upgrade to Unlock</a>
+          </div>
+        `;
+        return;
+      }
+
+      $('lessonTitle').textContent = lesson.title;
+      if ($('lessonDayLabel')) $('lessonDayLabel').textContent = 'Day ' + (idx + 1) + ' of ' + LESSONS.length;
+      
+      var isDone = !!progressData.completed[idx];
+      $('lessonBody').innerHTML = `
+        <div class="lesson-meta"><span class="lesson-level level-${lesson.level.toLowerCase()}">${lesson.level}</span><span class="lesson-lang">${lesson.lang}</span></div>
+        <div class="lesson-section"><h3>Concept</h3><p>${lesson.concept}</p></div>
+        <div class="lesson-section"><h3>Example</h3><div class="code-block" data-lang="${lesson.lang}"><div class="code-header"><span class="code-lang">${lesson.lang}</span><button type="button" class="copy-btn" data-code="${escapeHtml(lesson.code)}">Copy</button></div><pre><code>${escapeHtml(lesson.code)}</code></pre></div></div>
+        <div class="lesson-section"><h3>Your Turn</h3><p>${lesson.exercise}</p><details class="hint-reveal"><summary>Show hint</summary><p>${lesson.hint}</p></details></div>
+        <div class="lesson-actions"><a href="dashboard.html" class="button">Try in Workspace →</a><button type="button" class="complete-btn${isDone ? ' done' : ''}" id="completeBtn" data-index="${idx}">${isDone ? '✓ Completed' : 'Mark Complete'}</button></div>
+      `;
+
+      const completeBtn = document.getElementById('completeBtn');
+      if (completeBtn) {
+        completeBtn.addEventListener('click', async () => {
+          if (!db || !authUserL) return showToast('Sign in first.', 'error');
+          completeBtn.disabled = true;
+          completeBtn.textContent = 'Saving...';
+          
+          const isNowDone = !progressData.completed[idx];
+          progressData.completed[idx] = isNowDone;
+          
+          try {
+            await progressDocRef().set({ completed: progressData.completed }, { merge: true });
+            showToast(isNowDone ? 'Lesson completed! 🎉' : 'Marked as incomplete.', 'success');
+            renderLesson(idx); 
+          } catch (err) {
+            showToast('Failed to save progress: ' + err.message, 'error');
+            progressData.completed[idx] = !isNowDone; 
+            completeBtn.disabled = false;
+            completeBtn.textContent = isNowDone ? 'Mark Complete' : '✓ Completed';
+          }
+        });
       }
     }
 
-    sendBtn.onclick = sendMessage;
-    chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+    if (auth) {
+      auth.onAuthStateChanged(async function(user) { 
+        if (user) { 
+          authUserL = user; 
+          try {
+            const doc = await progressDocRef().get();
+            if (doc.exists) {
+              progressData = doc.data();
+              if (!progressData.completed) progressData.completed = {};
+            }
+          } catch (e) { console.error("Error loading progress", e); }
+          renderLesson(0); 
+        } 
+      });
+    }
+  }
 
-    if (newChatBtn) newChatBtn.onclick = startNewChat;
-    if (historyBtn) historyBtn.onclick = function() { refreshHistory(); setSidebarOpen(true); };
+  // ======================================================================
+  // SITE SETTINGS PAGE LOGIC
+  // ======================================================================
+  if (location.pathname.includes('site-settings.html')) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const slug = urlParams.get('slug');
+    let siteFiles = {}; 
+    let isPremiumUser = false;
+
+    if (!slug) { alert("No site specified."); location.href = 'profile.html'; return; }
 
     if (auth) {
-      auth.onAuthStateChanged(function(user) {
-        authUser = user;
-        if (user) { currentUserName = getUsername(); refreshHistory(); updateTokenUsage(); } else { historyCache = []; renderHistoryList(); }
+      auth.onAuthStateChanged(async function(user) {
+        if (!user) { location.href = 'login.html'; return; }
+        const token = await user.getIdToken();
+        const tokenResult = await user.getIdTokenResult();
+        isPremiumUser = tokenResult.claims.premium === true;
+
+        try {
+          const res = await fetch('/api/published/' + slug, { headers: { 'Authorization': 'Bearer ' + token } });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+
+          const site = data.site;
+          siteFiles = site.files || {};
+
+          document.getElementById('viewLiveSiteBtn').href = '/s/' + slug;
+          document.getElementById('edit-index-html').value = siteFiles['index.html'] || '';
+          document.getElementById('edit-style-css').value = siteFiles['style.css'] || '';
+          document.getElementById('edit-script-js').value = siteFiles['script.js'] || '';
+          
+          renderAssets();
+
+        } catch (err) { alert("Error loading site: " + err.message); }
+
+        function renderAssets() {
+          const list = document.getElementById('assetFileList');
+          if (!list) return;
+          list.innerHTML = '';
+          
+          const coreFiles = ['index.html', 'style.css', 'script.js'];
+          const assets = Object.keys(siteFiles).filter(name => !coreFiles.includes(name));
+
+          if (assets.length === 0) {
+            list.innerHTML = '<li style="color: #64748b; font-size: 14px;">No extra files uploaded yet.</li>';
+            return;
+          }
+
+          assets.forEach(name => {
+            const li = document.createElement('li');
+            li.className = 'asset-item';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'asset-name';
+            nameSpan.textContent = name;
+            li.appendChild(nameSpan);
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-asset-btn';
+            delBtn.textContent = '🗑️ Delete';
+            delBtn.onclick = function() {
+              if (!confirm(`Delete ${name}?`)) return;
+              delete siteFiles[name];
+              renderAssets();
+              showToast('File removed. Click Save to apply.', 'success');
+            };
+            li.appendChild(delBtn);
+            
+            list.appendChild(li);
+          });
+        }
+
+        document.getElementById('uploadAssetBtn').onclick = function() {
+          document.getElementById('assetUploadInput').click();
+        };
+
+        document.getElementById('assetUploadInput').onchange = async function() {
+          const files = Array.from(this.files);
+          if (!files.length) return;
+
+          const maxSize = isPremiumUser ? 5 * 1024 * 1024 : 300 * 1024;
+
+          for (const file of files) {
+            if (file.size > maxSize) {
+              showToast(`File "${file.name}" is too large. Max ${isPremiumUser ? '5MB' : '300KB'}.`, 'error');
+              continue;
+            }
+
+            try {
+              const isImage = file.type.startsWith('image/');
+              const data = isImage ? await resizeImage(file, 1024, 1024) : await readFileAsDataURL(file);
+              
+              siteFiles[file.name] = data;
+              showToast(`Added ${file.name}`, 'success');
+            } catch (err) {
+              showToast(`Failed to read ${file.name}`, 'error');
+            }
+          }
+          this.value = '';
+          renderAssets();
+        };
+
+        document.getElementById('saveFilesBtn').onclick = async function() {
+          this.disabled = true; this.textContent = 'Saving...';
+          try {
+            siteFiles['index.html'] = document.getElementById('edit-index-html').value;
+            siteFiles['style.css'] = document.getElementById('edit-style-css').value;
+            siteFiles['script.js'] = document.getElementById('edit-script-js').value;
+
+            if (JSON.stringify(siteFiles).length > 900 * 1024) {
+              throw new Error("Total project size exceeds 900KB. Please delete some files or compress your images.");
+            }
+
+            const res = await fetch('/api/published/' + slug, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ files: siteFiles })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            
+            showToast('All changes saved successfully!', 'success');
+          } catch (err) { 
+            showToast(err.message, 'error'); 
+          } finally { 
+            this.disabled = false; 
+            this.textContent = 'Save All Changes'; 
+          }
+        };
+      });
+    }
+  }
+
+  // ======================================================================
+  // PUBLISH PAGE
+  // ======================================================================
+  if ($('publishForm')) {
+    var projectSelect = $('projectSelect');
+    var mySitesGrid = $('mySitesGrid');
+    var mySitesCount = $('mySitesCount');
+
+    function loadPublishedSites() {
+      if (!auth || !auth.currentUser) return;
+      auth.currentUser.getIdToken().then(function (token) {
+        fetch('/api/my-published', { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(function (r) { 
+            if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || 'Failed to load sites.'); });
+            return r.json(); 
+          })
+          .then(function (data) { renderPublishedSites(data.sites || []); })
+          .catch(function (err) { 
+            if(mySitesGrid) mySitesGrid.innerHTML = '<p class="my-sites-empty" style="color:#f87171;">Failed: ' + escapeHtml(err.message) + '</p>'; 
+            if(mySitesCount) mySitesCount.textContent = 'Error';
+          });
       });
     }
 
-    // Show welcome
-    if (conversation.length === 1) {
-      var welcome = appendMessage('assistant');
-      welcome.innerHTML = '<div style="padding:16px;background:#1e293b;border-radius:12px;border:1px solid #334155;"><p style="margin:0 0 8px 0;font-size:15px;">👋 Welcome to CodeWix AI!</p><p style="margin:0;font-size:13px;color:#94a3b8;">Ask me to build a website, write code, or debug. I always wrap code in properly formatted code blocks.</p></div>';
+    function renderPublishedSites(sites) {
+      if (!mySitesGrid) return;
+      mySitesGrid.innerHTML = '';
+      if (mySitesCount) mySitesCount.textContent = sites.length + ' site' + (sites.length === 1 ? '' : 's');
+      if (!sites.length) {
+        mySitesGrid.innerHTML = '<p class="my-sites-empty">You haven\'t published anything yet.</p>';
+        return;
+      }
+      sites.forEach(function (site) {
+        var card = document.createElement('div');
+        card.className = 'my-site-card';
+        var url = '/s/' + encodeURIComponent(site.slug);
+        var fullUrl = location.origin + url;
+        
+        card.innerHTML =
+          '<div class="my-site-info">' +
+            '<h3>' + escapeHtml(site.projectName || 'Untitled') + '</h3>' +
+            '<a href="' + url + '" target="_blank" class="my-site-url">' + escapeHtml(fullUrl) + '</a>' +
+            '<div class="my-site-meta">' +
+              '<span>👁 ' + (site.views || 0) + ' views</span>' +
+              '<span>·</span>' +
+              '<span>' + (site.updatedAt ? formatDate(site.updatedAt) : '') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="my-site-actions">' +
+            '<a href="' + url + '" target="_blank" class="studio-btn ghost-btn">View</a>' +
+            '<button type="button" class="studio-btn ghost-btn copy-link-btn" data-url="' + escapeHtml(fullUrl) + '">Copy Link</button>' +
+            '<a href="site-settings.html?slug=' + site.slug + '" class="studio-btn ghost-btn" style="text-decoration: none;">⚙️ Settings</a>' +
+            '<button type="button" class="studio-btn ghost-btn danger-btn unpublish-btn" data-slug="' + escapeHtml(site.slug) + '">Unpublish</button>' +
+          '</div>';
+        mySitesGrid.appendChild(card);
+      });
     }
+
+    if (mySitesGrid) {
+      mySitesGrid.addEventListener('click', function (e) {
+        var copyBtn = e.target.closest('.copy-link-btn');
+        if (copyBtn) {
+          var url = copyBtn.getAttribute('data-url');
+          navigator.clipboard.writeText(url).then(function() { showToast('Copied!', 'success'); });
+          return;
+        }
+        var unBtn = e.target.closest('.unpublish-btn');
+        if (unBtn) {
+          if (!confirm('Unpublish this site?')) return;
+          var slug = unBtn.getAttribute('data-slug');
+          auth.currentUser.getIdToken().then(function(token) {
+            fetch('/api/unpublish', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ slug: slug }) })
+            .then(function() { showToast('Unpublished', 'success'); loadPublishedSites(); });
+          });
+        }
+      });
+    }
+
+    if (auth && db) {
+      auth.onAuthStateChanged(async function(user) {
+        if (!user) return;
+        try {
+          var snap = await db.collection('users').doc(user.uid).collection('projects').get();
+          var projects = [];
+          snap.forEach(function(doc) { projects.push({ id: doc.id, data: doc.data() }); });
+          
+          projects.sort(function(a, b) {
+            var timeA = a.data.updatedAt ? a.data.updatedAt.toMillis() : 0;
+            var timeB = b.data.updatedAt ? b.data.updatedAt.toMillis() : 0;
+            return timeB - timeA;
+          });
+
+          projectSelect.innerHTML = '<option value="">Choose a project…</option>';
+          if (projects.length === 0) {
+            projectSelect.innerHTML = '<option value="">No saved projects found</option>';
+          } else {
+            projects.forEach(function(p) {
+              var opt = document.createElement('option');
+              opt.value = p.id;
+              opt.textContent = p.data.name || 'Untitled';
+              projectSelect.appendChild(opt);
+            });
+          }
+        } catch (err) {
+          projectSelect.innerHTML = '<option value="">Error loading projects</option>';
+          alert("Error loading projects: " + err.message);
+        }
+        loadPublishedSites();
+      });
+    }
+
+    $('publishForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var slug = $('publishSlug').value.trim().toLowerCase();
+      var name = $('publishName').value.trim();
+      var desc = $('publishDesc') ? $('publishDesc').value.trim() : '';
+      var id = projectSelect.value;
+      
+      if (!id || !slug || !name) return showToast('Fill all fields.', 'error');
+      
+      var btn = this.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = 'Publishing...';
+      try {
+        var proj = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(id).get();
+        var token = await auth.currentUser.getIdToken();
+        var res = await fetch('/api/publish', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, 
+          body: JSON.stringify({ slug: slug, projectName: name, description: desc, files: proj.data().files }) 
+        });
+        var data = await res.json(); if (!res.ok) throw new Error(data.error);
+        showToast('Published successfully!', 'success'); this.reset();
+        loadPublishedSites();
+      } catch (err) { 
+        alert("Publish Error: " + err.message);
+        showToast(err.message, 'error'); 
+      } finally { btn.disabled = false; btn.textContent = 'Publish'; }
+    });
   }
-});
+
+  // ======================================================================
+  // EXPLORE PAGE
+  // ======================================================================
+  if ($('exploreGrid')) {
+    fetch('/api/explore').then(function(r) { return r.json(); }).then(function(data) {
+      var grid = $('exploreGrid'); grid.innerHTML = '';
+      if(!data.sites || !data.sites.length) { grid.innerHTML = '<p style="color:#64748b;text-align:center;">No sites published yet.</p>'; return; }
+      data.sites.forEach(function(site) {
+        var card = document.createElement('a'); card.href = '/s/' + site.slug; card.target = '_blank'; card.className = 'site-card';
+        const verifiedBadge = site.isPremiumOwner ? '<span style="color:#38bdf8; font-size:14px; margin-left:4px;" title="Verified Pro Creator">☑️</span>' : '';
+        card.innerHTML = `<div class="site-preview"><iframe src="/s/${site.slug}" loading="lazy" sandbox="allow-scripts"></iframe></div><div class="site-info"><h3>${escapeHtml(site.projectName || 'Untitled')}${verifiedBadge}</h3><p>@${escapeHtml(site.username)}</p></div>`;
+        grid.appendChild(card);
+      });
+    }).catch(function(err) { console.error(err); });
+  }
+
+  // UPGRADE PAGE TOKEN REFRESH
+  if (window.location.search.includes('status=success') && auth && auth.currentUser) {
+      showToast('Verifying payment... please wait.', 'success');
+      auth.currentUser.getIdToken(true).then(function() {
+          showToast('Upgrade successful! Welcome to Pro.', 'success');
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setTimeout(function() { window.location.reload(); }, 2000);
+      }).catch(function(error) { console.error("Error refreshing token:", error); });
+  }
+
+}); // end DOMContentLoaded
