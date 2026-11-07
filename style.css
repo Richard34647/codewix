@@ -1769,14 +1769,23 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
 @media (max-width: 768px) {
     .studio-workspace {
         flex-direction: column;
-        height: calc(100vh - 100px);
-        overflow: hidden;
+        height: auto; /* FIX: Let the page scroll naturally instead of breaking calc() */
+        overflow: visible;
+    }
+
+    /* FIX: Make the file explorer horizontal so it doesn't push the editor off screen */
+    .file-explorer {
+        width: 100% !important;
+        height: auto !important;
+        border-right: none;
+        border-bottom: 1px solid #1e293b;
+        flex-shrink: 0;
     }
 
     .editor-area, .preview-area {
-        flex: 1 1 50%;
-        height: 50%;
-        min-height: 300px;
+        flex: none; /* FIX: Remove flex-grow */
+        height: 50vh; /* FIX: Each takes up half the screen height */
+        min-height: 350px;
         width: 100%;
         border-right: none;
         border-bottom: 1px solid #1e293b;
