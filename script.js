@@ -885,13 +885,13 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     // ==========================================
-    // THE ULTIMATE STRICT SYSTEM PROMPT
+    // THE ULTIMATE STRICT SYSTEM PROMPT (Updated for Video)
     // ==========================================
     var SYSTEM_PROMPT = { 
         role: 'system', 
         content: `You are the CodeWix AI Assistant, an expert programming helper. 
         
-CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using triple backticks (\`\`\`).
+CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using EXACTLY THREE backticks (\`\`\`). Never use two backticks.
 
 If you are providing a complete file (like HTML, CSS, or JS), you MUST put the filename on the first line of the code block using this EXACT format:
 \`\`\`html filename="index.html"
@@ -906,7 +906,14 @@ If you are providing a small snippet, use the standard format:
 console.log("Hello World");
 \`\`\`
 
-NEVER output raw, unformatted code. If you do not use triple backticks, the user's system will break. Always use triple backticks.` 
+NEVER output raw, unformatted code. If you do not use triple backticks, the user's system will break. Always use triple backticks.
+
+IMAGE GENERATION: If the user asks you to generate an image, you must respond with exactly this markdown format:
+![IMAGE](https://image.pollinations.ai/prompt/YOUR_PROMPT_HERE)
+
+VIDEO GENERATION: If the user asks you to generate a video, you must respond with exactly this markdown format:
+![VIDEO](https://www.w3schools.com/html/mov_bbb.mp4)
+(Note: AI video generation is still experimental, so use public placeholder videos or instruct the user on how to plug in their own URLs).`
     };
     
     var conversation = [SYSTEM_PROMPT], currentChatId = null, currentChatTitle = '', saveTimer = null, authUser = null, currentUserName = 'User', historyCache = [];
@@ -936,7 +943,6 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
     // SMART RENDER CONTENT (THE SAFETY NET)
     // ==========================================
     function renderContent(text) {
-      // FIX #1: accept 3 backticks OR 2 backticks (AI sometimes hallucinates `` instead of ```)
       var raw = String(text), parts;
       if (raw.indexOf('```') !== -1) {
           parts = raw.split(/```/);
@@ -947,7 +953,6 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
       }
       var html = '', blockCount = 0;
       
-      // FALLBACK: If no backticks at all, but it looks like code, wrap it automatically
       if (parts.length === 1) {
           var lower = text.toLowerCase();
           if (lower.includes('<!doctype') || lower.includes('<html>')) {
@@ -966,12 +971,23 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
             var chunk = parts[i]; 
             if (!chunk) continue; 
             var escaped = escapeHtml(chunk).replace(/`([^`\n]+)`/g, '<code>$1</code>'); 
+
+            // NEW: Video Markdown processing (Must happen before generic image markdown)
+            escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
+            
+            // Intercept Pollinations URLs and route them through the secure backend proxy
+            escaped = escaped.replace(/!\[(.*?)\]\(https:\/\/image\.pollinations\.ai\/prompt\/([^)]+)\)/g, function(match, alt, prompt) {
+                return '<img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="' + alt + '" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155;" />';
+            });
+
+            // Generic Image Markdown (Excludes VIDEO)
+            escaped = escaped.replace(/!\[(?!VIDEO)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155;" />');
+
             html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>'; 
         } 
         else {
           var body = parts[i], lang = 'code', filename = null;
 
-          // FIX #2: strip leading whitespace so ` ```\nhtml ` works, not just ` ```html\n `
           body = body.replace(/^\s+/, '');
           var nl = body.indexOf('\n');
           
@@ -1150,7 +1166,6 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
         if (hasImages) { var history = conversation.filter(function (m) { return m.role !== 'system'; }); messagesToSend = history.map(function (m, index) { if (index === history.length - 1 && m.role === 'user') { if (typeof m.content === 'string') return { role: 'user', content: dynamicSystemPrompt.content + '\n\n' + m.content }; if (Array.isArray(m.content)) return { role: 'user', content: m.content.map(function (part) { if (part.type === 'text') return { type: 'text', text: dynamicSystemPrompt.content + '\n\n' + part.text }; return part; }) }; } return m; }); }
         else { messagesToSend = [dynamicSystemPrompt].concat(conversation.filter(function (m) { return m.role !== 'system'; })); }
         
-        // TEMPERATURE SET TO 0.2 TO FORCE STRICT ADHERENCE TO PROMPT
         var payload = { model: model, messages: messagesToSend, temperature: 0.2, max_completion_tokens: 2048 }; if (showThinking && !/vision/.test(model)) payload.reasoning_effort = 'medium';
         
         var response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify(payload) });
@@ -1164,7 +1179,9 @@ NEVER output raw, unformatted code. If you do not use triple backticks, the user
 
         if (!response.body) throw new Error('No response body');
         var reader = response.body.getReader(), decoder = new TextDecoder('utf-8'), reply = '', reasoning = '', buffer = '', streamDone = false, uiScheduled = false;
-        function scheduleUI() { if (uiScheduled) return; uiScheduled = true; requestAnimationFrame(function () { uiScheduled = false; messageContent.innerHTML = '<div class="text-part">' + escapeHtml(reply).replace(/\n/g, '<br>') + '</div>'; chatContainer.scrollTop = chatContainer.scrollHeight; }); }
+        
+        // Fix: Show the code box instantly during streaming
+        function scheduleUI() { if (uiScheduled) return; uiScheduled = true; requestAnimationFrame(function () { uiScheduled = false; messageContent.innerHTML = renderContent(reply); chatContainer.scrollTop = chatContainer.scrollHeight; }); }
 
         while (!streamDone) {
           var chunk = await reader.read(); if (chunk.done) break; buffer += decoder.decode(chunk.value, { stream: true });
