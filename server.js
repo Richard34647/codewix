@@ -15,6 +15,7 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const DAILY_TOKEN_LIMIT = 100000; 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'wilcoxr889@gmail.com').toLowerCase();
 const SELAR_WEBHOOK_SECRET = process.env.SELAR_WEBHOOK_SECRET || 'my_super_secret_webhook_key';
+const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY; // NEW: Added for Image Generation
 
 // ==========================================
 // FIREBASE INITIALIZATION
@@ -333,6 +334,33 @@ app.get('/api/user/usage', requireAuth, async (req, res) => {
     const tokensUsed = doc.exists ? (doc.data().tokens || 0) : 0;
     res.json({ isPremium: false, tokensUsed, limit: DAILY_TOKEN_LIMIT });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// AI IMAGE GENERATION ROUTE (POLLINATIONS)
+// ==========================================
+app.get('/api/generate-image', async (req, res) => {
+  const { prompt } = req.query;
+  if (!prompt) return res.status(400).json({ error: 'Prompt required' });
+
+  try {
+    const baseUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
+    
+    // Securely append the API key if it exists in the Render environment
+    const finalUrl = POLLINATIONS_API_KEY 
+      ? `${baseUrl}?token=${POLLINATIONS_API_KEY}&nologo=true` 
+      : `${baseUrl}?nologo=true`;
+    
+    const response = await fetch(finalUrl);
+    if (!response.ok) throw new Error('Pollinations API failed');
+    
+    const arrayBuffer = await response.arrayBuffer();
+    res.set('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400'); // Cache image for 1 day to save API quota
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ==========================================
