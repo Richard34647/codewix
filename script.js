@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File)
+// CodeWix — script.js (Full Master File - Puter.js Integrated)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -25,6 +25,16 @@ document.addEventListener('keydown', function (e) {
 
 window.addEventListener('DOMContentLoaded', function () {
   var auth = null, db = null, storage = null, isUserPremium = false, isUserAdmin = false;
+
+  // ==========================================================================
+  // PUTER.JS SDK LOADER (For Free, Watermark-Free Image Generation)
+  // ==========================================================================
+  if (!window.puter) {
+    var puterScript = document.createElement('script');
+    puterScript.src = 'https://js.puter.com/v2/';
+    puterScript.async = true;
+    document.head.appendChild(puterScript);
+  }
 
   if (typeof firebase === 'undefined') {
     console.error('[CodeWix] firebase missing.');
@@ -885,15 +895,15 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     // ==========================================
-    // THE ULTIMATE STRICT SYSTEM PROMPT (Updated for Video)
+    // SYSTEM PROMPT (Updated for Puter.js)
     // ==========================================
     var SYSTEM_PROMPT = { 
         role: 'system', 
         content: `You are the CodeWix AI Assistant, an expert programming helper. 
         
-CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using EXACTLY THREE backticks (\`\`\`). Never use two backticks.
+CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using EXACTLY THREE backticks (\`\`\`).
 
-If you are providing a complete file (like HTML, CSS, or JS), you MUST put the filename on the first line of the code block using this EXACT format:
+If you are providing a complete file (like HTML, CSS, or JS), you MUST put the filename on the first line of the code block:
 \`\`\`html filename="index.html"
 <!DOCTYPE html>
 <html>
@@ -901,19 +911,13 @@ If you are providing a complete file (like HTML, CSS, or JS), you MUST put the f
 </html>
 \`\`\`
 
-If you are providing a small snippet, use the standard format:
-\`\`\`javascript
-console.log("Hello World");
-\`\`\`
-
-NEVER output raw, unformatted code. If you do not use triple backticks, the user's system will break. Always use triple backticks.
+NEVER output raw, unformatted code. Always use triple backticks.
 
 IMAGE GENERATION: If the user asks you to generate an image, you must respond with exactly this markdown format:
-![IMAGE](https://image.pollinations.ai/prompt/YOUR_PROMPT_HERE)
+![IMAGE](PROMPT_HERE)
 
 VIDEO GENERATION: If the user asks you to generate a video, you must respond with exactly this markdown format:
-![VIDEO](https://www.w3schools.com/html/mov_bbb.mp4)
-(Note: AI video generation is still experimental, so use public placeholder videos or instruct the user on how to plug in their own URLs).`
+![VIDEO](https://www.w3schools.com/html/mov_bbb.mp4)` 
     };
     
     var conversation = [SYSTEM_PROMPT], currentChatId = null, currentChatTitle = '', saveTimer = null, authUser = null, currentUserName = 'User', historyCache = [];
@@ -940,7 +944,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
     function showWelcome() { chatContainer.innerHTML = '<div class="chat-message assistant-message"><div class="message-role">Assistant</div><div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! Ask me anything.</div></div></div>'; }
 
     // ==========================================
-    // SMART RENDER CONTENT (THE SAFETY NET)
+    // SMART RENDER CONTENT (The Puter.js Integration)
     // ==========================================
     function renderContent(text) {
       var raw = String(text), parts;
@@ -972,16 +976,35 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
             if (!chunk) continue; 
             var escaped = escapeHtml(chunk).replace(/`([^`\n]+)`/g, '<code>$1</code>'); 
 
-            // NEW: Video Markdown processing (Must happen before generic image markdown)
+            // NEW: Video Markdown processing
             escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
-            // Intercept Pollinations URLs and route them through the secure backend proxy
-            escaped = escaped.replace(/!\[(.*?)\]\(https:\/\/image\.pollinations\.ai\/prompt\/([^)]+)\)/g, function(match, alt, prompt) {
-                return '<img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="' + alt + '" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155;" />';
+            // NEW: Puter.js Image Generation Interceptor
+            escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
+                var containerId = 'puter-img-' + Math.random().toString(36).substr(2, 9);
+                setTimeout(function() {
+                    var container = document.getElementById(containerId);
+                    if (!container) return;
+                    if (typeof puter === 'undefined') {
+                        container.innerHTML = '<span style="color:#f87171;">Error: Puter.js SDK not loaded.</span>';
+                        return;
+                    }
+                    container.innerHTML = '<div style="color:#38bdf8; font-size:14px; margin-bottom:8px;">🎨 Generating image... (this may take a moment)</div>';
+                    puter.ai.txt2img(prompt, { model: 'black-forest-labs/flux-schnell' })
+                        .then(imageElement => {
+                            container.innerHTML = '';
+                            imageElement.style.cssText = 'max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);';
+                            container.appendChild(imageElement);
+                        })
+                        .catch(err => {
+                            container.innerHTML = '<span style="color:#f87171;">Image generation failed: ' + err.message + '</span>';
+                        });
+                }, 100);
+                return '<div id="' + containerId + '" class="puter-image-container"></div>';
             });
 
-            // Generic Image Markdown (Excludes VIDEO)
-            escaped = escaped.replace(/!\[(?!VIDEO)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155;" />');
+            // Generic Image Markdown (Excludes VIDEO and IMAGE)
+            escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155;" />');
 
             html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>'; 
         } 
@@ -1180,7 +1203,6 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
         if (!response.body) throw new Error('No response body');
         var reader = response.body.getReader(), decoder = new TextDecoder('utf-8'), reply = '', reasoning = '', buffer = '', streamDone = false, uiScheduled = false;
         
-        // Fix: Show the code box instantly during streaming
         function scheduleUI() { if (uiScheduled) return; uiScheduled = true; requestAnimationFrame(function () { uiScheduled = false; messageContent.innerHTML = renderContent(reply); chatContainer.scrollTop = chatContainer.scrollHeight; }); }
 
         while (!streamDone) {
