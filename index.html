@@ -59,7 +59,7 @@
 
     <!-- SPLASH SCREEN -->
     <div id="splash-screen">
-        <!-- Replace this with your actual logo path if you have one, e.g., /web-app-manifest-192x192.png -->
+        <!-- Replace this with your actual logo path if you have one -->
         <img src="/favicon.svg" alt="CodeWix Logo" onerror="this.src='/web-app-manifest-192x192.png'">
         <h1>CodeWix</h1>
     </div>
@@ -70,6 +70,7 @@
             <a href="index.html">Home</a>
             <a href="components.html">Components</a>
             <a href="learn.html">Learn</a>
+            <a href="docs.html">Docs</a> <!-- NEW DOCS LINK -->
             <a href="explore.html">Explore</a>
             <a href="about.html">About</a>
             <a href="play.html">Play Game</a>
@@ -182,6 +183,7 @@
 
     <footer>
         <p>© 2026 CodeWix — Learn to Code</p>
+        <a href="docs.html">Documentation</a> <!-- NEW DOCS LINK -->
         <a href="tos.html">Terms and Conditions</a>
         <a href="privacy.html">Privacy Policy</a>
         <a href="about.html">About Us</a>
@@ -197,12 +199,10 @@
     <!-- Splash Screen Logic -->
     <script>
         window.addEventListener('load', function() {
-            // Wait 1.5 seconds after the page loads, then fade out the splash screen
             setTimeout(function() {
                 var splash = document.getElementById('splash-screen');
                 if (splash) {
                     splash.style.opacity = '0';
-                    // Remove it from the DOM after the fade transition is complete
                     setTimeout(function() {
                         splash.style.display = 'none';
                     }, 600); 
