@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Vision Model Fixed)
+// CodeWix — script.js (Full Master File - Vision & Image Generation Fixed)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -1286,8 +1286,9 @@ CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown co
 If you are providing a complete file, put the filename on the first line: \`\`\`html filename="index.html"\`\`\`
 NEVER output raw, unformatted code. Always use triple backticks.
 
-IMAGE GENERATION: If the user asks you to generate an image, you must respond with exactly this markdown format:
+IMAGE GENERATION: If the user asks you to generate an image, you MUST respond with exactly this markdown format:
 ![IMAGE](PROMPT_HERE)
+Do not explain, just output the markdown.
 
 VIDEO GENERATION: If the user asks you to generate a video, you must respond with exactly this markdown format:
 ![VIDEO](https://www.w3schools.com/html/mov_bbb.mp4)` 
