@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Vision Fix)
+// CodeWix — script.js (Full Master File - Vision Model Fixed)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -1556,9 +1556,9 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       if (!authUser) { showToast('Sign in first.', 'error'); return; }
       var hasImages = pendingAttachments.some(function (a) { return a.type === 'image'; });
       
-      // FIXED: Changed to a valid Groq vision model
+      // FIXED: Use the active Groq vision model
       if (hasImages && !/vision/.test(model)) { 
-          model = 'llama-3.2-11b-vision-preview'; 
+          model = 'llama-3.2-11b-vision'; 
           if (modelSelect) modelSelect.value = model; 
           showToast('Switched to vision model', 'success'); 
       }
