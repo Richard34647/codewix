@@ -499,7 +499,7 @@ footer a:hover { color: #38bdf8; }
 /* ---- Studio header ---- */
 .studio-header {
     background: #090d16; 
-    min-height: 55px; /* Changed from height to min-height */
+    min-height: 55px;
     height: auto; 
     display: flex; 
     align-items: center; 
@@ -509,21 +509,21 @@ footer a:hover { color: #38bdf8; }
     width: 100%; 
     position: relative; 
     box-shadow: none;
-    flex-wrap: wrap; /* Allows items to wrap to a new line if too wide */
-    gap: 15px; /* Adds space between the three main sections */
+    flex-wrap: wrap; 
+    gap: 15px;
 }
 
 .header-brand { 
     display: flex; 
     align-items: center; 
-    gap: 10px; /* Space out logo and Sandbox badge */
+    gap: 10px; 
 }
 
 .studio-logo { 
     font-size: 18px; 
     font-weight: bold; 
     color: #38bdf8; 
-    margin-right: 0; /* Removed margin since we use gap */
+    margin-right: 0;
 }
 
 .env-badge {
@@ -542,7 +542,7 @@ footer a:hover { color: #38bdf8; }
     flex-wrap: wrap;
     gap: 15px;
     justify-content: center;
-    flex: 1; /* Allows nav to take up available center space */
+    flex: 1;
 }
 
 .studio-nav a {
@@ -550,7 +550,7 @@ footer a:hover { color: #38bdf8; }
     text-decoration: none;
     font-size: 14px; 
     font-weight: 500;
-    margin: 0; /* Removed margin, handled by gap */
+    margin: 0; 
     white-space: nowrap;
 }
 
