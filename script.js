@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - AI Horde Integrated)
+// CodeWix — script.js (Full Master File - LITHUS AI UI)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -806,66 +806,210 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // AI ASSISTANT (Sidebar + Streaming)
+  // AI ASSISTANT (LITHUS AI UI + Streaming)
   // ======================================================================
   var chatContainer = $('chatContainer'), chatInput = $('chatInput'), sendBtn = $('sendBtn'), modelSelect = $('modelSelect'), chatStatus = $('chatStatus'), modelIndicator = $('modelIndicator'), API_URL = '/api/chat', chatTitleBar = $('chatTitleBar'), currentChatTitleEl = $('currentChatTitle'), thinkingToggle = $('thinkingToggle'), newChatBtn = $('newChatBtn'), historyBtn = $('historyBtn');
 
   if (chatContainer && chatInput && sendBtn) {
+    
+    // 1. Inject LITHUS CSS
     var CSS = document.createElement('style');
-    CSS.textContent = `.cw-chat-area{display:flex;flex-direction:row;height:100%;overflow:hidden;position:relative}#cwChatColumn{flex:1;display:flex;flex-direction:column;min-width:0}#cwHistorySidebar{width:260px;background:#0b1220;border-right:1px solid #1e293b;display:flex;flex-direction:column;transition:width .25s}.cw-chat-area.cw-sidebar-collapsed #cwHistorySidebar{width:0;border:none}#cwHistorySidebar .cw-sb-head{padding:12px;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;color:#fff;font-weight:bold}#cwHistorySidebar .cw-sb-list{flex:1;overflow-y:auto;padding:8px}#cwHistorySidebar .history-row{padding:8px;border-radius:6px;cursor:pointer;margin-bottom:4px;border:1px solid transparent}#cwHistorySidebar .history-row:hover{background:#111c33}#cwHistorySidebar .history-row.active{background:#13213c;border-color:#2563eb}#cwHistorySidebar .history-info h3{margin:0;font-size:13px;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#cwHistorySidebar .history-info p{margin:0;font-size:11px;color:#64748b}#cwHamburger{position:fixed;top:76px;left:8px;z-index:9998;background:#1e293b;color:#cbd5e1;border:1px solid #334155;border-radius:8px;padding:8px;cursor:pointer}@media(max-width:800px){#cwHistorySidebar{position:absolute;height:100%;z-index:30;transform:translateX(0);transition:transform .25s}.cw-chat-area.cw-sidebar-collapsed #cwHistorySidebar{width:260px;transform:translateX(-100%)}}`;
+    CSS.textContent = `
+      .cw-chat-area { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #0e0f11; color: #e2e8f0; position: fixed; top: 0; left: 0; z-index: 99999; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      #cwHistorySidebar { width: 280px; background: #141517; border-right: 1px solid #27272a; display: flex; flex-direction: column; transition: width 0.3s; flex-shrink: 0; }
+      .cw-sb-header { padding: 20px; display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: bold; color: #ffffff; }
+      .cw-sb-header span { color: #34d399; }
+      .cw-new-chat-btn { margin: 10px 20px 20px; padding: 12px; background: transparent; border: 1px solid #3f3f46; border-radius: 12px; color: #d4d4d8; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+      .cw-new-chat-btn:hover { background: #27272a; border-color: #52525b; }
+      .cw-sb-nav { display: flex; flex-direction: column; padding: 0 10px; gap: 4px; }
+      .cw-sb-nav-item { padding: 10px 14px; border-radius: 8px; color: #a1a1aa; font-size: 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; text-decoration: none; }
+      .cw-sb-nav-item:hover, .cw-sb-nav-item.active { background: #1c1c1f; color: #e4e4e7; }
+      .cw-recent-header { padding: 20px 20px 10px; font-size: 11px; font-weight: 600; color: #71717a; letter-spacing: 1px; display: flex; justify-content: space-between; }
+      .cw-sb-list { flex: 1; overflow-y: auto; padding: 0 10px; }
+      .history-row { padding: 12px 14px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; color: #a1a1aa; }
+      .history-row:hover, .history-row.active { background: #1c1c1f; color: #e4e4e7; }
+      .history-info h3 { margin: 0 0 4px 0; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+      .cw-sb-footer { padding: 20px; border-top: 1px solid #27272a; }
+      .cw-pro-badge { background: #18181b; border: 1px solid #27272a; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #a1a1aa; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+      .cw-pro-badge span { color: #34d399; }
+      .cw-user-profile { display: flex; align-items: center; justify-content: space-between; }
+      .cw-user-info { display: flex; align-items: center; gap: 12px; }
+      .cw-user-avatar { width: 36px; height: 36px; border-radius: 50%; background: #27272a; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; font-size: 14px; }
+      .cw-user-details h4 { margin: 0; font-size: 14px; color: #fff; font-weight: 500; }
+      .cw-user-details p { margin: 0; font-size: 12px; color: #71717a; }
+      #cwChatColumn { flex: 1; display: flex; flex-direction: column; background: #0e0f11; position: relative; min-width: 0; }
+      .cw-main-header { padding: 20px 30px; font-size: 12px; font-weight: 600; color: #71717a; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
+      .cw-main-header .dot { width: 8px; height: 8px; background: #34d399; border-radius: 50%; box-shadow: 0 0 10px rgba(52, 211, 153, 0.5); }
+      .chat-container { flex: 1; overflow-y: auto; padding: 20px 30px 120px; display: flex; flex-direction: column; gap: 24px; }
+      .chat-message { display: flex; gap: 16px; max-width: 800px; width: 100%; margin: 0 auto; }
+      .chat-message.user-message { flex-direction: row-reverse; }
+      .cw-msg-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+      .assistant-message .cw-msg-avatar { background: #34d399; color: #000; }
+      .user-message .cw-msg-avatar { background: #27272a; color: #fff; }
+      .message-content { padding: 16px 20px; border-radius: 12px; font-size: 15px; line-height: 1.6; max-width: 85%; }
+      .assistant-message .message-content { background: #18181b; border: 1px solid #27272a; color: #e4e4e7; border-top-left-radius: 4px; }
+      .user-message .message-content { background: #115e59; color: #ffffff; border-top-right-radius: 4px; }
+      .message-role { display: none; }
+      .cw-copy-reply { font-size: 11px; color: #71717a; text-align: right; margin-top: 8px; cursor: pointer; display: block; }
+      .cw-copy-reply:hover { color: #d4d4d8; }
+      .cw-input-wrapper { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 800px; padding: 0 20px; }
+      .cw-input-box { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+      .cw-input-box:focus-within { border-color: #3f3f46; }
+      .cw-input-actions { display: flex; align-items: center; justify-content: space-between; }
+      .cw-input-left { display: flex; gap: 12px; color: #71717a; }
+      .cw-input-left svg { width: 20px; height: 20px; cursor: pointer; transition: 0.2s; }
+      .cw-input-left svg:hover { color: #e4e4e7; }
+      #chatInput { background: transparent; border: none; color: #fff; font-size: 15px; resize: none; outline: none; width: 100%; min-height: 24px; max-height: 150px; font-family: inherit; padding: 0; }
+      #chatInput::placeholder { color: #52525b; }
+      #sendBtn { background: #34d399; color: #000; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+      #sendBtn:hover { background: #10b981; }
+      #sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .cw-input-footer { display: flex; justify-content: space-between; font-size: 11px; color: #52525b; margin-top: 12px; padding: 0 10px; }
+      .cw-input-footer span { display: flex; align-items: center; gap: 6px; }
+      .cw-chat-area > div:not(#cwHistorySidebar):not(#cwChatColumn) { display: none !important; }
+      #cwHamburger, .ai-header, .chat-status, .modelIndicator, #modelIndicator { display: none !important; }
+      .code-block { background: #09090b; border-color: #27272a; }
+      .code-header { background: #18181b; border-color: #27272a; }
+      .code-lang { color: #34d399; }
+    `;
     document.head.appendChild(CSS);
 
-    var chatArea = chatContainer.parentNode, sidebar = document.createElement('aside'), chatCol = document.createElement('div'), hamburger = document.createElement('button');
+    // 2. Rebuild DOM Layout
+    var chatArea = chatContainer.parentNode;
+    var sidebar = document.createElement('aside');
+    var chatCol = document.createElement('div');
+    var inputWrapper = document.createElement('div');
+    
     if (chatArea && chatArea.tagName !== 'BODY') {
-      var existing = Array.prototype.slice.call(chatArea.children); existing.forEach(function(el) { chatArea.removeChild(el); }); chatArea.className = 'cw-chat-area';
-      sidebar.id = 'cwHistorySidebar'; chatCol.id = 'cwChatColumn'; chatArea.appendChild(sidebar); chatArea.appendChild(chatCol); existing.forEach(function(el) { chatCol.appendChild(el); });
-      hamburger.id = 'cwHamburger'; hamburger.innerHTML = '☰'; document.body.appendChild(hamburger); if (window.innerWidth < 800) chatArea.classList.add('cw-sidebar-collapsed');
+      chatArea.className = 'cw-chat-area';
+      
+      var origInputArea = chatInput.parentNode;
+      var origSendBtn = sendBtn;
+      var origAttachBtn = attachBtn;
+      
+      chatArea.innerHTML = '';
+      
+      sidebar.id = 'cwHistorySidebar';
+      chatCol.id = 'cwChatColumn';
+      
+      chatCol.innerHTML = `<div class="cw-main-header">YOUR CONVERSATION <div class="dot"></div></div>`;
+      chatCol.appendChild(chatContainer);
+      
+      inputWrapper.className = 'cw-input-wrapper';
+      inputWrapper.innerHTML = `
+        <div class="cw-input-box">
+          <textarea id="chatInput" placeholder="Message CodeWix AI..." rows="1"></textarea>
+          <div class="cw-input-actions">
+            <div class="cw-input-left">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="newAttachBtn"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+            </div>
+            <button id="sendBtn">
+              Send
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+        </div>
+        <div class="cw-input-footer">
+          <span>🔒 Your conversations stay yours</span>
+          <span id="cwCreditText">0 / 1000 credits</span>
+        </div>
+      `;
+      
+      // Re-wire variables
+      chatInput = inputWrapper.querySelector('#chatInput');
+      sendBtn = inputWrapper.querySelector('#sendBtn');
+      
+      attachPreview = document.createElement('div'); 
+      attachPreview.style.cssText = 'display:none;padding:8px;background:#18181b;border-bottom:1px solid #27272a;flex-wrap:wrap;gap:8px;border-radius:12px 12px 0 0;';
+      
+      var box = inputWrapper.querySelector('.cw-input-box');
+      box.insertBefore(attachPreview, chatInput);
+      chatCol.appendChild(inputWrapper);
+      
+      chatArea.appendChild(sidebar);
+      chatArea.appendChild(chatCol);
+      
+      inputWrapper.querySelector('#newAttachBtn').onclick = function() { attachInput.click(); };
     }
 
+    // 3. Sidebar HTML
     sidebar.innerHTML = `
-      <div class="cw-sb-head">
-        <span>Chats</span>
-        <div>
-          <button id="cwSbNew" style="background:none;border:none;color:#fff;cursor:pointer">+</button>
-          <button id="cwSbClose" style="background:none;border:none;color:#fff;cursor:pointer">✕</button>
+      <div class="cw-sb-header">
+        <div style="width:28px;height:28px;background:#34d399;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;">C</div>
+        CodeWix <span>AI</span>
+      </div>
+      <button class="cw-new-chat-btn" id="cwSbNew">
+        <span style="display:flex;align-items:center;gap:8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          New conversation
+        </span>
+        <span style="font-size:11px;color:#71717a;background:#27272a;padding:2px 6px;border-radius:4px;">⌘ K</span>
+      </button>
+      <div class="cw-sb-nav">
+        <div class="cw-sb-nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          Chats
+        </div>
+        <div class="cw-sb-nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          Chat themes
         </div>
       </div>
-      <input type="text" id="cwSbSearch" placeholder="Search chats…" style="margin: 8px 12px; padding: 8px 10px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; font-size: 13px; outline: none;" />
+      <div class="cw-recent-header"><span>RECENT</span><span id="cwRecentCount">0</span></div>
       <div class="cw-sb-list" id="cwHistoryList"></div>
+      <div class="cw-sb-footer">
+        <div class="cw-pro-badge">
+          <div class="dot" style="width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 5px #34d399;"></div>
+          <span>Pro</span> - one-time credits
+        </div>
+        <div class="cw-user-profile">
+          <div class="cw-user-info">
+            <div class="cw-user-avatar" id="cwUserAvatar">U</div>
+            <div class="cw-user-details">
+              <h4 id="cwUserName">User</h4>
+              <p id="cwUserCredits">0 credits left</p>
+            </div>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" style="width:18px;height:18px;cursor:pointer;" onclick="window.location.href='login.html'">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </div>
+      </div>
     `;
+
     var historyListBox = $('cwHistoryList');
-    var historySearchEl = $('cwSbSearch');
-    if (historySearchEl) { historySearchEl.addEventListener('input', renderHistoryList); }
+    
+    if (auth && auth.currentUser) {
+        var name = auth.currentUser.displayName || auth.currentUser.email.split('@')[0];
+        document.getElementById('cwUserName').textContent = name;
+        document.getElementById('cwUserAvatar').textContent = name.charAt(0).toUpperCase();
+    }
 
-    function setSidebarOpen(open) { if (chatArea) { chatArea.classList.toggle('cw-sidebar-collapsed', !open); hamburger.style.display = open ? 'none' : 'block'; } }
-    hamburger.onclick = function() { setSidebarOpen(true); refreshHistory(); }; $('cwSbClose').onclick = function() { setSidebarOpen(false); }; $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
+    hamburger.onclick = function() { setSidebarOpen(true); refreshHistory(); }; 
+    $('cwSbClose').onclick = function() { setSidebarOpen(false); }; 
+    $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
 
-    var tokenBadge = document.createElement('div'); tokenBadge.style.cssText = 'font-size:12px;padding:4px 10px;background:#1e293b;color:#cbd5e1;border-radius:20px;font-weight:bold;margin-left:10px;display:none;'; if (modelSelect && modelSelect.parentNode) modelSelect.parentNode.appendChild(tokenBadge);
-
+    var tokenBadge = document.createElement('div'); tokenBadge.style.display = 'none';
+    
     async function updateTokenUsage() {
       if (!auth || !auth.currentUser) return;
       try {
         var idToken = await auth.currentUser.getIdToken(), res = await fetch('/api/user/usage', { headers: { 'Authorization': 'Bearer ' + idToken } }), data = await res.json();
-        tokenBadge.style.display = 'inline-block';
-        if (data.isPremium) tokenBadge.innerHTML = '💎 Unlimited';
-        else { var rem = Math.max(0, data.limit - data.tokensUsed); tokenBadge.innerHTML = '🪙 ' + rem.toLocaleString() + ' / ' + data.limit.toLocaleString(); if (rem <= 0) { tokenBadge.innerHTML = '⚠️ Limit Reached'; tokenBadge.style.color = '#f87171'; } else if (rem < 5000) tokenBadge.style.color = '#fbbf24'; else tokenBadge.style.color = '#cbd5e1'; }
+        var creditText = document.getElementById('cwCreditText');
+        var userCredits = document.getElementById('cwUserCredits');
+        if (creditText) creditText.textContent = (data.isPremium ? 'Unlimited' : Math.max(0, data.limit - data.tokensUsed).toLocaleString() + ' / ' + data.limit.toLocaleString()) + ' credits';
+        if (userCredits) userCredits.textContent = (data.isPremium ? 'Unlimited' : Math.max(0, data.limit - data.tokensUsed).toLocaleString()) + ' credits left';
       } catch (e) {}
     }
 
     if (modelSelect) {
-      if (!modelSelect.querySelector('option[value="llama-3.1-70b-versatile"]')) {
-        var o1 = document.createElement('option'); o1.value = 'llama-3.1-70b-versatile'; o1.textContent = 'Llama 3.1 70B (Smart) - 💎 PRO'; modelSelect.appendChild(o1);
-        var o2 = document.createElement('option'); o2.value = 'mixtral-8x7b-32768'; o2.textContent = 'Mixtral 8x7B - 💎 PRO'; modelSelect.appendChild(o2);
-      }
       modelSelect.addEventListener('change', function () { var v = modelSelect.value; if (!isUserPremium && (v.indexOf('70b') !== -1 || v.indexOf('mixtral') !== -1)) { showToast('💎 Pro Model locked.', 'error'); modelSelect.value = 'openai/gpt-oss-120b'; } });
     }
 
     var attachInput = document.createElement('input'); attachInput.type = 'file'; attachInput.style.display = 'none'; attachInput.multiple = true; attachInput.accept = 'image/*,text/*,.txt,.md,.js,.ts,.py,.json,.html,.css,.csv,.log'; document.body.appendChild(attachInput);
-    var attachBtn = document.createElement('button'); attachBtn.innerHTML = '📎'; attachBtn.type = 'button'; attachBtn.style.cssText = 'background:transparent;border:none;font-size:20px;cursor:pointer;padding:0 8px;color:#cbd5e1;'; if (sendBtn.parentNode) sendBtn.parentNode.insertBefore(attachBtn, sendBtn);
-    var attachPreview = document.createElement('div'); attachPreview.style.cssText = 'display:none;padding:8px;background:#0f172a;border-bottom:1px solid #334155;border-radius:8px 8px 0 0;gap:8px;flex-wrap:wrap;'; if (chatInput.parentNode) chatInput.parentNode.insertBefore(attachPreview, chatInput);
-
+    
     var pendingAttachments = [];
-    attachBtn.onclick = function () { attachInput.click(); };
     attachInput.onchange = async function () {
       var files = Array.from(this.files); if (!files.length) return;
       for (var file of files) {
@@ -874,33 +1018,23 @@ window.addEventListener('DOMContentLoaded', function () {
         try { pendingAttachments.push({ name: file.name, type: isImage ? 'image' : 'text', data: isImage ? await resizeImage(file, 1024, 1024) : await readFileAsText(file) }); renderAttachPreview(); } catch (err) { showToast('Failed to read', 'error'); }
       } this.value = '';
     };
+    
     function renderAttachPreview() {
       attachPreview.innerHTML = ''; if (pendingAttachments.length === 0) { attachPreview.style.display = 'none'; return; } attachPreview.style.display = 'flex';
       pendingAttachments.forEach(function (att, idx) {
-        var chip = document.createElement('div'); chip.style.cssText = 'display:flex;align-items:center;gap:4px;background:#1e293b;border:1px solid #334155;border-radius:16px;padding:4px 10px;font-size:12px;color:#f8fafc;';
+        var chip = document.createElement('div'); chip.style.cssText = 'display:flex;align-items:center;gap:4px;background:#27272a;border:1px solid #3f3f46;border-radius:16px;padding:4px 10px;font-size:12px;color:#e4e4e7;';
         if (att.type === 'image') { var img = document.createElement('img'); img.src = att.data; img.style.cssText = 'width:24px;height:24px;object-fit:cover;border-radius:4px;'; chip.appendChild(img); }
         var nameSpan = document.createElement('span'); nameSpan.textContent = att.name; chip.appendChild(nameSpan);
         var rm = document.createElement('button'); rm.type = 'button'; rm.innerHTML = '✕'; rm.style.cssText = 'background:none;border:none;color:#f87171;cursor:pointer;font-weight:bold;padding:0 4px;'; rm.onclick = function () { pendingAttachments.splice(idx, 1); renderAttachPreview(); }; chip.appendChild(rm); attachPreview.appendChild(chip);
       });
     }
 
-    // ==========================================
-    // SYSTEM PROMPT (Updated for AI Horde)
-    // ==========================================
     var SYSTEM_PROMPT = { 
         role: 'system', 
         content: `You are the CodeWix AI Assistant, an expert programming helper. 
         
 CRITICAL INSTRUCTION: You MUST ALWAYS wrap any code you write inside Markdown code blocks using EXACTLY THREE backticks (\`\`\`).
-
-If you are providing a complete file (like HTML, CSS, or JS), you MUST put the filename on the first line of the code block:
-\`\`\`html filename="index.html"
-<!DOCTYPE html>
-<html>
-  <body>Hello</body>
-</html>
-\`\`\`
-
+If you are providing a complete file, put the filename on the first line: \`\`\`html filename="index.html"\`\`\`
 NEVER output raw, unformatted code. Always use triple backticks.
 
 IMAGE GENERATION: If the user asks you to generate an image, you must respond with exactly this markdown format:
@@ -914,10 +1048,8 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
 
     function getUsername() { if (auth && auth.currentUser) { if (auth.currentUser.displayName) return auth.currentUser.displayName.trim(); if (auth.currentUser.email) return auth.currentUser.email.split('@')[0]; } return 'User'; }
     function chatsCollection() { if (!db || !authUser) return null; return db.collection('users').doc(authUser.uid).collection('chats'); }
-    function updateTitleBar() { if (chatTitleBar && currentChatTitleEl) { chatTitleBar.style.display = currentChatTitle ? 'flex' : 'none'; if (currentChatTitle) currentChatTitleEl.textContent = currentChatTitle; } }
     function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(function () { saveChatNow(); }, 700); }
-    function setStatus(msg) { if (chatStatus) chatStatus.textContent = msg; }
-    function setLoading(l) { sendBtn.disabled = l; chatInput.disabled = l; attachBtn.disabled = l; sendBtn.textContent = l ? 'Thinking…' : 'Send'; }
+    function setStatus(msg) { }
 
     async function saveChatNow() {
       if (!authUser || !db) return; var msgs = conversation.filter(function (m) { return m.role !== 'system'; }); if (!msgs.length) return; var col = chatsCollection(); if (!col) return;
@@ -925,37 +1057,33 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       if (!title && firstUser) { var t = typeof firstUser.content === 'string' ? firstUser.content : ((firstUser.content.find(function (c) { return c.type === 'text'; }) || {}).text || '[Attachment]'); title = t.replace(/\s+/g, ' ').trim().substring(0, 48); if (t.length > 48) title += '…'; } if (!title) title = 'New Chat';
       var sanitized = msgs.map(function (m) { if (Array.isArray(m.content)) return { role: m.role, content: m.content.map(function (p) { return p.type === 'image_url' ? { type: 'text', text: '[Image]' } : p; }) }; return m; });
       var payload = { title: title, messages: sanitized, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-      try { if (currentChatId) { await col.doc(currentChatId).update(payload); } else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); var ref = await col.add(payload); currentChatId = ref.id; refreshHistory(); } currentChatTitle = title; updateTitleBar(); } catch (err) { console.warn(err); }
+      try { if (currentChatId) { await col.doc(currentChatId).update(payload); } else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); var ref = await col.add(payload); currentChatId = ref.id; refreshHistory(); } currentChatTitle = title; } catch (err) { console.warn(err); }
     }
 
     function renderConversation() { chatContainer.innerHTML = ''; conversation.forEach(function (m) { if (m.role === 'user') { var d = appendMessage('user'); setUserMessage(d, m.content); } else if (m.role === 'assistant') { var d2 = appendMessage('assistant'); setAssistantMessage(d2, m.content, ''); } }); chatContainer.scrollTop = chatContainer.scrollHeight; }
-    function loadChat(id, data) { currentChatId = id || null; currentChatTitle = (data && data.title) || ''; var saved = (data && data.messages) || []; conversation = [SYSTEM_PROMPT].concat(saved); updateTitleBar(); if (saved.length) renderConversation(); else showWelcome(); markActiveInSidebar(currentChatId); }
-    function startNewChat() { currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT]; updateTitleBar(); showWelcome(); chatInput.focus(); markActiveInSidebar(null); }
-    function showWelcome() { chatContainer.innerHTML = '<div class="chat-message assistant-message"><div class="message-role">Assistant</div><div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! Ask me anything.</div></div></div>'; }
+    function loadChat(id, data) { currentChatId = id || null; currentChatTitle = (data && data.title) || ''; var saved = (data && data.messages) || []; conversation = [SYSTEM_PROMPT].concat(saved); if (saved.length) renderConversation(); else showWelcome(); markActiveInSidebar(currentChatId); }
+    function startNewChat() { currentChatId = null; currentChatTitle = ''; conversation = [SYSTEM_PROMPT]; showWelcome(); chatInput.focus(); markActiveInSidebar(null); }
+    function showWelcome() { chatContainer.innerHTML = `
+      <div class="chat-message assistant-message">
+        <div class="cw-msg-avatar">C</div>
+        <div class="message-content">
+          <div class="text-part">Dear ${escapeHtml(currentUserName)}, hello! What would you like to build or fix? Feel free to share your ideas, code, or errors.</div>
+        </div>
+      </div>`; 
+    }
 
-    // ==========================================
-    // SMART RENDER CONTENT (The AI Horde Integration)
-    // ==========================================
     function renderContent(text) {
       var raw = String(text), parts;
-      if (raw.indexOf('```') !== -1) {
-          parts = raw.split(/```/);
-      } else if (raw.indexOf('``') !== -1) {
-          parts = raw.split(/``/);
-      } else {
-          parts = [raw];
-      }
+      if (raw.indexOf('```') !== -1) { parts = raw.split(/```/); } 
+      else if (raw.indexOf('``') !== -1) { parts = raw.split(/``/); } 
+      else { parts = [raw]; }
       var html = '', blockCount = 0;
       
       if (parts.length === 1) {
           var lower = text.toLowerCase();
-          if (lower.includes('<!doctype') || lower.includes('<html>')) {
-              parts = ['Here is your code:', '\nhtml filename="index.html"\n' + text.trim()];
-          } else if (lower.includes('function ') || lower.includes('const ') || lower.includes('console.log')) {
-               parts = ['Here is your code:', '\njavascript filename="script.js"\n' + text.trim()];
-          } else if (lower.includes('{') && lower.includes('}') && (lower.includes('color:') || lower.includes('background:'))) {
-               parts = ['Here is your code:', '\ncss filename="style.css"\n' + text.trim()];
-          }
+          if (lower.includes('<!doctype') || lower.includes('<html>')) { parts = ['Here is your code:', '\nhtml filename="index.html"\n' + text.trim()]; } 
+          else if (lower.includes('function ') || lower.includes('const ') || lower.includes('console.log')) { parts = ['Here is your code:', '\njavascript filename="script.js"\n' + text.trim()]; } 
+          else if (lower.includes('{') && lower.includes('}') && (lower.includes('color:') || lower.includes('background:'))) { parts = ['Here is your code:', '\ncss filename="style.css"\n' + text.trim()]; }
       }
 
       for (var b = 1; b < parts.length; b += 2) if (parts[b] && parts[b].trim()) blockCount++;
@@ -966,22 +1094,18 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
             if (!chunk) continue; 
             var escaped = escapeHtml(chunk).replace(/`([^`\n]+)`/g, '<code>$1</code>'); 
 
-            // NEW: Video Markdown processing
-            escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
+            escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #27272a;"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
-            // NEW: AI HORDE Image Generation Interceptor (Routes to your backend)
             escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
-                return '<div style="color:#38bdf8; font-size:14px; margin-top:10px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div><img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" />';
+                return '<div style="color:#34d399; font-size:14px; margin-top:10px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div><img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #27272a;" />';
             });
 
-            // Generic Image Markdown (Excludes VIDEO and IMAGE)
-            escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155;" />');
+            escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #27272a;" />');
 
             html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>'; 
         } 
         else {
           var body = parts[i], lang = 'code', filename = null;
-
           body = body.replace(/^\s+/, '');
           var nl = body.indexOf('\n');
           
@@ -998,52 +1122,71 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
           
           body = body.replace(/\n$/, ''); 
           var displayTitle = filename || lang;
-          
-          var applyBtnHtml = filename ? `<button type="button" class="apply-ide-btn">🔥 Apply to IDE</button>` : '';
+          var applyBtnHtml = filename ? `<button type="button" class="apply-ide-btn" style="background:#34d399;color:#000;border:none;border-radius:4px;padding:4px 12px;font-weight:bold;font-size:11px;cursor:pointer;margin-right:6px;">🔥 Apply</button>` : '';
 
-          html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '"' + (filename ? ' data-filename="' + escapeHtml(filename) + '"' : '') + '><div class="code-header"><span class="code-lang">' + escapeHtml(displayTitle) + '</span><div class="code-actions">' + applyBtnHtml + '<button type="button" class="download-code-btn">⬇</button><button type="button" class="copy-btn">Copy</button></div></div><pre><code>' + escapeHtml(body) + '</code></pre></div>';
+          html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '"' + (filename ? ' data-filename="' + escapeHtml(filename) + '"' : '') + '><div class="code-header"><span class="code-lang">' + escapeHtml(displayTitle) + '</span><div class="code-actions">' + applyBtnHtml + '<button type="button" class="download-code-btn" style="background:#27272a;color:#e4e4e7;border:1px solid #3f3f46;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;margin-right:6px;">⬇</button><button type="button" class="copy-btn" style="background:#27272a;color:#e4e4e7;border:1px solid #3f3f46;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">Copy</button></div></div><pre><code>' + escapeHtml(body) + '</code></pre></div>';
         }
       } 
       return html;
     }
 
-    function appendMessage(role) { var div = document.createElement('div'); div.className = 'chat-message ' + (role === 'user' ? 'user-message' : 'assistant-message'); div.innerHTML = '<div class="message-role">' + (role === 'user' ? 'You' : 'Assistant') + '</div><div class="message-content"></div>'; chatContainer.appendChild(div); chatContainer.scrollTop = chatContainer.scrollHeight; return div; }
-    function setUserMessage(div, content) {
-      var c = div.querySelector('.message-content'), html = '';
+    function appendMessage(role) { 
+      var div = document.createElement('div'); 
+      div.className = 'chat-message ' + (role === 'user' ? 'user-message' : 'assistant-message'); 
+      div.innerHTML = `<div class="cw-msg-avatar">${role === 'user' ? 'U' : 'C'}</div><div class="message-content"></div>`; 
+      chatContainer.appendChild(div); 
+      chatContainer.scrollTop = chatContainer.scrollHeight; 
+      return div.querySelector('.message-content'); 
+    }
+
+    function setUserMessage(container, content) {
+      var html = '';
       if (typeof content === 'string') html = '<div class="text-part">' + escapeHtml(content).replace(/\n/g, '<br>') + '</div>';
-      else if (Array.isArray(content)) { content.forEach(function (part) { if (part.type === 'text') { if (part.text.indexOf('--- File:') === -1) html += '<div class="text-part">' + escapeHtml(part.text).replace(/\n/g, '<br>') + '</div>'; } else if (part.type === 'image_url') { html += '<div style="margin-top:8px;"><img src="' + part.image_url.url + '" style="max-width:200px;border-radius:8px;border:1px solid #334155;"/></div>'; } }); }
-      c.innerHTML = html;
+      else if (Array.isArray(content)) { content.forEach(function (part) { if (part.type === 'text') { if (part.text.indexOf('--- File:') === -1) html += '<div class="text-part">' + escapeHtml(part.text).replace(/\n/g, '<br>') + '</div>'; } else if (part.type === 'image_url') { html += '<div style="margin-top:8px;"><img src="' + part.image_url.url + '" style="max-width:200px;border-radius:8px;border:1px solid #3f3f46;"/></div>'; } }); }
+      container.innerHTML = html + `<div class="cw-copy-reply" onclick="navigator.clipboard.writeText(this.parentNode.innerText)">Copy reply</div>`;
     }
     
-    function setAssistantMessage(div, content, reasoning) { 
-      var c = div.querySelector('.message-content'), html = ''; 
+    function setAssistantMessage(container, content, reasoning) { 
+      var html = ''; 
       if (reasoning) html += '<details class="reasoning-section"><summary>Thinking</summary><div class="reasoning-content">' + escapeHtml(reasoning) + '</div></details>'; 
       html += renderContent(content); 
-      c.innerHTML = html; 
+      html += `<div class="cw-copy-reply" onclick="navigator.clipboard.writeText(this.parentNode.innerText)">Copy reply</div>`;
+      container.innerHTML = html; 
     }
 
     function onUserReady(user) { authUser = user; currentUserName = getUsername(); updateTokenUsage(); var col = chatsCollection(); if (!col) { startNewChat(); return; } col.orderBy('updatedAt', 'desc').limit(1).get().then(function (snap) { if (snap.empty) startNewChat(); else { var doc = snap.docs[0]; loadChat(doc.id, doc.data()); if (!doc.data().messages || doc.data().messages.length === 0) showWelcome(); } refreshHistory(); }).catch(function () { startNewChat(); }); }
     if (auth) auth.onAuthStateChanged(function (user) { if (user) onUserReady(user); });
 
     async function refreshHistory() {
-      if (!historyListBox) return; var col = chatsCollection(); if (!col) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">Sign in first.</p>'; return; }
+      if (!historyListBox) return; var col = chatsCollection(); if (!col) { historyListBox.innerHTML = '<p style="padding:20px;text-align:center;color:#52525b;">Sign in first.</p>'; return; }
       try { var snap = await col.orderBy('updatedAt', 'desc').limit(100).get(); historyCache = snap.docs.map(function (d) { return { id: d.id, data: d.data() || {} }; }); renderHistoryList(); } 
-      catch (err) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">Failed: ' + escapeHtml(err.message) + '</p>'; }
+      catch (err) { historyListBox.innerHTML = '<p style="padding:20px;text-align:center;color:#52525b;">Failed: ' + escapeHtml(err.message) + '</p>'; }
     }
     
     function renderHistoryList() {
       if (!historyListBox) return; 
-      var q = (historySearchEl && historySearchEl.value || '').toLowerCase().trim(), items = historyCache;
-      if (q) items = items.filter(function (it) { return (it.data.title || 'Untitled').toLowerCase().indexOf(q) !== -1; });
       historyListBox.innerHTML = '';
-      if (!items.length) { historyListBox.innerHTML = '<p class="cw-sb-empty" style="padding:20px;text-align:center;color:#64748b;">' + (q ? 'No matches.' : 'No history yet.') + '</p>'; return; }
-      items.forEach(function (it) {
+      document.getElementById('cwRecentCount').textContent = historyCache.length.toString().padStart(2, '0');
+      
+      if (!historyCache.length) { 
+        historyListBox.innerHTML = '<p style="padding:20px;text-align:center;color:#52525b;font-size:12px;">No history yet.</p>'; 
+        return; 
+      }
+      
+      historyCache.forEach(function (it) {
         var data = it.data, count = (data.messages || []).length, row = document.createElement('div');
-        row.className = 'history-row' + (it.id === currentChatId ? ' active' : ''); row.setAttribute('data-id', it.id);
-        row.innerHTML = '<div class="history-info"><h3>' + escapeHtml(data.title || 'Untitled') + '</h3><p>' + formatDate(data.updatedAt) + ' · ' + count + ' msg' + (count === 1 ? '' : 's') + '</p></div><div class="history-actions"><button type="button" data-action="delete" data-id="' + it.id + '" class="danger" title="Delete">🗑️</button></div>';
+        row.className = 'history-row' + (it.id === currentChatId ? ' active' : ''); 
+        row.setAttribute('data-id', it.id);
+        row.innerHTML = `
+          <div class="history-info">
+            <h3>💬 ${escapeHtml(data.title || 'Untitled')}</h3>
+          </div>
+          <button type="button" data-action="delete" data-id="${it.id}" class="danger" style="background:none;border:none;color:#52525b;cursor:pointer;font-size:14px;">✕</button>
+        `;
         historyListBox.appendChild(row);
       });
     }
+    
     function markActiveInSidebar(id) { if (!historyListBox) return; Array.prototype.forEach.call(historyListBox.querySelectorAll('.history-row'), function (row) { row.classList.toggle('active', row.getAttribute('data-id') === id); }); }
 
     if (historyListBox) {
@@ -1057,8 +1200,8 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
           } return;
         }
         if (!row) return; var rid = row.getAttribute('data-id');
-        if (rid === currentChatId) { if (window.innerWidth < 800) setSidebarOpen(false); return; }
-        try { var doc = await chatsCollection().doc(rid).get(); if (!doc.exists) { showToast('Not found.', 'error'); return; } loadChat(doc.id, doc.data()); if (window.innerWidth < 800) setSidebarOpen(false); setStatus('Loaded'); } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        if (rid === currentChatId) { return; }
+        try { var doc = await chatsCollection().doc(rid).get(); if (!doc.exists) { showToast('Not found.', 'error'); return; } loadChat(doc.id, doc.data()); } catch (err) { showToast('Failed: ' + err.message, 'error'); }
       });
     }
 
@@ -1073,9 +1216,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
         var blob = new Blob([code], { type: 'text/plain' }), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); 
       }
       else if (btn.classList.contains('apply-ide-btn')) { 
-        if (!isUserPremium) {
-          return showToast('💎 Apply to IDE is a Pro feature. Upgrade to unlock!', 'error');
-        }
+        if (!isUserPremium) { return showToast('💎 Apply to IDE is a Pro feature. Upgrade to unlock!', 'error'); }
         if (!auth.currentUser) return showToast('Sign in first.', 'error');
         
         const origText = btn.textContent;
@@ -1097,24 +1238,22 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
 
           let modalHtml = `
             <div id="applyIdeModal" class="modal-backdrop" style="display:flex; z-index:99999;">
-              <div class="modal" style="max-width:400px;">
-                <div class="modal-header">
-                  <h2>Apply to Project</h2>
-                  <button class="modal-close" id="closeApplyModal">×</button>
+              <div class="modal" style="max-width:400px; background:#18181b; border:1px solid #27272a; border-radius:12px; color:#e4e4e7;">
+                <div class="modal-header" style="border-bottom:1px solid #27272a;">
+                  <h2 style="color:#34d399;">Apply to Project</h2>
+                  <button class="modal-close" id="closeApplyModal" style="color:#a1a1aa;">×</button>
                 </div>
                 <div class="modal-body">
-                  <p style="color:#94a3b8; font-size:14px; margin-bottom:15px;">Where do you want to apply this <strong>${escapeHtml(targetFile)}</strong> code?</p>
-                  <select id="targetProjectSelect" class="publish-select" style="margin-bottom:15px;">
+                  <p style="color:#a1a1aa; font-size:14px; margin-bottom:15px;">Where do you want to apply this <strong>${escapeHtml(targetFile)}</strong> code?</p>
+                  <select id="targetProjectSelect" style="width:100%; padding:10px; background:#09090b; border:1px solid #27272a; border-radius:6px; color:#fff; margin-bottom:15px;">
                     <option value="new">✨ Create New Project</option>
           `;
           
-          projects.forEach(p => {
-            modalHtml += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
-          });
+          projects.forEach(p => { modalHtml += `<option value="${p.id}">${escapeHtml(p.name)}</option>`; });
 
           modalHtml += `
                   </select>
-                  <button id="confirmApplyBtn" class="button" style="width:100%;">Apply Code & Open IDE</button>
+                  <button id="confirmApplyBtn" style="width:100%; background:#34d399; color:#000; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Apply Code & Open IDE</button>
                 </div>
               </div>
             </div>
@@ -1151,9 +1290,9 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       if (pendingAttachments.length > 0) { userContentPayload = [{ type: 'text', text: userText }]; pendingAttachments.forEach(function (att) { if (att.type === 'image') userContentPayload.push({ type: 'image_url', image_url: { url: att.data } }); else userContentPayload[0].text += '\n\n--- File: ' + att.name + ' ---\n' + att.data + '\n--- End File ---'; }); }
       conversation.push({ role: 'user', content: userContentPayload }); var userDiv = appendMessage('user'); setUserMessage(userDiv, userContentPayload); scheduleSave(); pendingAttachments = []; renderAttachPreview();
       
-      var assistantDiv = appendMessage('assistant'), messageContent = assistantDiv.querySelector('.message-content');
-      messageContent.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span></div>';
-      setLoading(true); setStatus(showThinking ? 'Thinking…' : 'Generating…');
+      var assistantDiv = appendMessage('assistant');
+      assistantDiv.innerHTML = '<div class="text-part"><span class="typing-dot">●</span><span class="typing-dot">●</span><span class="typing-dot">●</span></div>';
+      sendBtn.disabled = true; chatInput.disabled = true; sendBtn.innerHTML = 'Thinking...'; 
       
       try {
         var idToken = await authUser.getIdToken(), messagesToSend;
@@ -1165,16 +1304,16 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
         var response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify(payload) });
         
         if (!response.ok) {
-          if (response.status === 429) { messageContent.innerHTML = '<div class="text-part" style="color:#fbbf24;padding:15px;background:#1e293b;border-radius:8px;border:1px solid #fbbf24;">👋 <strong>You\'re on a roll!</strong> You\'ve used up your free daily tokens.<br><br>Upgrade to <strong>CodeWix Pro</strong> for unlimited AI, the 70B smart model, and 5MB uploads. <a href="upgrade.html" style="color:#fbbf24;text-decoration:underline;font-weight:bold;">Upgrade now →</a></div>'; conversation.pop(); setStatus('Limit reached'); updateTokenUsage(); return; }
-          if (response.status === 401) { messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please sign in again.</div>'; conversation.pop(); setStatus('Expired'); return; }
+          if (response.status === 429) { assistantDiv.innerHTML = '<div class="text-part" style="color:#fbbf24;padding:15px;background:#18181b;border-radius:8px;border:1px solid #fbbf24;">👋 <strong>You\'re on a roll!</strong> You\'ve used up your free daily tokens.<br><br>Upgrade to <strong>CodeWix Pro</strong> for unlimited AI. <a href="upgrade.html" style="color:#fbbf24;text-decoration:underline;font-weight:bold;">Upgrade now →</a></div>'; conversation.pop(); updateTokenUsage(); return; }
+          if (response.status === 401) { assistantDiv.innerHTML = '<div class="text-part" style="color:#f87171;">Session expired. Please sign in again.</div>'; conversation.pop(); return; }
           var errText = ''; try { errText = await response.text(); } catch (_) {}
-          messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Error ' + response.status + ': ' + escapeHtml((errText || response.statusText || 'Request failed').slice(0, 300)) + '</div>'; conversation.pop(); setStatus('Failed'); return;
+          assistantDiv.innerHTML = '<div class="text-part" style="color:#f87171;">Error ' + response.status + ': ' + escapeHtml((errText || response.statusText || 'Request failed').slice(0, 300)) + '</div>'; conversation.pop(); return;
         }
 
         if (!response.body) throw new Error('No response body');
         var reader = response.body.getReader(), decoder = new TextDecoder('utf-8'), reply = '', reasoning = '', buffer = '', streamDone = false, uiScheduled = false;
         
-        function scheduleUI() { if (uiScheduled) return; uiScheduled = true; requestAnimationFrame(function () { uiScheduled = false; messageContent.innerHTML = renderContent(reply); chatContainer.scrollTop = chatContainer.scrollHeight; }); }
+        function scheduleUI() { if (uiScheduled) return; uiScheduled = true; requestAnimationFrame(function () { uiScheduled = false; setAssistantMessage(assistantDiv, reply, reasoning); chatContainer.scrollTop = chatContainer.scrollHeight; }); }
 
         while (!streamDone) {
           var chunk = await reader.read(); if (chunk.done) break; buffer += decoder.decode(chunk.value, { stream: true });
@@ -1187,15 +1326,21 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
         }
         if (buffer.trim().indexOf('data:') === 0) { var tail = buffer.trim().slice(5).trim(); if (tail && tail !== '[DONE]') { try { var p2 = JSON.parse(tail), d2 = p2 && p2.choices && p2.choices[0] && p2.choices[0].delta; if (d2 && d2.content) reply += d2.content; } catch (_) {} } }
         if (!reply) reply = '(No content returned)';
-        setAssistantMessage(assistantDiv, reply, reasoning); conversation.push({ role: 'assistant', content: reply }); scheduleSave(); setStatus('Ready'); updateTokenUsage();
+        setAssistantMessage(assistantDiv, reply, reasoning); conversation.push({ role: 'assistant', content: reply }); scheduleSave(); updateTokenUsage();
       } catch (err) {
-        messageContent.innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(err.message || String(err)) + '</div>'; conversation.pop(); setStatus('Failed');
-      } finally { setLoading(false); chatContainer.scrollTop = chatContainer.scrollHeight; chatInput.focus(); }
+        assistantDiv.innerHTML = '<div class="text-part" style="color:#f87171;">Error: ' + escapeHtml(err.message || String(err)) + '</div>'; conversation.pop();
+      } finally { 
+        sendBtn.disabled = false; 
+        chatInput.disabled = false; 
+        sendBtn.innerHTML = `Send <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
+        chatContainer.scrollTop = chatContainer.scrollHeight; 
+        chatInput.focus(); 
+      }
     }
 
     function handleSend() { var text = chatInput.value.trim(); if (!text && pendingAttachments.length === 0) return; chatInput.value = ''; chatInput.style.height = 'auto'; sendToGroq(text); }
     sendBtn.addEventListener('click', handleSend); chatInput.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
-    if (newChatBtn) newChatBtn.addEventListener('click', function () { clearTimeout(saveTimer); saveChatNow(); startNewChat(); pendingAttachments = []; renderAttachPreview(); setStatus('New chat'); showToast('New chat started'); });
+    if (newChatBtn) newChatBtn.addEventListener('click', function () { clearTimeout(saveTimer); saveChatNow(); startNewChat(); pendingAttachments = []; renderAttachPreview(); showToast('New chat started'); });
   }
 
   // ======================================================================
