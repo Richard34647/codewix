@@ -105,9 +105,6 @@ window.addEventListener('DOMContentLoaded', function () {
       localStorage.setItem('codewix_theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '🌙' : '☀️';
     }); navMenu.appendChild(themeBtn);
 
-    // ==========================================
-    // INJECT VISUAL BUILDER LINK TO DASHBOARD
-    // ==========================================
     if (isDashboardPage && !document.getElementById('builderNavLink')) {
         var builderLink = document.createElement('a');
         builderLink.href = 'page-builder.html';
@@ -144,7 +141,8 @@ window.addEventListener('DOMContentLoaded', function () {
         } catch (e) {}
       }
 
-      const tokenResult = await user.getIdTokenResult();
+      // ✅ FIX: Force refresh token so admin upgrades reflect on next page load
+      const tokenResult = await user.getIdTokenResult(true);
       isUserPremium = tokenResult.claims.premium === true; 
       isUserAdmin = user.email === ADMIN_EMAIL;
 
@@ -435,7 +433,8 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     document.addEventListener('click', async function(e) {
-      if (e.target.classList.contains('toggle-premium-btn')) { const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; try { await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'toggle-premium' }) }); showToast('User premium status updated.', 'success'); loadUsers(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
+      // ✅ FIX: Admin self-upgrade — force token refresh + reload so nav/UI update
+      if (e.target.classList.contains('toggle-premium-btn')) { const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; try { await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'toggle-premium' }) }); showToast('User premium status updated.', 'success'); if (auth.currentUser && uid === auth.currentUser.uid) { await auth.currentUser.getIdToken(true); window.location.reload(); return; } loadUsers(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
       if (e.target.classList.contains('ban-btn')) { if (!confirm('Are you sure you want to BAN this user?')) return; const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; try { await fetch('/api/admin/ban-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'ban' }) }); showToast('User banned.', 'success'); loadUsers(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
       if (e.target.classList.contains('unban-btn')) { const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; try { await fetch('/api/admin/ban-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'unban' }) }); showToast('User unbanned.', 'success'); loadUsers(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
       if (e.target.classList.contains('takedown-btn')) { if (!confirm('Are you sure? This will permanently delete this site.')) return; const slug = e.target.getAttribute('data-slug'); e.target.disabled = true; try { await db.collection('published').doc(slug).delete(); showToast('Site taken down.', 'success'); loadProjects(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
@@ -452,7 +451,8 @@ window.addEventListener('DOMContentLoaded', function () {
     if (auth) {
       auth.onAuthStateChanged(async function(user) {
         if (!user) { location.href = 'login.html'; return; }
-        const tokenResult = await user.getIdTokenResult(); const isPremiumUser = tokenResult.claims.premium === true;
+        // ✅ FIX: Force refresh token so admin upgrades reflect immediately
+        const tokenResult = await user.getIdTokenResult(true); const isPremiumUser = tokenResult.claims.premium === true;
         var name = user.displayName || user.email.split('@')[0];
         if($('profName')) $('profName').innerHTML = name + ' <span id="profBadge" class="badge ' + (isPremiumUser ? 'pro' : 'free') + '">' + (isPremiumUser ? '💎 PRO' : 'Free') + '</span>' + (isPremiumUser ? ' <span style="color:#38bdf8; font-size:16px;" title="Verified Pro User">☑️</span>' : '');
         if($('profEmail')) $('profEmail').textContent = user.email; if($('profAvatar')) $('profAvatar').textContent = name.charAt(0).toUpperCase();
@@ -1733,7 +1733,8 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       auth.onAuthStateChanged(async function(user) {
         if (!user) { location.href = 'login.html'; return; }
         const token = await user.getIdToken();
-        const tokenResult = await user.getIdTokenResult();
+        // ✅ FIX: Force refresh token so admin upgrades reflect immediately
+        const tokenResult = await user.getIdTokenResult(true);
         isPremiumUser = tokenResult.claims.premium === true;
 
         try {
