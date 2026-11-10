@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeWix Page Builder</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --border: #334155;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --success: #34d399;
+            
+            /* Default page colors */
+            --page-bg: #ffffff;
+            --page-heading: #1e293b;
+            --page-text: #475569;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+
+        /* --- UI LAYOUT --- */
+        .sidebar { width: 280px; background: var(--panel-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 10; }
+        .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+        /* --- TOP TOOLBAR --- */
+        .toolbar { height: 60px; background: var(--panel-bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 10; }
+        .toolbar h1 { font-size: 18px; color: #fff; display: flex; align-items: center; gap: 10px; }
+        .toolbar h1 span { color: var(--primary); }
+        
+        .color-pickers { display: flex; gap: 15px; align-items: center; }
+        .color-group { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
+        input[type="color"] { -webkit-appearance: none; border: none; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; padding: 0; background: none; }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border); border-radius: 4px; }
+
+        .toolbar-actions { display: flex; gap: 10px; align-items: center; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: #000; }
+        .btn-primary:hover { background: #0ea5e9; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-outline:hover { background: var(--border); }
+        .btn-success { background: var(--success); color: #000; }
+        .btn-success:hover { background: #10b981; }
+
+        #projectNameInput { background: var(--bg-dark); border: 1px solid var(--border); color: white; padding: 8px; border-radius: 6px; font-size: 13px; outline: none; width: 150px; }
+
+        /* --- SIDEBAR CONTENT --- */
+        .sidebar-section { padding: 20px; border-bottom: 1px solid var(--border); }
+        .sidebar-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 1px; margin-bottom: 15px; }
+        
+        /* Pages List */
+        .page-list { display: flex; flex-direction: column; gap: 8px; }
+        .page-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--bg-dark); border-radius: 6px; cursor: pointer; border: 1px solid transparent; font-size: 14px; }
+        .page-item:hover { border-color: var(--border); }
+        .page-item.active { border-color: var(--primary); background: rgba(56, 189, 248, 0.1); color: var(--primary); }
+        .add-page-input { display: flex; gap: 8px; margin-top: 10px; }
+        .add-page-input input { flex: 1; background: var(--bg-dark); border: 1px solid var(--border); color: white; padding: 8px; border-radius: 6px; font-size: 13px; outline: none; }
+        .add-page-input button { padding: 8px; background: var(--primary); border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+
+        /* Blocks List */
+        .blocks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .block-btn { background: var(--bg-dark); border: 1px solid var(--border); color: var(--text-main); padding: 15px 10px; border-radius: 8px; cursor: pointer; text-align: center; font-size: 12px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: 0.2s; }
+        .block-btn:hover { border-color: var(--primary); background: rgba(56, 189, 248, 0.05); }
+        .block-btn svg { width: 20px; height: 20px; stroke: var(--primary); }
+
+        /* --- CANVAS AREA --- */
+        .canvas-container { flex: 1; background: #e2e8f0; overflow-y: auto; padding: 40px; display: flex; justify-content: center; }
+        
+        .canvas { 
+            width: 100%; max-width: 1000px; background: var(--page-bg); min-height: 800px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; 
+            transition: background-color 0.3s; position: relative;
+        }
+        
+        /* Content Formatting inside Canvas */
+        .canvas h1 { color: var(--page-heading); font-size: 48px; margin-bottom: 20px; padding: 40px 40px 0; transition: color 0.3s; }
+        .canvas h2 { color: var(--page-heading); font-size: 32px; margin-bottom: 15px; padding: 20px 40px 0; transition: color 0.3s; }
+        .canvas p { color: var(--page-text); font-size: 18px; line-height: 1.6; margin-bottom: 20px; padding: 0 40px; transition: color 0.3s; }
+        .canvas .header-section { padding: 60px 40px 20px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .canvas .header-section h1 { padding: 0; }
+        .canvas .header-section p { padding: 0; font-size: 20px; }
+        
+        .canvas img { max-width: calc(100% - 80px); border-radius: 8px; margin: 20px 40px; display: block; }
+        
+        .canvas .btn-block { display: inline-block; margin: 0 40px 40px; padding: 12px 24px; background: var(--page-heading); color: var(--page-bg); text-decoration: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        
+        /* Edit hints */
+        [contenteditable="true"]:hover { outline: 2px dashed var(--primary); outline-offset: 4px; }
+        [contenteditable="true"]:focus { outline: 2px solid var(--primary); outline-offset: 4px; background: rgba(56, 189, 248, 0.05); }
+
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-title">Pages</div>
+            <div class="page-list" id="pageList">
+                <!-- Pages will be injected here -->
+            </div>
+            <div class="add-page-input">
+                <input type="text" id="newPageName" placeholder="Page name">
+                <button onclick="addNewPage()">+</button>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-title">Add Blocks</div>
+            <div class="blocks-grid">
+                <button class="block-btn" onclick="addBlock('header')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+                    Header
+                </button>
+                <button class="block-btn" onclick="addBlock('subheader')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10"/></svg>
+                    Subhead
+                </button>
+                <button class="block-btn" onclick="addBlock('text')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    Text
+                </button>
+                <button class="block-btn" onclick="addBlock('image')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Image
+                </button>
+                <button class="block-btn" onclick="addBlock('button')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="8" rx="4"/></svg>
+                    Button
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN AREA -->
+    <main class="main-area">
+        <!-- TOOLBAR -->
+        <header class="toolbar">
+            <h1>CodeWix <span>Page Builder</span></h1>
+            
+            <div class="color-pickers">
+                <div class="color-group">
+                    <label>BG</label>
+                    <input type="color" id="colorBg" value="#ffffff" oninput="updateColors()">
+                </div>
+                <div class="color-group">
+                    <label>Heading</label>
+                    <input type="color" id="colorHeading" value="#1e293b" oninput="updateColors()">
+                </div>
+                <div class="color-group">
+                    <label>Text</label>
+                    <input type="color" id="colorText" value="#475569" oninput="updateColors()">
+                </div>
+            </div>
+
+            <div class="toolbar-actions">
+                <input type="text" id="projectNameInput" placeholder="Project Name">
+                <button class="btn btn-outline" onclick="openDocs()" style="display:none;"></button> <!-- Hidden placeholder to keep spacing -->
+                <button class="btn btn-success" onclick="saveToCodeWix()">💾 Save to Dashboard</button>
+                <button class="btn btn-outline" onclick="exportSite()">⬇ Download HTML</button>
+            </div>
+        </header>
+
+        <!-- CANVAS -->
+        <div class="canvas-container">
+            <div class="canvas" id="canvas" contenteditable="true">
+                <!-- Content goes here -->
+                <div class="header-section">
+                    <h1 contenteditable="true">Welcome to my Website</h1>
+                    <p contenteditable="true">Start building your dream site by adding blocks from the left sidebar.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- FIREBASE INITIALIZATION ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyAitVY1Ho7SzJQGUOyJMxfcOp11AOX0uKI",
+          authDomain: "codewix-16971.firebaseapp.com",
+          projectId: "codewix-16971",
+          storageBucket: "codewix-16971.firebasestorage.app",
+          messagingSenderId: "1060917593178",
+          appId: "1:1060917593178:web:8ce61640aa476bf135c463",
+          measurementId: "G-RPX2BV738C"
+        };
+        
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let currentUser = null;
+
+        // Check Auth State
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                alert("You must be logged in to use the Page Builder.");
+                window.location.href = 'login.html';
+            } else {
+                currentUser = user;
+                document.getElementById('projectNameInput').value = "My New Site";
+            }
+        });
+
+        // --- STATE MANAGEMENT ---
+        let pages = {
+            'home': `
+                <div class="header-section">
+                    <h1 contenteditable="true">Welcome to my Website</h1>
+                    <p contenteditable="true">Start building your dream site by adding blocks from the left sidebar.</p>
+                </div>
+            `
+        };
+        let currentPageId = 'home';
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderPageList();
+            updateColors();
+        });
+
+        // --- PAGES LOGIC ---
+        function renderPageList() {
+            const list = document.getElementById('pageList');
+            list.innerHTML = '';
+            Object.keys(pages).forEach(pageId => {
+                const div = document.createElement('div');
+                div.className = `page-item ${pageId === currentPageId ? 'active' : ''}`;
+                div.innerHTML = `<span>${pageId.charAt(0).toUpperCase() + pageId.slice(1)}</span>`;
+                div.onclick = () => switchPage(pageId);
+                list.appendChild(div);
+            });
+        }
+
+        function switchPage(newPageId) {
+            if (newPageId === currentPageId) return;
+            
+            // Save current page content
+            pages[currentPageId] = document.getElementById('canvas').innerHTML;
+            
+            // Switch
+            currentPageId = newPageId;
+            document.getElementById('canvas').innerHTML = pages[currentPageId];
+            
+            renderPageList();
+        }
+
+        function addNewPage() {
+            const input = document.getElementById('newPageName');
+            let name = input.value.trim().toLowerCase().replace(/\s+/g, '-');
+            
+            if (!name) return alert('Please enter a page name.');
+            if (pages[name]) return alert('Page already exists!');
+            
+            // Save current page before creating new
+            pages[currentPageId] = document.getElementById('canvas').innerHTML;
+            
+            // Create new
+            pages[name] = `<div class="header-section"><h1 contenteditable="true">${name.charAt(0).toUpperCase() + name.slice(1)} Page</h1><p contenteditable="true">This is the ${name} page.</p></div>`;
+            input.value = '';
+            
+            switchPage(name);
+        }
+
+        // --- BLOCK ADDITION LOGIC ---
+        function addBlock(type) {
+            const canvas = document.getElementById('canvas');
+            let html = '';
+
+            switch(type) {
+                case 'header':
+                    html = `<div class="header-section"><h1 contenteditable="true">New Header Title</h1><p contenteditable="true">Subtitle text goes here.</p></div>`;
+                    break;
+                case 'subheader':
+                    html = `<h2 contenteditable="true">New Subheader</h2>`;
+                    break;
+                case 'text':
+                    html = `<p contenteditable="true">This is a new paragraph. You can click here and start typing to edit this text. Add as much content as you need.</p>`;
+                    break;
+                case 'image':
+                    html = `<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80" alt="Placeholder Image" contenteditable="false">`;
+                    break;
+                case 'button':
+                    html = `<a href="#" class="btn-block" contenteditable="true">Click Me</a>`;
+                    break;
+            }
+
+            // Append to canvas
+            canvas.innerHTML += html;
+            
+            // Scroll to bottom
+            const container = document.querySelector('.canvas-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // --- STYLING LOGIC ---
+        function updateColors() {
+            const bg = document.getElementById('colorBg').value;
+            const heading = document.getElementById('colorHeading').value;
+            const text = document.getElementById('colorText').value;
+
+            // Apply to CSS variables
+            const canvas = document.getElementById('canvas');
+            canvas.style.setProperty('--page-bg', bg);
+            canvas.style.setProperty('--page-heading', heading);
+            canvas.style.setProperty('--page-text', text);
+            
+            // Also update button text color based on heading color to ensure contrast
+            const btnBlocks = canvas.querySelectorAll('.btn-block');
+            btnBlocks.forEach(btn => {
+                btn.style.backgroundColor = heading;
+                btn.style.color = bg;
+            });
+        }
+
+        // --- FIREBASE EXPORT LOGIC ---
+        async function saveToCodeWix() {
+            if (!currentUser) return alert("Not logged in.");
+            
+            const projectName = document.getElementById('projectNameInput').value.trim() || "Untitled Site";
+            
+            // Save current page state
+            pages[currentPageId] = document.getElementById('canvas').innerHTML;
+            
+            // Compile the entire site into one HTML file (for now, we combine pages into a simple layout or just save the current one)
+            // For this builder, we will generate the current page's HTML and save it to Firestore.
+            const bg = document.getElementById('colorBg').value;
+            const heading = document.getElementById('colorHeading').value;
+            const text = document.getElementById('colorText').value;
+            const currentCanvasHTML = document.getElementById('canvas').innerHTML.replace(/contenteditable="true"/g, '');
+
+            const compiledHTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${projectName}</title>
+    <style>
+        :root { --page-bg: ${bg}; --page-heading: ${heading}; --page-text: ${text}; }
+        body { background-color: var(--page-bg); color: var(--page-text); font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 0; line-height: 1.6; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 40px; }
+        h1 { color: var(--page-heading); font-size: 48px; margin-bottom: 20px; }
+        h2 { color: var(--page-heading); font-size: 32px; margin-bottom: 15px; }
+        p { font-size: 18px; margin-bottom: 20px; }
+        .header-section { padding: 60px 0; border-bottom: 1px solid rgba(0,0,0,0.1); margin-bottom: 40px; }
+        img { max-width: 100%; border-radius: 8px; margin: 20px 0; display: block; }
+        .btn-block { display: inline-block; padding: 12px 24px; background: var(--page-heading); color: var(--page-bg); text-decoration: none; border-radius: 6px; font-weight: bold; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        ${currentCanvasHTML}
+    </div>
+</body>
+</html>
+            `;
+
+            const payload = {
+                name: projectName,
+                files: {
+                    'index.html': compiledHTML,
+                    'style.css': '/* Styles are embedded in index.html */',
+                    'script.js': '// No JS yet'
+                },
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            try {
+                // Check if there's a project ID in the URL, if so, update it. Otherwise, create new.
+                const urlParams = new URLSearchParams(window.location.search);
+                const projectId = urlParams.get('project');
+
+                if (projectId && projectId !== 'new') {
+                    await db.collection('users').doc(currentUser.uid).collection('projects').doc(projectId).update(payload);
+                    alert('Project updated successfully!');
+                } else {
+                    payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                    await db.collection('users').doc(currentUser.uid).collection('projects').add(payload);
+                    alert('Project saved to Dashboard successfully!');
+                }
+                
+                // Redirect to dashboard IDE to view it
+                window.location.href = 'dashboard.html';
+
+            } catch (err) {
+                console.error(err);
+                alert('Error saving project: ' + err.message);
+            }
+        }
+
+        // --- DOWNLOAD EXPORT LOGIC ---
+        function exportSite() {
+            pages[currentPageId] = document.getElementById('canvas').innerHTML;
+            const bg = document.getElementById('colorBg').value;
+            const heading = document.getElementById('colorHeading').value;
+            const text = document.getElementById('colorText').value;
+            const currentCanvasHTML = document.getElementById('canvas').innerHTML.replace(/contenteditable="true"/g, '');
+
+            const finalHTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exported CodeWix Site</title>
+    <style>
+        :root { --page-bg: ${bg}; --page-heading: ${heading}; --page-text: ${text}; }
+        body { background-color: var(--page-bg); color: var(--page-text); font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 0; line-height: 1.6; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 40px; }
+        h1 { color: var(--page-heading); font-size: 48px; margin-bottom: 20px; }
+        h2 { color: var(--page-heading); font-size: 32px; margin-bottom: 15px; }
+        p { font-size: 18px; margin-bottom: 20px; }
+        .header-section { padding: 60px 0; border-bottom: 1px solid rgba(0,0,0,0.1); margin-bottom: 40px; }
+        img { max-width: 100%; border-radius: 8px; margin: 20px 0; display: block; }
+        .btn-block { display: inline-block; padding: 12px 24px; background: var(--page-heading); color: var(--page-bg); text-decoration: none; border-radius: 6px; font-weight: bold; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        ${currentCanvasHTML}
+    </div>
+</body>
+</html>
+            `;
+
+            const blob = new Blob([finalHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `exported-site.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
