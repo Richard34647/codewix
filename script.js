@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Puter.js Integrated)
+// CodeWix — script.js (Full Master File - AI Horde Integrated)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -25,16 +25,6 @@ document.addEventListener('keydown', function (e) {
 
 window.addEventListener('DOMContentLoaded', function () {
   var auth = null, db = null, storage = null, isUserPremium = false, isUserAdmin = false;
-
-  // ==========================================================================
-  // PUTER.JS SDK LOADER (For Free, Watermark-Free Image Generation)
-  // ==========================================================================
-  if (!window.puter) {
-    var puterScript = document.createElement('script');
-    puterScript.src = 'https://js.puter.com/v2/';
-    puterScript.async = true;
-    document.head.appendChild(puterScript);
-  }
 
   if (typeof firebase === 'undefined') {
     console.error('[CodeWix] firebase missing.');
@@ -895,7 +885,7 @@ window.addEventListener('DOMContentLoaded', function () {
     }
 
     // ==========================================
-    // SYSTEM PROMPT (Updated for Puter.js)
+    // SYSTEM PROMPT (Updated for AI Horde)
     // ==========================================
     var SYSTEM_PROMPT = { 
         role: 'system', 
@@ -944,7 +934,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
     function showWelcome() { chatContainer.innerHTML = '<div class="chat-message assistant-message"><div class="message-role">Assistant</div><div class="message-content"><div class="text-part">Dear ' + escapeHtml(currentUserName) + ', hello! Ask me anything.</div></div></div>'; }
 
     // ==========================================
-    // SMART RENDER CONTENT (The Puter.js Integration)
+    // SMART RENDER CONTENT (The AI Horde Integration)
     // ==========================================
     function renderContent(text) {
       var raw = String(text), parts;
@@ -979,28 +969,9 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
             // NEW: Video Markdown processing
             escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
-            // NEW: Puter.js Image Generation Interceptor
+            // NEW: AI HORDE Image Generation Interceptor (Routes to your backend)
             escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
-                var containerId = 'puter-img-' + Math.random().toString(36).substr(2, 9);
-                setTimeout(function() {
-                    var container = document.getElementById(containerId);
-                    if (!container) return;
-                    if (typeof puter === 'undefined') {
-                        container.innerHTML = '<span style="color:#f87171;">Error: Puter.js SDK not loaded.</span>';
-                        return;
-                    }
-                    container.innerHTML = '<div style="color:#38bdf8; font-size:14px; margin-bottom:8px;">🎨 Generating image... (this may take a moment)</div>';
-                    puter.ai.txt2img(prompt, { model: 'black-forest-labs/flux-schnell' })
-                        .then(imageElement => {
-                            container.innerHTML = '';
-                            imageElement.style.cssText = 'max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);';
-                            container.appendChild(imageElement);
-                        })
-                        .catch(err => {
-                            container.innerHTML = '<span style="color:#f87171;">Image generation failed: ' + err.message + '</span>';
-                        });
-                }, 100);
-                return '<div id="' + containerId + '" class="puter-image-container"></div>';
+                return '<div style="color:#38bdf8; font-size:14px; margin-top:10px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div><img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" />';
             });
 
             // Generic Image Markdown (Excludes VIDEO and IMAGE)
