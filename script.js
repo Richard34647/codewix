@@ -830,7 +830,8 @@ window.addEventListener('DOMContentLoaded', function () {
       .history-row:hover, .history-row.active { background: #1c1c1f; color: #e4e4e7; }
       .history-info h3 { margin: 0 0 4px 0; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
       .cw-sb-footer { padding: 20px; border-top: 1px solid #27272a; }
-      .cw-pro-badge { background: #18181b; border: 1px solid #27272a; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #a1a1aa; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+      .cw-pro-badge { background: #18181b; border: 1px solid #27272a; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #a1a1aa; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; text-decoration: none; transition: 0.2s; }
+      .cw-pro-badge:hover { border-color: #3f3f46; }
       .cw-pro-badge span { color: #34d399; }
       .cw-user-profile { display: flex; align-items: center; justify-content: space-between; }
       .cw-user-info { display: flex; align-items: center; gap: 12px; }
@@ -871,6 +872,7 @@ window.addEventListener('DOMContentLoaded', function () {
       .code-block { background: #09090b; border-color: #27272a; }
       .code-header { background: #18181b; border-color: #27272a; }
       .code-lang { color: #34d399; }
+      @keyframes mic-pulse { 0% { transform: scale(1); color: #f87171; } 50% { transform: scale(1.1); color: #ef4444; } 100% { transform: scale(1); color: #f87171; } }
     `;
     document.head.appendChild(CSS);
 
@@ -901,7 +903,7 @@ window.addEventListener('DOMContentLoaded', function () {
           <div class="cw-input-actions">
             <div class="cw-input-left">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="newAttachBtn"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+              <svg id="cwMicBtn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
             </div>
             <button id="sendBtn">
               Send
@@ -929,7 +931,40 @@ window.addEventListener('DOMContentLoaded', function () {
       chatArea.appendChild(sidebar);
       chatArea.appendChild(chatCol);
       
+      // Hook up Attachment
       inputWrapper.querySelector('#newAttachBtn').onclick = function() { attachInput.click(); };
+
+      // Hook up Voice Note (VN)
+      var micBtn = inputWrapper.querySelector('#cwMicBtn');
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+          var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          var recognition = new SpeechRecognition();
+          recognition.continuous = false;
+          recognition.interimResults = false;
+          recognition.lang = 'en-US';
+
+          recognition.onstart = function() {
+              micBtn.style.animation = 'mic-pulse 1s infinite';
+              showToast('Listening... Speak now.');
+          };
+          recognition.onresult = function(event) {
+              var transcript = event.results[0][0].transcript;
+              chatInput.value += (chatInput.value ? ' ' : '') + transcript;
+              chatInput.focus();
+          };
+          recognition.onerror = function(event) {
+              showToast('Mic error: ' + event.error, 'error');
+          };
+          recognition.onend = function() {
+              micBtn.style.animation = 'none';
+          };
+
+          micBtn.onclick = function() {
+              try { recognition.start(); } catch (e) { recognition.stop(); }
+          };
+      } else {
+          micBtn.onclick = function() { showToast('Voice recognition not supported in this browser.', 'error'); };
+      }
     }
 
     // 3. Sidebar HTML
@@ -958,10 +993,10 @@ window.addEventListener('DOMContentLoaded', function () {
       <div class="cw-recent-header"><span>RECENT</span><span id="cwRecentCount">0</span></div>
       <div class="cw-sb-list" id="cwHistoryList"></div>
       <div class="cw-sb-footer">
-        <div class="cw-pro-badge">
+        <a href="#" class="cw-pro-badge" id="cwProBadge" onclick="window.location.href='upgrade.html';return false;">
           <div class="dot" style="width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 5px #34d399;"></div>
           <span>Pro</span> - one-time credits
-        </div>
+        </a>
         <div class="cw-user-profile">
           <div class="cw-user-info">
             <div class="cw-user-avatar" id="cwUserAvatar">U</div>
@@ -978,14 +1013,6 @@ window.addEventListener('DOMContentLoaded', function () {
     `;
 
     var historyListBox = $('cwHistoryList');
-    
-    if (auth && auth.currentUser) {
-        var name = auth.currentUser.displayName || auth.currentUser.email.split('@')[0];
-        document.getElementById('cwUserName').textContent = name;
-        document.getElementById('cwUserAvatar').textContent = name.charAt(0).toUpperCase();
-    }
-
-    // Removed $('cwSbClose') because the LITHUS UI doesn't have a close button (it's fixed)
     $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
 
     var tokenBadge = document.createElement('div'); tokenBadge.style.display = 'none';
@@ -996,8 +1023,20 @@ window.addEventListener('DOMContentLoaded', function () {
         var idToken = await auth.currentUser.getIdToken(), res = await fetch('/api/user/usage', { headers: { 'Authorization': 'Bearer ' + idToken } }), data = await res.json();
         var creditText = document.getElementById('cwCreditText');
         var userCredits = document.getElementById('cwUserCredits');
+        var proBadge = document.getElementById('cwProBadge');
+        
         if (creditText) creditText.textContent = (data.isPremium ? 'Unlimited' : Math.max(0, data.limit - data.tokensUsed).toLocaleString() + ' / ' + data.limit.toLocaleString()) + ' credits';
         if (userCredits) userCredits.textContent = (data.isPremium ? 'Unlimited' : Math.max(0, data.limit - data.tokensUsed).toLocaleString()) + ' credits left';
+        
+        if (proBadge) {
+            if (data.isPremium) {
+                proBadge.innerHTML = '<div class="dot" style="width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 5px #34d399;"></div><span>Pro</span> - active subscription';
+                proBadge.href = '#';
+            } else {
+                proBadge.innerHTML = '<div class="dot" style="width:6px;height:6px;border-radius:50%;background:#fbbf24;"></div><span style="color:#fbbf24;">Upgrade to Pro</span> - unlock features';
+                proBadge.href = 'upgrade.html';
+            }
+        }
       } catch (e) {}
     }
 
@@ -1152,7 +1191,31 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       container.innerHTML = html; 
     }
 
-    function onUserReady(user) { authUser = user; currentUserName = getUsername(); updateTokenUsage(); var col = chatsCollection(); if (!col) { startNewChat(); return; } col.orderBy('updatedAt', 'desc').limit(1).get().then(function (snap) { if (snap.empty) startNewChat(); else { var doc = snap.docs[0]; loadChat(doc.id, doc.data()); if (!doc.data().messages || doc.data().messages.length === 0) showWelcome(); } refreshHistory(); }).catch(function () { startNewChat(); }); }
+    function onUserReady(user) { 
+        authUser = user; 
+        currentUserName = getUsername(); 
+        
+        // Load Username and Avatar into the sidebar
+        var name = user.displayName || user.email.split('@')[0];
+        var sbName = document.getElementById('cwUserName');
+        var sbAvatar = document.getElementById('cwUserAvatar');
+        if (sbName) sbName.textContent = name;
+        if (sbAvatar) sbAvatar.textContent = name.charAt(0).toUpperCase();
+
+        updateTokenUsage(); 
+        var col = chatsCollection(); 
+        if (!col) { startNewChat(); return; } 
+        col.orderBy('updatedAt', 'desc').limit(1).get().then(function (snap) { 
+            if (snap.empty) startNewChat(); 
+            else { 
+                var doc = snap.docs[0]; 
+                loadChat(doc.id, doc.data()); 
+                if (!doc.data().messages || doc.data().messages.length === 0) showWelcome(); 
+            } 
+            refreshHistory(); 
+        }).catch(function () { startNewChat(); }); 
+    }
+    
     if (auth) auth.onAuthStateChanged(function (user) { if (user) onUserReady(user); });
 
     async function refreshHistory() {
