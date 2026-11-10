@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - LITHUS AI UI + Visual Builder Link)
+// CodeWix — script.js (Full Master File - LITHUS AI UI + Fixes)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -952,14 +952,21 @@ window.addEventListener('DOMContentLoaded', function () {
     // 1. Inject LITHUS CSS
     var CSS = document.createElement('style');
     CSS.textContent = `
-      .cw-chat-area { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #0e0f11; color: #e2e8f0; position: fixed; top: 0; left: 0; z-index: 99999; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      .cw-chat-area { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #0e0f11; color: #e2e8f0; position: fixed; top: 0; left: 0; z-index: 99999; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; --accent: #34d399; --accent-hover: #10b981; --user-bubble: #115e59; }
+      
+      .cw-accent-bg { background: var(--accent); color: #000; }
+      .cw-accent-text { color: var(--accent); }
+      .cw-accent-border { border-color: var(--accent); }
+
       #cwHistorySidebar { width: 280px; background: #141517; border-right: 1px solid #27272a; display: flex; flex-direction: column; transition: width 0.3s; flex-shrink: 0; }
-      .cw-sb-header { padding: 20px; display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: bold; color: #ffffff; }
-      .cw-sb-header span { color: #34d399; }
+      .cw-sb-header { padding: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: bold; color: #ffffff; }
+      .cw-back-btn { color: #a1a1aa; text-decoration: none; display: flex; align-items: center; transition: 0.2s; margin-right: 10px; }
+      .cw-back-btn:hover { color: #fff; }
+      .cw-sb-header span { color: var(--accent); }
       .cw-new-chat-btn { margin: 10px 20px 20px; padding: 12px; background: transparent; border: 1px solid #3f3f46; border-radius: 12px; color: #d4d4d8; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
       .cw-new-chat-btn:hover { background: #27272a; border-color: #52525b; }
       .cw-sb-nav { display: flex; flex-direction: column; padding: 0 10px; gap: 4px; }
-      .cw-sb-nav-item { padding: 10px 14px; border-radius: 8px; color: #a1a1aa; font-size: 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; text-decoration: none; }
+      .cw-sb-nav-item { padding: 10px 14px; border-radius: 8px; color: #a1a1aa; font-size: 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; text-decoration: none; transition: 0.2s; }
       .cw-sb-nav-item:hover, .cw-sb-nav-item.active { background: #1c1c1f; color: #e4e4e7; }
       .cw-recent-header { padding: 20px 20px 10px; font-size: 11px; font-weight: 600; color: #71717a; letter-spacing: 1px; display: flex; justify-content: space-between; }
       .cw-sb-list { flex: 1; overflow-y: auto; padding: 0 10px; }
@@ -969,24 +976,24 @@ window.addEventListener('DOMContentLoaded', function () {
       .cw-sb-footer { padding: 20px; border-top: 1px solid #27272a; }
       .cw-pro-badge { background: #18181b; border: 1px solid #27272a; padding: 10px 14px; border-radius: 8px; font-size: 12px; color: #a1a1aa; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; text-decoration: none; transition: 0.2s; }
       .cw-pro-badge:hover { border-color: #3f3f46; }
-      .cw-pro-badge span { color: #34d399; }
       .cw-user-profile { display: flex; align-items: center; justify-content: space-between; }
       .cw-user-info { display: flex; align-items: center; gap: 12px; }
       .cw-user-avatar { width: 36px; height: 36px; border-radius: 50%; background: #27272a; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; font-size: 14px; }
       .cw-user-details h4 { margin: 0; font-size: 14px; color: #fff; font-weight: 500; }
       .cw-user-details p { margin: 0; font-size: 12px; color: #71717a; }
+      
       #cwChatColumn { flex: 1; display: flex; flex-direction: column; background: #0e0f11; position: relative; min-width: 0; }
       .cw-main-header { padding: 20px 30px; font-size: 12px; font-weight: 600; color: #71717a; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
-      .cw-main-header .dot { width: 8px; height: 8px; background: #34d399; border-radius: 50%; box-shadow: 0 0 10px rgba(52, 211, 153, 0.5); }
+      .cw-main-header .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 10px rgba(52, 211, 153, 0.5); }
       .chat-container { flex: 1; overflow-y: auto; padding: 20px 30px 120px; display: flex; flex-direction: column; gap: 24px; }
       .chat-message { display: flex; gap: 16px; max-width: 800px; width: 100%; margin: 0 auto; }
       .chat-message.user-message { flex-direction: row-reverse; }
       .cw-msg-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-      .assistant-message .cw-msg-avatar { background: #34d399; color: #000; }
+      .assistant-message .cw-msg-avatar { background: var(--accent); color: #000; }
       .user-message .cw-msg-avatar { background: #27272a; color: #fff; }
       .message-content { padding: 16px 20px; border-radius: 12px; font-size: 15px; line-height: 1.6; max-width: 85%; }
       .assistant-message .message-content { background: #18181b; border: 1px solid #27272a; color: #e4e4e7; border-top-left-radius: 4px; }
-      .user-message .message-content { background: #115e59; color: #ffffff; border-top-right-radius: 4px; }
+      .user-message .message-content { background: var(--user-bubble); color: #ffffff; border-top-right-radius: 4px; }
       .message-role { display: none; }
       .cw-copy-reply { font-size: 11px; color: #71717a; text-align: right; margin-top: 8px; cursor: pointer; display: block; }
       .cw-copy-reply:hover { color: #d4d4d8; }
@@ -999,8 +1006,8 @@ window.addEventListener('DOMContentLoaded', function () {
       .cw-input-left svg:hover { color: #e4e4e7; }
       #chatInput { background: transparent; border: none; color: #fff; font-size: 15px; resize: none; outline: none; width: 100%; min-height: 24px; max-height: 150px; font-family: inherit; padding: 0; }
       #chatInput::placeholder { color: #52525b; }
-      #sendBtn { background: #34d399; color: #000; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
-      #sendBtn:hover { background: #10b981; }
+      #sendBtn { background: var(--accent); color: #000; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+      #sendBtn:hover { background: var(--accent-hover); }
       #sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
       .cw-input-footer { display: flex; justify-content: space-between; font-size: 11px; color: #52525b; margin-top: 12px; padding: 0 10px; }
       .cw-input-footer span { display: flex; align-items: center; gap: 6px; }
@@ -1008,8 +1015,14 @@ window.addEventListener('DOMContentLoaded', function () {
       #cwHamburger, .ai-header, .chat-status, .modelIndicator, #modelIndicator { display: none !important; }
       .code-block { background: #09090b; border-color: #27272a; }
       .code-header { background: #18181b; border-color: #27272a; }
-      .code-lang { color: #34d399; }
+      .code-lang { color: var(--accent); }
       @keyframes mic-pulse { 0% { transform: scale(1); color: #f87171; } 50% { transform: scale(1.1); color: #ef4444; } 100% { transform: scale(1); color: #f87171; } }
+      
+      /* Themes */
+      .theme-emerald { --accent: #34d399; --accent-hover: #10b981; --user-bubble: #115e59; }
+      .theme-blue { --accent: #38bdf8; --accent-hover: #0ea5e9; --user-bubble: #0c4a6e; }
+      .theme-purple { --accent: #a78bfa; --accent-hover: #8b5cf6; --user-bubble: #4c1d95; }
+      .theme-rose { --accent: #fb7185; --accent-hover: #f43f5e; --user-bubble: #881337; }
     `;
     document.head.appendChild(CSS);
 
@@ -1020,7 +1033,7 @@ window.addEventListener('DOMContentLoaded', function () {
     var inputWrapper = document.createElement('div');
     
     if (chatArea && chatArea.tagName !== 'BODY') {
-      chatArea.className = 'cw-chat-area';
+      chatArea.className = 'cw-chat-area ' + (localStorage.getItem('cw_theme') || 'theme-emerald');
       
       var origInputArea = chatInput.parentNode;
       var origSendBtn = sendBtn;
@@ -1076,28 +1089,53 @@ window.addEventListener('DOMContentLoaded', function () {
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
           var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           var recognition = new SpeechRecognition();
-          recognition.continuous = false;
-          recognition.interimResults = false;
+          recognition.continuous = true;
+          recognition.interimResults = true;
           recognition.lang = 'en-US';
+          
+          var isRecording = false;
+          var finalTranscript = '';
 
           recognition.onstart = function() {
+              isRecording = true;
               micBtn.style.animation = 'mic-pulse 1s infinite';
               showToast('Listening... Speak now.');
           };
+          
           recognition.onresult = function(event) {
-              var transcript = event.results[0][0].transcript;
-              chatInput.value += (chatInput.value ? ' ' : '') + transcript;
+              var interimTranscript = '';
+              for (var i = event.resultIndex; i < event.results.length; ++i) {
+                  if (event.results[i].isFinal) {
+                      finalTranscript += event.results[i][0].transcript;
+                  } else {
+                      interimTranscript += event.results[i][0].transcript;
+                  }
+              }
+              // Update the input live
+              chatInput.value = finalTranscript + interimTranscript;
               chatInput.focus();
           };
+          
           recognition.onerror = function(event) {
               showToast('Mic error: ' + event.error, 'error');
-          };
-          recognition.onend = function() {
+              isRecording = false;
               micBtn.style.animation = 'none';
+          };
+          
+          recognition.onend = function() {
+              isRecording = false;
+              micBtn.style.animation = 'none';
+              // If the user stopped, ensure the final text is in the box
+              chatInput.value = finalTranscript;
           };
 
           micBtn.onclick = function() {
-              try { recognition.start(); } catch (e) { recognition.stop(); }
+              if (isRecording) {
+                  recognition.stop();
+              } else {
+                  finalTranscript = chatInput.value ? chatInput.value + ' ' : '';
+                  try { recognition.start(); } catch (e) { showToast(e.message, 'error'); }
+              }
           };
       } else {
           micBtn.onclick = function() { showToast('Voice recognition not supported in this browser.', 'error'); };
@@ -1107,8 +1145,13 @@ window.addEventListener('DOMContentLoaded', function () {
     // 3. Sidebar HTML
     sidebar.innerHTML = `
       <div class="cw-sb-header">
-        <div style="width:28px;height:28px;background:#34d399;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;">C</div>
-        CodeWix <span>AI</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <a href="dashboard.html" class="cw-back-btn" title="Back to Dashboard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </a>
+            <div style="width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#000;font-weight:bold;">C</div>
+            CodeWix <span>AI</span>
+        </div>
       </div>
       <button class="cw-new-chat-btn" id="cwSbNew">
         <span style="display:flex;align-items:center;gap:8px;">
@@ -1122,7 +1165,7 @@ window.addEventListener('DOMContentLoaded', function () {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
           Chats
         </div>
-        <div class="cw-sb-nav-item">
+        <div class="cw-sb-nav-item" id="cwThemeBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
           Chat themes
         </div>
@@ -1131,7 +1174,7 @@ window.addEventListener('DOMContentLoaded', function () {
       <div class="cw-sb-list" id="cwHistoryList"></div>
       <div class="cw-sb-footer">
         <a href="#" class="cw-pro-badge" id="cwProBadge" onclick="window.location.href='upgrade.html';return false;">
-          <div class="dot" style="width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 5px #34d399;"></div>
+          <div class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 5px var(--accent);"></div>
           <span>Pro</span> - one-time credits
         </a>
         <div class="cw-user-profile">
@@ -1152,6 +1195,38 @@ window.addEventListener('DOMContentLoaded', function () {
     var historyListBox = $('cwHistoryList');
     $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
 
+    // Chat Themes Logic
+    $('cwThemeBtn').onclick = function() {
+        var themeModal = document.createElement('div');
+        themeModal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100000; display:flex; align-items:center; justify-content:center;';
+        themeModal.innerHTML = `
+            <div style="background:#18181b; border:1px solid #27272a; border-radius:12px; padding:24px; width:300px; text-align:center;">
+                <h3 style="color:#fff; margin-bottom:20px;">Choose Chat Theme</h3>
+                <div style="display:flex; justify-content:center; gap:15px; margin-bottom:20px;">
+                    <div class="theme-option theme-emerald" data-theme="theme-emerald" style="width:40px; height:40px; border-radius:50%; background:#34d399; cursor:pointer; border:3px solid #27272a;"></div>
+                    <div class="theme-option theme-blue" data-theme="theme-blue" style="width:40px; height:40px; border-radius:50%; background:#38bdf8; cursor:pointer; border:3px solid #27272a;"></div>
+                    <div class="theme-option theme-purple" data-theme="theme-purple" style="width:40px; height:40px; border-radius:50%; background:#a78bfa; cursor:pointer; border:3px solid #27272a;"></div>
+                    <div class="theme-option theme-rose" data-theme="theme-rose" style="width:40px; height:40px; border-radius:50%; background:#fb7185; cursor:pointer; border:3px solid #27272a;"></div>
+                </div>
+                <button id="closeThemeModal" style="background:#27272a; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer;">Close</button>
+            </div>
+        `;
+        document.body.appendChild(themeModal);
+        
+        themeModal.querySelector('#closeThemeModal').onclick = () => themeModal.remove();
+        
+        themeModal.querySelectorAll('.theme-option').forEach(function(opt) {
+            opt.onclick = function() {
+                var theme = this.getAttribute('data-theme');
+                var chatArea = document.querySelector('.cw-chat-area');
+                chatArea.className = 'cw-chat-area ' + theme;
+                localStorage.setItem('cw_theme', theme);
+                themeModal.remove();
+                showToast('Theme updated!', 'success');
+            };
+        });
+    };
+
     var tokenBadge = document.createElement('div'); tokenBadge.style.display = 'none';
     
     async function updateTokenUsage() {
@@ -1167,7 +1242,7 @@ window.addEventListener('DOMContentLoaded', function () {
         
         if (proBadge) {
             if (data.isPremium) {
-                proBadge.innerHTML = '<div class="dot" style="width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 5px #34d399;"></div><span>Pro</span> - active subscription';
+                proBadge.innerHTML = '<div class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 5px var(--accent);"></div><span>Pro</span> - active subscription';
                 proBadge.href = '#';
             } else {
                 proBadge.innerHTML = '<div class="dot" style="width:6px;height:6px;border-radius:50%;background:#fbbf24;"></div><span style="color:#fbbf24;">Upgrade to Pro</span> - unlock features';
@@ -1271,7 +1346,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
             escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #27272a;"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
             escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
-                return '<div style="color:#34d399; font-size:14px; margin-top:10px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div><img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #27272a;" />';
+                return '<div style="color:var(--accent); font-size:14px; margin-top:10px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div><img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #27272a;" />';
             });
 
             escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #27272a;" />');
@@ -1296,7 +1371,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
           
           body = body.replace(/\n$/, ''); 
           var displayTitle = filename || lang;
-          var applyBtnHtml = filename ? `<button type="button" class="apply-ide-btn" style="background:#34d399;color:#000;border:none;border-radius:4px;padding:4px 12px;font-weight:bold;font-size:11px;cursor:pointer;margin-right:6px;">🔥 Apply</button>` : '';
+          var applyBtnHtml = filename ? `<button type="button" class="apply-ide-btn" style="background:var(--accent);color:#000;border:none;border-radius:4px;padding:4px 12px;font-weight:bold;font-size:11px;cursor:pointer;margin-right:6px;">🔥 Apply</button>` : '';
 
           html += '<div class="code-block" data-lang="' + escapeHtml(lang) + '"' + (filename ? ' data-filename="' + escapeHtml(filename) + '"' : '') + '><div class="code-header"><span class="code-lang">' + escapeHtml(displayTitle) + '</span><div class="code-actions">' + applyBtnHtml + '<button type="button" class="download-code-btn" style="background:#27272a;color:#e4e4e7;border:1px solid #3f3f46;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;margin-right:6px;">⬇</button><button type="button" class="copy-btn" style="background:#27272a;color:#e4e4e7;border:1px solid #3f3f46;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;">Copy</button></div></div><pre><code>' + escapeHtml(body) + '</code></pre></div>';
         }
@@ -1438,7 +1513,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
             <div id="applyIdeModal" class="modal-backdrop" style="display:flex; z-index:99999;">
               <div class="modal" style="max-width:400px; background:#18181b; border:1px solid #27272a; border-radius:12px; color:#e4e4e7;">
                 <div class="modal-header" style="border-bottom:1px solid #27272a;">
-                  <h2 style="color:#34d399;">Apply to Project</h2>
+                  <h2 style="color:var(--accent);">Apply to Project</h2>
                   <button class="modal-close" id="closeApplyModal" style="color:#a1a1aa;">×</button>
                 </div>
                 <div class="modal-body">
@@ -1451,7 +1526,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
 
           modalHtml += `
                   </select>
-                  <button id="confirmApplyBtn" style="width:100%; background:#34d399; color:#000; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Apply Code & Open IDE</button>
+                  <button id="confirmApplyBtn" style="width:100%; background:var(--accent); color:#000; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Apply Code & Open IDE</button>
                 </div>
               </div>
             </div>
