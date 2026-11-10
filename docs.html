@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeWix Documentation</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --sidebar-bg: #0b1324;
+            --border: #1e293b;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --pro: #fbbf24;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar */
+        .sidebar { width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 24px; border-bottom: 1px solid var(--border); }
+        .sidebar-header h1 { font-size: 20px; color: var(--primary); font-weight: bold; display: flex; align-items: center; gap: 8px; }
+        .sidebar-nav { flex: 1; overflow-y: auto; padding: 20px 10px; }
+        .nav-item { padding: 10px 15px; border-radius: 6px; color: var(--text-muted); text-decoration: none; display: block; font-size: 14px; margin-bottom: 4px; cursor: pointer; transition: 0.2s; }
+        .nav-item:hover, .nav-item.active { background: rgba(56, 189, 248, 0.1); color: var(--primary); font-weight: 600; }
+        .sidebar-footer { padding: 20px; border-top: 1px solid var(--border); }
+        .back-btn { display: block; text-align: center; padding: 10px; background: var(--primary); color: #000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .back-btn:hover { background: #0ea5e9; }
+
+        /* Main Content */
+        .main-content { flex: 1; overflow-y: auto; padding: 40px 80px; scroll-behavior: smooth; }
+        .content-section { max-width: 800px; margin: 0 auto 60px; }
+        .content-section h2 { font-size: 32px; color: #fff; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .content-section h3 { font-size: 22px; color: var(--primary); margin: 30px 0 15px; }
+        .content-section p { font-size: 16px; line-height: 1.7; color: var(--text-muted); margin-bottom: 15px; }
+        .content-section ul { margin-left: 20px; margin-bottom: 20px; color: var(--text-muted); line-height: 1.7; font-size: 16px; }
+        .content-section li { margin-bottom: 8px; }
+        .content-section code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #34d399; font-size: 14px; }
+        .content-section strong { color: #fff; }
+        .pro-badge { background: var(--pro); color: #000; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 8px; }
+        
+        .image-placeholder { width: 100%; height: 250px; background: #1e293b; border: 2px dashed #334155; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748b; font-weight: bold; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1>📚 CodeWix Docs</h1>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#getting-started" class="nav-item active">Getting Started</a>
+            <a href="#dashboard" class="nav-item">The Workspace (IDE)</a>
+            <a href="#ai-assistant" class="nav-item">AI Assistant</a>
+            <a href="#page-builder" class="nav-item">Page Builder</a>
+            <a href="#publishing" class="nav-item">Publishing Sites</a>
+            <a href="#pro-features" class="nav-item">Pro Features</a>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="dashboard.html" class="back-btn">← Back to Dashboard</a>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div id="getting-started" class="content-section">
+            <h2>Getting Started</h2>
+            <p>Welcome to CodeWix, the ultimate AI-powered web development platform. CodeWix allows you to build websites, write code, and generate AI content all in one place.</p>
+            
+            <h3>Creating an Account</h3>
+            <p>To get started, click on the <strong>Sign Up</strong> button on the homepage. You can register using your email address or sign in securely with Google. You will be required to verify your email address before you can access the workspace.</p>
+            
+            <h3>Navigating the Dashboard</h3>
+            <p>Once logged in, you will land on your Dashboard. From here, you have access to:</p>
+            <ul>
+                <li><strong>Workspace:</strong> A full-featured code editor (IDE) with live preview.</li>
+                <li><strong>AI Assistant:</strong> A chat interface to talk to AI models like Llama 3 and GPT.</li>
+                <li><strong>Page Builder:</strong> A visual drag-and-drop website builder.</li>
+                <li><strong>Learn:</strong> Interactive coding lessons.</li>
+                <li><strong>Explore:</strong> A gallery of websites built by other CodeWix users.</li>
+            </ul>
+        </div>
+
+        <div id="dashboard" class="content-section">
+            <h2>The Workspace (IDE)</h2>
+            <p>The CodeWix Workspace is a powerful browser-based IDE. It comes with built-in support for HTML, CSS, and JavaScript.</p>
+            
+            <h3>Files & Code Editor</h3>
+            <p>On the left, you have the File Explorer. You can create new files, rename them, or upload assets (images, fonts) from your computer. The center panel is the code editor, which features syntax highlighting and autocomplete.</p>
+            
+            <h3>Live Preview</h3>
+            <p>The right panel shows a real-time preview of your website. Whenever you type code and hit <strong>Build & Run</strong>, the preview updates instantly.</p>
+            <div class="image-placeholder">[ IDE Screenshot Placeholder ]</div>
+        </div>
+
+        <div id="ai-assistant" class="content-section">
+            <h2>AI Assistant</h2>
+            <p>The CodeWix AI Assistant is your personal coding companion. It can write code, debug errors, generate images, and explain complex concepts.</p>
+            
+            <h3>Using the Chat</h3>
+            <p>Simply type a prompt like <em>"Build a responsive landing page for a coffee shop with a contact form"</em>. The AI will generate the code and wrap it in a code block. Click <strong>🔥 Apply to IDE</strong> to instantly load the generated code into your workspace!</p>
+            
+            <h3>Voice Notes (VN)</h3>
+            <p>Don't feel like typing? Click the <strong>🎤 Microphone icon</strong> at the bottom of the chat. The AI will listen to you speak and transcribe your voice into text automatically.</p>
+            
+            <h3>Image Generation</h3>
+            <p>Ask the AI to generate an image (e.g., <em>"Generate an image of a futuristic car"</em>). It will automatically use our integrated backend image generator to display it.</p>
+        </div>
+
+        <div id="page-builder" class="content-section">
+            <h2>Page Builder</h2>
+            <p>The Page Builder is a visual tool designed for users who want to create beautiful websites without writing any code. It works similarly to WordPress or Wix.</p>
+            
+            <h3>How to use it</h3>
+            <ul>
+                <li><strong>Add Blocks:</strong> Click on blocks like "Header", "Text", or "Image" in the left sidebar to add them to the page.</li>
+                <li><strong>Edit Text:</strong> Click directly on any text on the page and start typing to edit it.</li>
+                <li><strong>Colors:</strong> Use the color pickers in the top toolbar to change the background, heading colors, and text colors of the entire site.</li>
+                <li><strong>Multi-page:</strong> Enter a name in the "Pages" section and click `+` to create new pages (e.g., About Us, Contact).</li>
+                <li><strong>Save:</strong> Click <strong>Save to CodeWix</strong> to push the project to your Workspace.</li>
+            </ul>
+        </div>
+
+        <div id="publishing" class="content-section">
+            <h2>Publishing Sites</h2>
+            <p>Once you have built a project (either via the IDE or Page Builder), it's time to share it with the world.</p>
+            
+            <h3>How to Publish</h3>
+            <p>Go to the <strong>Publish</strong> tab. Select the project from the dropdown, give it a unique URL slug (e.g., <code>my-cool-site</code>), and click Publish.</p>
+            <p>Your site will instantly go live at <code>codewix.com/s/my-cool-site</code>. You can share this link with anyone!</p>
+            
+            <h3>Custom Domains <span class="pro-badge">PRO</span></h3>
+            <p>Free users get a CodeWix subdomain. Pro users can connect custom domains (like <code>www.mycompany.com</code>) and remove the "Built with CodeWix" watermark.</p>
+        </div>
+
+        <div id="pro-features" class="content-section">
+            <h2>Pro Features</h2>
+            <p>Upgrade to CodeWix Pro to unlock the full potential of the platform.</p>
+            <ul>
+                <li><strong>Unlimited AI Tokens:</strong> Never hit a rate limit again.</li>
+                <li><strong>Smart Models:</strong> Access Llama 3.1 70B for incredibly smart code generation.</li>
+                <li><strong>AI Site Builder:</strong> Generate complete sites from a single prompt in the IDE.</li>
+                <li><strong>File Uploads:</strong> Upload files up to 5MB (Free users get 300KB).</li>
+                <li><strong>GitHub Export:</strong> Push your CodeWix projects directly to a GitHub repository.</li>
+                <li><strong>Unlimited Projects:</strong> Free users can only publish 1 site. Pro users get unlimited.</li>
+            </ul>
+        </div>
+    </main>
+
+    <script>
+        // Simple script to highlight active nav item on scroll
+        const sections = document.querySelectorAll('.content-section');
+        const navItems = document.querySelectorAll('.nav-item');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (window.scrollY >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navItems.forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('href') === `#${current}`) {
+                    item.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
