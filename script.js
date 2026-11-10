@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - LITHUS AI UI + Fixes)
+// CodeWix — script.js (Full Master File - Vision Fix)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -1555,7 +1555,14 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       var model = modelSelect ? modelSelect.value : 'openai/gpt-oss-120b', showThinking = thinkingToggle ? thinkingToggle.checked : false;
       if (!authUser) { showToast('Sign in first.', 'error'); return; }
       var hasImages = pendingAttachments.some(function (a) { return a.type === 'image'; });
-      if (hasImages && !/vision/.test(model)) { model = 'meta-llama/llama-4-scout-17b-16e-instruct'; if (modelSelect) modelSelect.value = model; showToast('Switched to vision model', 'success'); }
+      
+      // FIXED: Changed to a valid Groq vision model
+      if (hasImages && !/vision/.test(model)) { 
+          model = 'llama-3.2-11b-vision-preview'; 
+          if (modelSelect) modelSelect.value = model; 
+          showToast('Switched to vision model', 'success'); 
+      }
+      
       if (modelIndicator) modelIndicator.textContent = model; currentUserName = getUsername();
       var dynamicSystemPrompt = { role: 'system', content: SYSTEM_PROMPT.content + '\n\nBegin EVERY response with: "Dear ' + currentUserName + ', "' };
       if (conversation.length === 1 && chatContainer.querySelector('.assistant-message')) chatContainer.innerHTML = '';
