@@ -1,173 +1,1073 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CodeWix Documentation</title>
-    <style>
-        :root {
-            --bg-dark: #0f172a;
-            --sidebar-bg: #0b1324;
-            --border: #1e293b;
-            --text-main: #e2e8f0;
-            --text-muted: #94a3b8;
-            --primary: #38bdf8;
-            --pro: #fbbf24;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-        body { background: var(--bg-dark); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
-        
-        /* Sidebar */
-        .sidebar { width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-        .sidebar-header { padding: 24px; border-bottom: 1px solid var(--border); }
-        .sidebar-header h1 { font-size: 20px; color: var(--primary); font-weight: bold; display: flex; align-items: center; gap: 8px; }
-        .sidebar-nav { flex: 1; overflow-y: auto; padding: 20px 10px; }
-        .nav-item { padding: 10px 15px; border-radius: 6px; color: var(--text-muted); text-decoration: none; display: block; font-size: 14px; margin-bottom: 4px; cursor: pointer; transition: 0.2s; }
-        .nav-item:hover, .nav-item.active { background: rgba(56, 189, 248, 0.1); color: var(--primary); font-weight: 600; }
-        .sidebar-footer { padding: 20px; border-top: 1px solid var(--border); }
-        .back-btn { display: block; text-align: center; padding: 10px; background: var(--primary); color: #000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; transition: 0.2s; }
-        .back-btn:hover { background: #0ea5e9; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Official documentation for CodeWix — the AI-powered web development platform.">
+<title>Documentation · CodeWix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1120;
+    --bg-elevated: #0f172a;
+    --sidebar-bg: #070b14;
+    --surface: #111c33;
+    --surface-hover: #172540;
+    --border: #1e293b;
+    --border-strong: #334155;
+    --text: #e2e8f0;
+    --text-strong: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+    --primary: #38bdf8;
+    --primary-hover: #0ea5e9;
+    --primary-soft: rgba(56, 189, 248, 0.12);
+    --pro: #fbbf24;
+    --pro-soft: rgba(251, 191, 36, 0.12);
+    --success: #34d399;
+    --danger: #f87171;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --sidebar-w: 296px;
+    --topbar-h: 64px;
+  }
+  [data-theme="light"] {
+    --bg: #ffffff;
+    --bg-elevated: #f8fafc;
+    --sidebar-bg: #f1f5f9;
+    --surface: #f1f5f9;
+    --surface-hover: #e2e8f0;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --text: #1e293b;
+    --text-strong: #0f172a;
+    --text-muted: #475569;
+    --text-dim: #94a3b8;
+    --primary: #0284c7;
+    --primary-hover: #0369a1;
+    --primary-soft: rgba(2, 132, 199, 0.1);
+    --pro: #d97706;
+    --pro-soft: rgba(217, 119, 6, 0.1);
+    --success: #059669;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  }
 
-        /* Main Content */
-        .main-content { flex: 1; overflow-y: auto; padding: 40px 80px; scroll-behavior: smooth; }
-        .content-section { max-width: 800px; margin: 0 auto 60px; }
-        .content-section h2 { font-size: 32px; color: #fff; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        .content-section h3 { font-size: 22px; color: var(--primary); margin: 30px 0 15px; }
-        .content-section p { font-size: 16px; line-height: 1.7; color: var(--text-muted); margin-bottom: 15px; }
-        .content-section ul { margin-left: 20px; margin-bottom: 20px; color: var(--text-muted); line-height: 1.7; font-size: 16px; }
-        .content-section li { margin-bottom: 8px; }
-        .content-section code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #34d399; font-size: 14px; }
-        .content-section strong { color: #fff; }
-        .pro-badge { background: var(--pro); color: #000; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 8px; }
-        
-        .image-placeholder { width: 100%; height: 250px; background: #1e293b; border: 2px dashed #334155; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #64748b; font-weight: bold; margin: 20px 0; }
-    </style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-rows: var(--topbar-h) 1fr;
+    grid-template-areas:
+      "sidebar topbar"
+      "sidebar main";
+  }
+
+  /* ============ SIDEBAR ============ */
+  .sidebar {
+    grid-area: sidebar;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 20;
+  }
+
+  .sidebar-header {
+    padding: 22px 20px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sidebar-header .logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--primary), #818cf8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-weight: 800;
+    font-size: 16px;
+    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);
+    flex-shrink: 0;
+  }
+  .sidebar-header .brand { display: flex; flex-direction: column; line-height: 1.2; }
+  .sidebar-header .brand strong { font-size: 15px; color: var(--text-strong); letter-spacing: -0.01em; }
+  .sidebar-header .brand span { font-size: 11px; color: var(--text-dim); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .search-wrap {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  #docSearch {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px 9px 36px;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #docSearch:focus { border-color: var(--primary); background: var(--bg); }
+  #docSearch::placeholder { color: var(--text-dim); }
+  #docSearch:focus::placeholder { color: var(--text-muted); }
+
+  .sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 12px 24px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .sidebar-nav::-webkit-scrollbar { width: 8px; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+  .nav-group-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 12px 12px 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 500;
+    margin-bottom: 2px;
+    border-left: 2px solid transparent;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .nav-item:hover { background: var(--surface); color: var(--text); }
+  .nav-item.active {
+    background: var(--primary-soft);
+    color: var(--primary);
+    border-left-color: var(--primary);
+    font-weight: 600;
+  }
+  .nav-item .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .nav-item.active .dot { background: var(--primary); }
+  .nav-item:hover .dot { background: var(--text-muted); }
+
+  .sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: var(--primary);
+    color: #000;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 13px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .back-btn:hover { background: var(--primary-hover); }
+  .back-btn:active { transform: scale(0.98); }
+  .back-btn svg { width: 14px; height: 14px; }
+
+  /* ============ TOP BAR ============ */
+  .topbar {
+    grid-area: topbar;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    gap: 16px;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+  .mobile-menu-btn {
+    display: none;
+    background: none; border: none; color: var(--text-muted);
+    width: 36px; height: 36px; border-radius: var(--radius-sm);
+    cursor: pointer; align-items: center; justify-content: center;
+  }
+  .mobile-menu-btn:hover { background: var(--surface); color: var(--text); }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    min-width: 0;
+  }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--primary); }
+  .breadcrumb .sep { color: var(--text-dim); }
+  .breadcrumb .current { color: var(--text-strong); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+  .icon-btn {
+    width: 36px; height: 36px;
+    background: none; border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .icon-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+  .icon-btn svg { width: 16px; height: 16px; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .btn-ghost:hover { background: var(--surface); border-color: var(--border-strong); }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    color: #000;
+    background: var(--primary);
+    border: 1px solid var(--primary);
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+
+  /* ============ MAIN ============ */
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    position: relative;
+  }
+  .main::-webkit-scrollbar { width: 10px; }
+  .main::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+  .main::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  .scroll-progress {
+    position: absolute;
+    top: 0; left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary), #818cf8);
+    width: 0%;
+    z-index: 10;
+    transition: width 0.1s linear;
+  }
+
+  .content-wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  .content-section { padding-top: 16px; scroll-margin-top: 24px; }
+  .content-section + .content-section { margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--border); }
+  .content-section.hidden { display: none; }
+  .content-section mark { background: var(--pro-soft); color: var(--pro); padding: 0 3px; border-radius: 3px; font-weight: 600; }
+
+  .content-section h2 {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-strong);
+    margin-bottom: 16px;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .content-section h2 .num {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-soft);
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.04em;
+  }
+  .content-section h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-strong);
+    margin: 32px 0 12px;
+    letter-spacing: -0.01em;
+    scroll-margin-top: 24px;
+  }
+  .content-section p {
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+  .content-section p:last-child { margin-bottom: 0; }
+  .content-section ul, .content-section ol {
+    margin: 0 0 18px;
+    padding-left: 22px;
+    color: var(--text-muted);
+    line-height: 1.75;
+  }
+  .content-section li { margin-bottom: 8px; }
+  .content-section li strong { color: var(--text-strong); font-weight: 600; }
+  .content-section strong { color: var(--text-strong); font-weight: 600; }
+  .content-section a { color: var(--primary); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+  .content-section a:hover { border-bottom-color: var(--primary); }
+
+  .content-section code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 13px;
+    color: var(--success);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+    white-space: nowrap;
+  }
+  .content-section code:hover { border-color: var(--success); background: var(--bg); }
+  .content-section code.copied { color: var(--pro); border-color: var(--pro); }
+
+  .pro-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--pro-soft);
+    color: var(--pro);
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    margin-left: 6px;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+  }
+
+  .callout {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    margin: 18px 0;
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+  .callout.tip { border-left-color: var(--success); }
+  .callout.warn { border-left-color: var(--pro); }
+  .callout .ico { flex-shrink: 0; font-size: 18px; line-height: 1.3; }
+  .callout strong { color: var(--text-strong); }
+
+  .image-placeholder {
+    width: 100%;
+    height: 240px;
+    background:
+      repeating-linear-gradient(45deg, var(--surface) 0 12px, var(--bg-elevated) 12px 24px);
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    margin: 24px 0;
+    text-transform: uppercase;
+  }
+
+  /* Prev / Next nav */
+  .page-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 40px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+  .page-nav a {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    transition: 0.15s;
+    min-width: 0;
+  }
+  .page-nav a:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .page-nav a.next { text-align: right; align-items: flex-end; }
+  .page-nav .label { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .page-nav .title { font-size: 14px; font-weight: 600; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .page-nav a:hover .title { color: var(--primary); }
+  .page-nav .spacer { visibility: hidden; }
+
+  /* Back-to-top */
+  .to-top {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #000;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+    transition: opacity 0.2s, transform 0.2s, background 0.15s;
+    z-index: 30;
+  }
+  .to-top.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .to-top:hover { background: var(--primary-hover); }
+  .to-top svg { width: 18px; height: 18px; }
+
+  /* Empty search */
+  .no-results {
+    display: none;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .no-results.visible { display: block; }
+  .no-results strong { color: var(--text-strong); display: block; margin-bottom: 8px; font-size: 16px; }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 900px) {
+    body {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "topbar"
+        "main";
+    }
+    .sidebar {
+      position: fixed;
+      top: 0; bottom: 0; left: 0;
+      width: var(--sidebar-w);
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      box-shadow: var(--shadow-md);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .mobile-menu-btn { display: inline-flex; }
+    .topbar { padding: 0 16px; }
+    .content-wrap { padding: 32px 20px 80px; }
+    .content-section h2 { font-size: 24px; }
+    .content-section h3 { font-size: 17px; }
+    .back-btn { display: none; }
+    .breadcrumb .current { display: none; }
+    .sidebar-footer { flex-direction: row; }
+    .sidebar-footer .btn-ghost, .sidebar-footer .back-btn { flex: 1; }
+  }
+  @media (max-width: 480px) {
+    .btn-label { display: none; }
+    .page-nav { grid-template-columns: 1fr; }
+    .page-nav a.next { text-align: left; align-items: flex-start; }
+    .page-nav .spacer { display: none; }
+  }
+
+  /* Backdrop for mobile drawer */
+  .backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 15;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .backdrop.visible { opacity: 1; pointer-events: auto; }
+  @media (min-width: 901px) { .backdrop { display: none; } }
+</style>
 </head>
 <body>
 
-    <aside class="sidebar">
-        <div class="sidebar-header">
-            <h1>📚 CodeWix Docs</h1>
-        </div>
-        <nav class="sidebar-nav">
-            <a href="#getting-started" class="nav-item active">Getting Started</a>
-            <a href="#dashboard" class="nav-item">The Workspace (IDE)</a>
-            <a href="#ai-assistant" class="nav-item">AI Assistant</a>
-            <a href="#page-builder" class="nav-item">Page Builder</a>
-            <a href="#publishing" class="nav-item">Publishing Sites</a>
-            <a href="#pro-features" class="nav-item">Pro Features</a>
-        </nav>
-        <div class="sidebar-footer">
-            <a href="dashboard.html" class="back-btn">← Back to Dashboard</a>
-        </div>
-    </aside>
+<!-- Backdrop for mobile sidebar -->
+<div class="backdrop" id="backdrop"></div>
 
-    <main class="main-content">
-        <div id="getting-started" class="content-section">
-            <h2>Getting Started</h2>
-            <p>Welcome to CodeWix, the ultimate AI-powered web development platform. CodeWix allows you to build websites, write code, and generate AI content all in one place.</p>
-            
-            <h3>Creating an Account</h3>
-            <p>To get started, click on the <strong>Sign Up</strong> button on the homepage. You can register using your email address or sign in securely with Google. You will be required to verify your email address before you can access the workspace.</p>
-            
-            <h3>Navigating the Dashboard</h3>
-            <p>Once logged in, you will land on your Dashboard. From here, you have access to:</p>
-            <ul>
-                <li><strong>Workspace:</strong> A full-featured code editor (IDE) with live preview.</li>
-                <li><strong>AI Assistant:</strong> A chat interface to talk to AI models like Llama 3 and GPT.</li>
-                <li><strong>Page Builder:</strong> A visual drag-and-drop website builder.</li>
-                <li><strong>Learn:</strong> Interactive coding lessons.</li>
-                <li><strong>Explore:</strong> A gallery of websites built by other CodeWix users.</li>
-            </ul>
-        </div>
+<!-- ============ SIDEBAR ============ -->
+<aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+  <div class="sidebar-header">
+    <div class="logo">C</div>
+    <div class="brand">
+      <strong>CodeWix Docs</strong>
+      <span>v1.0 · Documentation</span>
+    </div>
+  </div>
 
-        <div id="dashboard" class="content-section">
-            <h2>The Workspace (IDE)</h2>
-            <p>The CodeWix Workspace is a powerful browser-based IDE. It comes with built-in support for HTML, CSS, and JavaScript.</p>
-            
-            <h3>Files & Code Editor</h3>
-            <p>On the left, you have the File Explorer. You can create new files, rename them, or upload assets (images, fonts) from your computer. The center panel is the code editor, which features syntax highlighting and autocomplete.</p>
-            
-            <h3>Live Preview</h3>
-            <p>The right panel shows a real-time preview of your website. Whenever you type code and hit <strong>Build & Run</strong>, the preview updates instantly.</p>
-            <div class="image-placeholder">[ IDE Screenshot Placeholder ]</div>
-        </div>
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+    <input type="search" id="docSearch" placeholder="Search documentation…" aria-label="Search documentation">
+  </div>
 
-        <div id="ai-assistant" class="content-section">
-            <h2>AI Assistant</h2>
-            <p>The CodeWix AI Assistant is your personal coding companion. It can write code, debug errors, generate images, and explain complex concepts.</p>
-            
-            <h3>Using the Chat</h3>
-            <p>Simply type a prompt like <em>"Build a responsive landing page for a coffee shop with a contact form"</em>. The AI will generate the code and wrap it in a code block. Click <strong>🔥 Apply to IDE</strong> to instantly load the generated code into your workspace!</p>
-            
-            <h3>Voice Notes (VN)</h3>
-            <p>Don't feel like typing? Click the <strong>🎤 Microphone icon</strong> at the bottom of the chat. The AI will listen to you speak and transcribe your voice into text automatically.</p>
-            
-            <h3>Image Generation</h3>
-            <p>Ask the AI to generate an image (e.g., <em>"Generate an image of a futuristic car"</em>). It will automatically use our integrated backend image generator to display it.</p>
-        </div>
+  <nav class="sidebar-nav" id="sidebarNav">
+    <div class="nav-group-label">Introduction</div>
+    <a href="#getting-started" class="nav-item active" data-section="getting-started"><span class="dot"></span>Getting Started</a>
 
-        <div id="page-builder" class="content-section">
-            <h2>Page Builder</h2>
-            <p>The Page Builder is a visual tool designed for users who want to create beautiful websites without writing any code. It works similarly to WordPress or Wix.</p>
-            
-            <h3>How to use it</h3>
-            <ul>
-                <li><strong>Add Blocks:</strong> Click on blocks like "Header", "Text", or "Image" in the left sidebar to add them to the page.</li>
-                <li><strong>Edit Text:</strong> Click directly on any text on the page and start typing to edit it.</li>
-                <li><strong>Colors:</strong> Use the color pickers in the top toolbar to change the background, heading colors, and text colors of the entire site.</li>
-                <li><strong>Multi-page:</strong> Enter a name in the "Pages" section and click `+` to create new pages (e.g., About Us, Contact).</li>
-                <li><strong>Save:</strong> Click <strong>Save to CodeWix</strong> to push the project to your Workspace.</li>
-            </ul>
-        </div>
+    <div class="nav-group-label">Building</div>
+    <a href="#dashboard" class="nav-item" data-section="dashboard"><span class="dot"></span>The Workspace (IDE)</a>
+    <a href="#ai-assistant" class="nav-item" data-section="ai-assistant"><span class="dot"></span>AI Assistant</a>
+    <a href="#page-builder" class="nav-item" data-section="page-builder"><span class="dot"></span>Page Builder</a>
 
-        <div id="publishing" class="content-section">
-            <h2>Publishing Sites</h2>
-            <p>Once you have built a project (either via the IDE or Page Builder), it's time to share it with the world.</p>
-            
-            <h3>How to Publish</h3>
-            <p>Go to the <strong>Publish</strong> tab. Select the project from the dropdown, give it a unique URL slug (e.g., <code>my-cool-site</code>), and click Publish.</p>
-            <p>Your site will instantly go live at <code>codewix.com/s/my-cool-site</code>. You can share this link with anyone!</p>
-            
-            <h3>Custom Domains <span class="pro-badge">PRO</span></h3>
-            <p>Free users get a CodeWix subdomain. Pro users can connect custom domains (like <code>www.mycompany.com</code>) and remove the "Built with CodeWix" watermark.</p>
-        </div>
+    <div class="nav-group-label">Shipping</div>
+    <a href="#publishing" class="nav-item" data-section="publishing"><span class="dot"></span>Publishing Sites</a>
 
-        <div id="pro-features" class="content-section">
-            <h2>Pro Features</h2>
-            <p>Upgrade to CodeWix Pro to unlock the full potential of the platform.</p>
-            <ul>
-                <li><strong>Unlimited AI Tokens:</strong> Never hit a rate limit again.</li>
-                <li><strong>Smart Models:</strong> Access Llama 3.1 70B for incredibly smart code generation.</li>
-                <li><strong>AI Site Builder:</strong> Generate complete sites from a single prompt in the IDE.</li>
-                <li><strong>File Uploads:</strong> Upload files up to 5MB (Free users get 300KB).</li>
-                <li><strong>GitHub Export:</strong> Push your CodeWix projects directly to a GitHub repository.</li>
-                <li><strong>Unlimited Projects:</strong> Free users can only publish 1 site. Pro users get unlimited.</li>
-            </ul>
-        </div>
-    </main>
+    <div class="nav-group-label">Account</div>
+    <a href="#pro-features" class="nav-item" data-section="pro-features"><span class="dot"></span>Pro Features</a>
+  </nav>
 
-    <script>
-        // Simple script to highlight active nav item on scroll
-        const sections = document.querySelectorAll('.content-section');
-        const navItems = document.querySelectorAll('.nav-item');
+  <div class="sidebar-footer">
+    <a href="dashboard.html" class="back-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      Back to Dashboard
+    </a>
+  </div>
+</aside>
 
-        window.addEventListener('scroll', () => {
-            let current = '';
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop;
-                if (window.scrollY >= sectionTop - 100) {
-                    current = section.getAttribute('id');
-                }
-            });
+<!-- ============ TOP BAR ============ -->
+<header class="topbar">
+  <div class="topbar-left">
+    <button class="mobile-menu-btn" id="menuBtn" aria-label="Open navigation" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </button>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="dashboard.html">Dashboard</a>
+      <span class="sep">/</span>
+      <span>Docs</span>
+      <span class="sep">/</span>
+      <span class="current" id="breadcrumbCurrent">Getting Started</span>
+    </nav>
+  </div>
+  <div class="topbar-right">
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    </button>
+    <a href="upgrade.html" class="btn-primary">
+      <span class="btn-label">Upgrade</span> <span>⚡</span>
+    </a>
+  </div>
+</header>
 
-            navItems.forEach(item => {
-                item.classList.remove('active');
-                if (item.getAttribute('href') === `#${current}`) {
-                    item.classList.add('active');
-                }
-            });
-        });
-    </script>
+<!-- ============ MAIN ============ -->
+<main class="main" id="mainScroll">
+  <div class="scroll-progress" id="scrollProgress"></div>
+
+  <div class="content-wrap" id="contentWrap">
+
+    <section id="getting-started" class="content-section">
+      <h2><span class="num">01</span> Getting Started</h2>
+      <p>Welcome to <strong>CodeWix</strong> — the AI-powered web development platform that lets you design, build, and ship websites entirely in your browser. No setup, no installs, no toolchain headaches.</p>
+
+      <h3>Creating an Account</h3>
+      <p>Click <strong>Sign Up</strong> on the homepage. You can register with an email address or sign in with Google. You'll need to verify your email before accessing the workspace.</p>
+
+      <h3>Navigating the Dashboard</h3>
+      <p>Once signed in, your dashboard gives you access to every part of the platform:</p>
+      <ul>
+        <li><strong>Workspace</strong> — a full-featured IDE with live preview.</li>
+        <li><strong>AI Assistant</strong> — chat with advanced models to generate, debug, and explain code.</li>
+        <li><strong>Page Builder</strong> — visual, drag-and-drop site builder with no code required.</li>
+        <li><strong>Learn</strong> — interactive coding lessons from beginner to advanced.</li>
+        <li><strong>Explore</strong> — a gallery of sites built by the CodeWix community.</li>
+      </ul>
+
+      <div class="callout tip">
+        <span class="ico">💡</span>
+        <div><strong>Tip:</strong> Every project autosaves to your account — you can close the tab and pick up right where you left off.</div>
+      </div>
+    </section>
+
+    <section id="dashboard" class="content-section">
+      <h2><span class="num">02</span> The Workspace (IDE)</h2>
+      <p>The CodeWix Workspace is a professional-grade, browser-based IDE with first-class support for HTML, CSS, JavaScript, PHP, and Python.</p>
+
+      <h3>Files &amp; Code Editor</h3>
+      <p>The left pane is your <strong>File Explorer</strong> — create, rename, or upload assets (images, fonts, data files). The center pane is a syntax-highlighted editor with autocomplete and bracket matching powered by CodeMirror.</p>
+
+      <h3>Live Preview</h3>
+      <p>The right pane renders your site in real time. Hit <strong>Build &amp; Run</strong> or just keep typing — the preview updates automatically whenever your files change.</p>
+
+      <div class="image-placeholder"><img src="codewix.png"></div>
+
+      <div class="callout">
+        <span class="ico">📎</span>
+        <div><strong>File uploads:</strong> Free users can upload files up to <code>300 KB</code>. Pro users can upload up to <code>5 MB</code> per file.</div>
+      </div>
+    </section>
+
+    <section id="ai-assistant" class="content-section">
+      <h2><span class="num">03</span> AI Assistant</h2>
+      <p>The CodeWix AI Assistant is your always-on coding partner. It can write new files, fix bugs, explain unfamiliar code, and even generate images.</p>
+
+      <h3>Using the Chat</h3>
+      <p>Try a prompt like <em>"Build a responsive landing page for a coffee shop with a contact form"</em>. The AI returns ready-to-use code inside a code block. Click <strong>🔥 Apply to IDE</strong> to import it straight into your workspace as a new file — no copy-pasting required.</p>
+
+      <h3>Voice Notes</h3>
+      <p>Prefer to speak? Click the <strong>🎤 microphone</strong> button. The AI listens and transcribes your voice into the prompt box in real time.</p>
+
+      <h3>Image Generation</h3>
+      <p>Ask for an image — e.g., <em>"Generate an image of a futuristic car"</em> — and the assistant will return it rendered inline using the integrated image backend.</p>
+
+      <div class="callout warn">
+        <span class="ico">⚠️</span>
+        <div><strong>Rate limits:</strong> Free users get a daily token allowance. Hit <strong>Upgrade</strong> for unlimited usage and access to premium models.</div>
+      </div>
+    </section>
+
+    <section id="page-builder" class="content-section">
+      <h2><span class="num">04</span> Page Builder</h2>
+      <p>A visual, WYSIWYG editor for users who want beautiful sites without touching code. It works like WordPress or Wix — but ships directly into the CodeWix Workspace.</p>
+
+      <h3>How to Use It</h3>
+      <ul>
+        <li><strong>Add blocks:</strong> Click "Header", "Text", "Image", or "Section" in the left sidebar to drop them onto the page.</li>
+        <li><strong>Edit text:</strong> Click directly on any text block and start typing.</li>
+        <li><strong>Customize colors:</strong> Use the toolbar color pickers to change backgrounds, headings, and body text.</li>
+        <li><strong>Multi-page:</strong> Under "Pages", type a name and click <code>+</code> to create additional pages (e.g., <em>About</em>, <em>Contact</em>).</li>
+        <li><strong>Save:</strong> Click <strong>Save to CodeWix</strong> to push the generated project into your Workspace.</li>
+      </ul>
+    </section>
+
+    <section id="publishing" class="content-section">
+      <h2><span class="num">05</span> Publishing Sites</h2>
+      <p>When a project is ready, publish it in seconds — no build step, no FTP, no server config.</p>
+
+      <h3>How to Publish</h3>
+      <p>Open the <strong>Publish</strong> tab, pick a project from the dropdown, choose a unique slug (e.g., <code>my-cool-site</code>), and click <strong>Publish</strong>.</p>
+      <p>Your site is instantly live at <code>codewix.com/s/my-cool-site</code> — share the link anywhere.</p>
+
+      <h3>Custom Domains <span class="pro-badge">PRO</span></h3>
+      <p>Free sites use a CodeWix subdomain. Pro users can connect their own domains (e.g., <code>www.mycompany.com</code>) and remove the "Built with CodeWix" watermark from all pages.</p>
+    </section>
+
+    <section id="pro-features" class="content-section">
+      <h2><span class="num">06</span> Pro Features</h2>
+      <p>Upgrade to <strong>CodeWix Pro</strong> to unlock the platform's full potential.</p>
+      <ul>
+        <li><strong>Unlimited AI tokens</strong> — no daily caps, ever.</li>
+        <li><strong>Premium models</strong> — access Llama 3.1 70B for dramatically smarter code generation.</li>
+        <li><strong>AI Site Builder</strong> — generate complete multi-file projects from a single prompt.</li>
+        <li><strong>Larger uploads</strong> — 5 MB per file vs. 300 KB on the free plan.</li>
+        <li><strong>GitHub export</strong> — push any project straight into a GitHub repo, in one click.</li>
+        <li><strong>Unlimited published sites</strong> — free users get one; Pro users get unlimited.</li>
+      </ul>
+
+      <div class="callout tip">
+        <span class="ico">🚀</span>
+        <div>Ready to level up? <a href="upgrade.html">Upgrade to Pro →</a></div>
+      </div>
+    </section>
+
+    <!-- Empty search state -->
+    <div class="no-results" id="noResults">
+      <strong>No matching results</strong>
+      Try a different keyword — or <a href="#getting-started" id="clearSearch">browse the docs</a>.
+    </div>
+
+    <!-- Prev / Next -->
+    <nav class="page-nav" aria-label="Page navigation">
+      <a href="#" id="prevPage" class="spacer">
+        <span class="label">← Previous</span>
+        <span class="title">—</span>
+      </a>
+      <a href="#dashboard" id="nextPage" class="next">
+        <span class="label">Next →</span>
+        <span class="title">The Workspace (IDE)</span>
+      </a>
+    </nav>
+
+  </div>
+</main>
+
+<button class="to-top" id="toTop" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+</button>
+
+<script>
+(function () {
+  'use strict';
+
+  const $  = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+  const main      = $('#mainScroll');
+  const sidebar   = $('#sidebar');
+  const backdrop  = $('#backdrop');
+  const menuBtn   = $('#menuBtn');
+  const themeBtn  = $('#themeBtn');
+  const themeIcon = $('#themeIcon');
+  const sections  = $$('.content-section');
+  const navItems  = $$('.nav-item');
+  const progress  = $('#scrollProgress');
+  const toTop     = $('#toTop');
+  const bcCurrent = $('#breadcrumbCurrent');
+  const search    = $('#docSearch');
+  const noResults = $('#noResults');
+  const contentW  = $('#contentWrap');
+
+  /* ---------- Ordering used for prev/next + scroll spy ---------- */
+  const SECTION_META = sections.map((s, i) => ({
+    id: s.id,
+    title: (s.querySelector('h2')?.textContent || '').replace(/^\d+\s*/, '').trim() || s.id,
+    index: i
+  }));
+
+  /* ---------- Scroll progress + back-to-top ---------- */
+  function updateScrollUI() {
+    const max = main.scrollHeight - main.clientHeight;
+    const pct = max > 0 ? (main.scrollTop / max) * 100 : 0;
+    progress.style.width = pct + '%';
+    toTop.classList.toggle('visible', main.scrollTop > 400);
+  }
+  main.addEventListener('scroll', () => {
+    updateScrollUI();
+    updateActiveSection();
+  }, { passive: true });
+
+  toTop.addEventListener('click', () => {
+    main.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  /* ---------- Scroll spy (works because main is the scroller) ---------- */
+  let ticking = false;
+  function updateActiveSection() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      const scrollTop = main.scrollTop;
+      const offset = 60;
+      let current = SECTION_META[0].id;
+
+      for (const meta of SECTION_META) {
+        const el = document.getElementById(meta.id);
+        if (!el) continue;
+        if (el.offsetTop - offset <= scrollTop) current = meta.id;
+      }
+
+      navItems.forEach(item => {
+        const isActive = item.dataset.section === current;
+        item.classList.toggle('active', isActive);
+        if (isActive) {
+          bcCurrent.textContent = item.textContent.trim();
+          // Update prev/next
+          const meta = SECTION_META.find(m => m.id === current);
+          renderPageNav(meta?.index ?? 0);
+        }
+      });
+    });
+  }
+
+  /* ---------- Prev / Next ---------- */
+  const prevEl = $('#prevPage');
+  const nextEl = $('#nextPage');
+  function renderPageNav(idx) {
+    const prev = SECTION_META[idx - 1];
+    const next = SECTION_META[idx + 1];
+
+    if (prev) {
+      prevEl.classList.remove('spacer');
+      prevEl.href = '#' + prev.id;
+      prevEl.querySelector('.title').textContent = prev.title;
+    } else {
+      prevEl.classList.add('spacer');
+      prevEl.href = '#';
+    }
+
+    if (next) {
+      nextEl.style.visibility = 'visible';
+      nextEl.href = '#' + next.id;
+      nextEl.querySelector('.title').textContent = next.title;
+    } else {
+      nextEl.style.visibility = 'hidden';
+    }
+  }
+
+  /* ---------- Nav click → smooth scroll inside .main ---------- */
+  navItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.getElementById(item.dataset.section);
+      if (!target) return;
+      main.scrollTo({ top: target.offsetTop - 8, behavior: 'smooth' });
+      closeSidebar();
+      // update URL without jump
+      history.replaceState(null, '', '#' + item.dataset.section);
+    });
+  });
+
+  /* ---------- Prev / next click → smooth scroll ---------- */
+  [prevEl, nextEl].forEach(link => {
+    link.addEventListener('click', (e) => {
+      const href = link.getAttribute('href');
+      if (!href || href === '#') { e.preventDefault(); return; }
+      const target = document.querySelector(href);
+      if (!target) return;
+      e.preventDefault();
+      main.scrollTo({ top: target.offsetTop - 8, behavior: 'smooth' });
+      history.replaceState(null, '', href);
+    });
+  });
+
+  /* ---------- Mobile sidebar ---------- */
+  function openSidebar() {
+    sidebar.classList.add('open');
+    backdrop.classList.add('visible');
+    menuBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    backdrop.classList.remove('visible');
+    menuBtn.setAttribute('aria-expanded', 'false');
+  }
+  menuBtn.addEventListener('click', () => {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+  backdrop.addEventListener('click', closeSidebar);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+  });
+
+  /* ---------- Theme toggle ---------- */
+  const SUN_PATH  = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+  const MOON_PATH = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    themeIcon.innerHTML = t === 'light' ? MOON_PATH : SUN_PATH;
+    localStorage.setItem('codewix_docs_theme', t);
+  }
+  const savedTheme = localStorage.getItem('codewix_docs_theme');
+  if (savedTheme) applyTheme(savedTheme);
+  themeBtn.addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+  });
+
+  /* ---------- Search ---------- */
+  let searchTimer = null;
+  search.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runSearch, 120);
+  });
+
+  function clearHighlights() {
+    $$('.content-section mark').forEach(m => {
+      const parent = m.parentNode;
+      parent.replaceChild(document.createTextNode(m.textContent), m);
+      parent.normalize();
+    });
+  }
+
+  function highlight(root, term) {
+    if (!term) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const p = node.parentNode;
+        if (!p) return NodeFilter.FILTER_REJECT;
+        if (/^(SCRIPT|STYLE|MARK|CODE)$/.test(p.tagName)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    nodes.forEach(node => {
+      const text = node.nodeValue;
+      if (!re.test(text)) { re.lastIndex = 0; return; }
+      re.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0, m;
+      while ((m = re.exec(text)) !== null) {
+        if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const mark = document.createElement('mark');
+        mark.textContent = m[0];
+        frag.appendChild(mark);
+        last = m.index + m[0].length;
+        if (m.index === re.lastIndex) re.lastIndex++; // guard empty match
+      }
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
+
+  function runSearch() {
+    const term = search.value.trim().toLowerCase();
+    clearHighlights();
+
+    if (!term) {
+      sections.forEach(s => s.classList.remove('hidden'));
+      navItems.forEach(i => (i.style.display = ''));
+      noResults.classList.remove('visible');
+      return;
+    }
+
+    let visibleCount = 0;
+
+    // Filter nav by label
+    navItems.forEach(item => {
+      const label = item.textContent.toLowerCase();
+      const match = label.includes(term);
+      item.style.display = match ? '' : 'none';
+    });
+
+    sections.forEach(sec => {
+      const text = sec.textContent.toLowerCase();
+      const titleMatch = (sec.querySelector('h2')?.textContent || '').toLowerCase().includes(term);
+      const bodyMatch  = text.includes(term);
+      if (titleMatch || bodyMatch) {
+        sec.classList.remove('hidden');
+        highlight(sec, term);
+        visibleCount++;
+      } else {
+        sec.classList.add('hidden');
+      }
+    });
+
+    noResults.classList.toggle('visible', visibleCount === 0);
+    main.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  const clearBtn = $('#clearSearch');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      search.value = '';
+      runSearch();
+    });
+  }
+
+  /* ---------- Copy code on click ---------- */
+  $$('.content-section code').forEach(code => {
+    code.title = 'Click to copy';
+    code.addEventListener('click', () => {
+      const text = code.textContent;
+      const done = () => {
+        code.classList.add('copied');
+        const old = code.textContent;
+        code.textContent = 'Copied!';
+        setTimeout(() => {
+          code.textContent = old;
+          code.classList.remove('copied');
+        }, 900);
+      };
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => {});
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  /* ---------- Deep link on load ---------- */
+  window.addEventListener('load', () => {
+    updateScrollUI();
+    updateActiveSection();
+    const hash = location.hash.replace('#', '');
+    if (hash) {
+      const target = document.getElementById(hash);
+      if (target) {
+        // defer so layout is ready
+        setTimeout(() => main.scrollTo({ top: target.offsetTop - 8 }), 60);
+      }
+    }
+  });
+
+  /* ---------- Window resize ---------- */
+  window.addEventListener('resize', () => {
+    updateScrollUI();
+    updateActiveSection();
+  });
+})();
+</script>
 </body>
 </html>
