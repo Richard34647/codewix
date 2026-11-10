@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - LITHUS AI UI)
+// CodeWix — script.js (Full Master File - LITHUS AI UI FIXED)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -885,7 +885,6 @@ window.addEventListener('DOMContentLoaded', function () {
       
       var origInputArea = chatInput.parentNode;
       var origSendBtn = sendBtn;
-      var origAttachBtn = attachBtn;
       
       chatArea.innerHTML = '';
       
@@ -986,8 +985,7 @@ window.addEventListener('DOMContentLoaded', function () {
         document.getElementById('cwUserAvatar').textContent = name.charAt(0).toUpperCase();
     }
 
-    hamburger.onclick = function() { setSidebarOpen(true); refreshHistory(); }; 
-    $('cwSbClose').onclick = function() { setSidebarOpen(false); }; 
+    // Removed $('cwSbClose') because the LITHUS UI doesn't have a close button (it's fixed)
     $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
 
     var tokenBadge = document.createElement('div'); tokenBadge.style.display = 'none';
