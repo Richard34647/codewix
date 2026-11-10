@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - LITHUS AI UI FIXED)
+// CodeWix — script.js (Full Master File - LITHUS AI UI + Visual Builder Link)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -104,6 +104,20 @@ window.addEventListener('DOMContentLoaded', function () {
       var isLight = document.body.classList.contains('light-mode');
       localStorage.setItem('codewix_theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '🌙' : '☀️';
     }); navMenu.appendChild(themeBtn);
+
+    // ==========================================
+    // INJECT VISUAL BUILDER LINK TO DASHBOARD
+    // ==========================================
+    if (isDashboardPage && !document.getElementById('builderNavLink')) {
+        var builderLink = document.createElement('a');
+        builderLink.href = 'page-builder.html';
+        builderLink.id = 'builderNavLink';
+        builderLink.innerHTML = '🎨 Visual Builder';
+        builderLink.style.cssText = 'background: linear-gradient(135deg, #8b5cf6, #d946ef); color: white; padding: 6px 12px; border-radius: 6px; font-weight: bold; margin-left: 10px; text-decoration: none; font-size: 13px; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3); transition: 0.2s;';
+        builderLink.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
+        builderLink.onmouseout = function() { this.style.transform = 'scale(1)'; };
+        navMenu.appendChild(builderLink);
+    }
 
     // NOTIFICATION BELL
     var notifBtn = document.createElement('button'); notifBtn.id = 'notifBellBtn'; notifBtn.className = 'theme-toggle-btn'; notifBtn.innerHTML = '🔔'; notifBtn.title = 'Notifications'; notifBtn.style.position = 'relative';
@@ -593,6 +607,129 @@ window.addEventListener('DOMContentLoaded', function () {
       portfolio: { name: 'Personal Portfolio', files: { 'index.html': '<header><h1>My Name</h1><p>Web Developer</p></header><section id="about"><h2>About Me</h2><p>I build things for the web.</p></section><section id="projects"><h2>Projects</h2><div class="grid"><div class="card">Project 1</div><div class="card">Project 2</div></div></section>', 'style.css': 'body { font-family: Arial; margin: 0; background: #f4f4f4; color: #333; } header { text-align: center; padding: 50px; background: #222; color: white; } .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; } .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }', 'script.js': 'console.log("Portfolio loaded");' } },
       landing: { name: 'Startup Landing Page', files: { 'index.html': '<nav><h2>StartupX</h2><a href="#" class="cta">Sign Up</a></nav><div class="hero"><h1>Build Faster.</h1><p>The ultimate tool for developers.</p><button>Get Started</button></div>', 'style.css': 'body { margin: 0; font-family: sans-serif; background: #0f172a; color: white; } nav { display: flex; justify-content: space-between; padding: 20px 50px; align-items: center; } .hero { text-align: center; padding: 100px 20px; } .hero h1 { font-size: 4rem; margin: 0; } .cta, button { background: #38bdf8; color: #020617; padding: 10px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; }', 'script.js': '' } }
     };
+
+    // ✨ NEW FEATURE: AI SITE BUILDER
+    var aiSiteBuilderBtn = document.createElement('button');
+    aiSiteBuilderBtn.className = 'studio-btn';
+    aiSiteBuilderBtn.innerHTML = '✨ AI Site Builder';
+    aiSiteBuilderBtn.style.cssText = 'background:#8b5cf6;color:#fff;border:none;margin-right:8px;';
+    if (newProjectBtn && newProjectBtn.parentNode) {
+        newProjectBtn.parentNode.insertBefore(aiSiteBuilderBtn, newProjectBtn);
+    }
+
+    aiSiteBuilderBtn.addEventListener('click', function() {
+        if (!isUserPremium) {
+            showToast('💎 AI Site Builder is a Pro feature. Upgrade to unlock!', 'error');
+            return;
+        }
+
+        var modalHtml = `
+            <div id="aiBuilderModal" class="modal-backdrop" style="display:flex; z-index:99999;">
+                <div class="modal" style="max-width:600px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+                    <div class="modal-header" style="border-bottom:1px solid #334155; padding:18px 22px;">
+                        <h2 style="color:#8b5cf6; font-size:18px;">✨ AI Site Builder (Pro)</h2>
+                        <button class="modal-close" id="closeAiBuilder" style="color:#94a3b8;">×</button>
+                    </div>
+                    <div class="modal-body" style="padding:24px;">
+                        <p style="color:#cbd5e1; margin-bottom:16px; font-size:14px; line-height:1.5;">Describe the website you want to build. The AI will automatically generate the HTML, CSS, and JavaScript files for you.</p>
+                        <textarea id="aiBuilderPrompt" rows="4" placeholder="E.g., A modern landing page for a coffee shop with a hero section, menu, and contact form." style="width:100%; padding:12px; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#fff; font-family:inherit; font-size:14px; outline:none; resize:vertical; margin-bottom:16px;"></textarea>
+                        <div id="aiBuilderStatus" style="display:none; color:#38bdf8; font-size:14px; margin-bottom:16px; text-align:center; font-weight:bold;"></div>
+                        <button id="generateSiteBtn" class="button" style="width:100%; background:#8b5cf6; color:#fff; padding:12px; font-size:16px; border-radius:8px; border:none; font-weight:bold; cursor:pointer;">Generate Project</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        document.getElementById('closeAiBuilder').onclick = () => document.getElementById('aiBuilderModal').remove();
+
+        document.getElementById('generateSiteBtn').onclick = async function() {
+            var promptText = document.getElementById('aiBuilderPrompt').value.trim();
+            if (!promptText) return showToast('Please enter a prompt.', 'error');
+
+            var btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+            btn.style.opacity = '0.7';
+            var statusEl = document.getElementById('aiBuilderStatus');
+            statusEl.style.display = 'block';
+            statusEl.textContent = 'AI is writing your code... This may take a minute.';
+
+            try {
+                var idToken = await auth.currentUser.getIdToken();
+                var payload = {
+                    model: 'openai/gpt-oss-120b',
+                    messages: [
+                        { role: 'system', content: 'You are an expert web developer. Output EXACTLY three markdown code blocks. 1: ```html filename="index.html", 2: ```css filename="style.css", 3: ```javascript filename="script.js". Do NOT output any other text outside the code blocks. Ensure the HTML links the CSS and JS files correctly.' },
+                        { role: 'user', content: 'Build a website: ' + promptText }
+                    ],
+                    temperature: 0.2
+                };
+
+                var response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error('AI generation failed.');
+
+                // Read stream
+                var reader = response.body.getReader();
+                var decoder = new TextDecoder('utf-8');
+                var fullText = '';
+                var buffer = '';
+                while (true) {
+                    var { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    for (var line of lines) {
+                        if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
+                            try {
+                                var parsed = JSON.parse(line.slice(6));
+                                if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                                    fullText += parsed.choices[0].delta.content;
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+
+                // Parse code blocks
+                var blocks = fullText.split('```');
+                var newFiles = {};
+                for (var i = 0; i < blocks.length; i++) {
+                    if (blocks[i].trim().startsWith('html')) {
+                        var lines = blocks[i].trim().split('\n');
+                        newFiles['index.html'] = lines.slice(1).join('\n').trim();
+                    } else if (blocks[i].trim().startsWith('css')) {
+                        var lines = blocks[i].trim().split('\n');
+                        newFiles['style.css'] = lines.slice(1).join('\n').trim();
+                    } else if (blocks[i].trim().startsWith('javascript') || blocks[i].trim().startsWith('js')) {
+                        var lines = blocks[i].trim().split('\n');
+                        newFiles['script.js'] = lines.slice(1).join('\n').trim();
+                    }
+                }
+
+                if (!newFiles['index.html']) throw new Error('AI failed to generate HTML. Please try a different prompt.');
+
+                // Load into editor
+                loadFilesIntoEditor(newFiles, null, promptText.substring(0, 24), null);
+                
+                document.getElementById('aiBuilderModal').remove();
+                showToast('✨ AI Project generated successfully!', 'success');
+
+            } catch (err) {
+                statusEl.textContent = 'Error: ' + err.message;
+                statusEl.style.color = '#f87171';
+                btn.disabled = false;
+                btn.textContent = 'Generate Project';
+                btn.style.opacity = '1';
+            }
+        };
+    });
 
     if (newProjectBtn) {
       newProjectBtn.addEventListener('click', function() {
