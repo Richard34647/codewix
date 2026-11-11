@@ -156,7 +156,14 @@ app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) =
     if (action === 'toggle-premium') {
       const userRecord = await admin.auth().getUser(uid);
       const isPremium = userRecord.customClaims?.premium === true;
-      await admin.auth().setCustomUserClaims(uid, { ...(userRecord.customClaims || {}), premium: !isPremium });
+      const newPremiumStatus = !isPremium;
+      
+      // 1. Update Auth Claims
+      await admin.auth().setCustomUserClaims(uid, { ...(userRecord.customClaims || {}), premium: newPremiumStatus });
+      
+      // 2. Update Firestore (This triggers the onSnapshot in script.js)
+      await admin.firestore().collection('users').doc(uid).set({ premium: newPremiumStatus }, { merge: true });
+      
       res.json({ ok: true });
     } else if (action === 'delete') { 
       await admin.auth().deleteUser(uid); 
