@@ -133,8 +133,14 @@ window.addEventListener('DOMContentLoaded', function () {
     auth.onAuthStateChanged(async function(user) {
       if (!user) return;
       
+      // ✅ FIX: Fetch token FIRST so UI knows the current premium status before snapshot fires
+      const tokenResult = await user.getIdTokenResult(true);
+      isUserPremium = tokenResult.claims.premium === true; 
+      isUserAdmin = user.email === ADMIN_EMAIL;
+
       // ✅ SNAPSHOT: Real-time listener checks for bans AND premium upgrades automatically
       if (db) {
+        var isFirstSnapshot = true; // Prevents reload loop on initial page load
         db.collection('users').doc(user.uid).onSnapshot(function(userDoc) {
           if (userDoc.exists) {
             var data = userDoc.data();
@@ -146,22 +152,18 @@ window.addEventListener('DOMContentLoaded', function () {
             }
 
             // 2. Auto-Refresh on Admin Upgrade
-            // If the Firestore premium status doesn't match the UI, refresh the token and reload
             var firestorePremium = data.premium === true;
-            if (firestorePremium !== isUserPremium) {
+            // Only reload if it's NOT the first load and the status actually changed
+            if (!isFirstSnapshot && firestorePremium !== isUserPremium) {
                 console.log("[CodeWix] Premium status changed! Auto-refreshing...");
                 user.getIdToken(true).then(function() {
                     window.location.reload();
                 });
             }
+            isFirstSnapshot = false;
           }
         });
       }
-
-      // ✅ FIX: Force refresh token so admin upgrades reflect on next page load
-      const tokenResult = await user.getIdTokenResult(true);
-      isUserPremium = tokenResult.claims.premium === true; 
-      isUserAdmin = user.email === ADMIN_EMAIL;
 
       // FETCH NOTIFICATIONS
       if (db) {
