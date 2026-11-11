@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Vision & Image Generation Fixed)
+// CodeWix — script.js (Full Master File - Live Auto-Refresh Snapshots)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -15,7 +15,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-document.addEventListener('contextmenu', event => event.preventDefault());
+// ✅ FIX: Allow right-clicking on images so users can save them
+document.addEventListener('contextmenu', function(event) {
+  if (event.target.tagName === 'IMG') return;
+  event.preventDefault();
+});
+
 document.addEventListener('keydown', function (e) {
   if (e.keyCode === 123) { e.preventDefault(); return false; }
   if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) { e.preventDefault(); return false; }
@@ -133,12 +138,29 @@ window.addEventListener('DOMContentLoaded', function () {
     auth.onAuthStateChanged(async function(user) {
       if (!user) return;
       
-      // GLOBAL BAN CHECK
+      // ✅ SNAPSHOT: Real-time listener checks for bans AND premium upgrades automatically
       if (db) {
-        try {
-          const userDoc = await db.collection('users').doc(user.uid).get();
-          if (userDoc.exists && userDoc.data().banned === true) { window.location.href = 'ban.html'; return; }
-        } catch (e) {}
+        db.collection('users').doc(user.uid).onSnapshot(function(userDoc) {
+          if (userDoc.exists) {
+            var data = userDoc.data();
+            
+            // 1. Ban Check
+            if (data.banned === true) { 
+                window.location.href = 'ban.html'; 
+                return; 
+            }
+
+            // 2. Auto-Refresh on Admin Upgrade
+            // If the Firestore premium status doesn't match the UI, refresh the token and reload
+            var firestorePremium = data.premium === true;
+            if (firestorePremium !== isUserPremium) {
+                console.log("[CodeWix] Premium status changed! Auto-refreshing...");
+                user.getIdToken(true).then(function() {
+                    window.location.reload();
+                });
+            }
+          }
+        });
       }
 
       // ✅ FIX: Force refresh token so admin upgrades reflect on next page load
@@ -1346,11 +1368,33 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
 
             escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #27272a;"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
+            // ✅ FIX: Added Download button for AI Images
             escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
-                return '<div style="color:var(--accent); font-size:14px; margin-top:10px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div><img src="/api/generate-image?prompt=' + encodeURIComponent(prompt) + '" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #27272a;" />';
+                var imgUrl = '/api/generate-image?prompt=' + encodeURIComponent(prompt);
+                return `
+                <div style="margin-top:10px; display:inline-block; max-width:100%;">
+                    <div style="color:var(--accent); font-size:14px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div>
+                    <a href="${imgUrl}" target="_blank" style="display:block;">
+                        <img src="${imgUrl}" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #27272a; cursor:zoom-in;" />
+                    </a>
+                    <a href="${imgUrl}" download="codewix-ai-image.jpg" target="_blank" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; background:#27272a; color:#e4e4e7; padding:6px 12px; border-radius:6px; font-size:12px; text-decoration:none; border:1px solid #3f3f46; transition:0.2s;" onmouseover="this.style.background='#3f3f46'" onmouseout="this.style.background='#27272a'">
+                        ⬇️ Download Image
+                    </a>
+                </div>`;
             });
 
-            escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #27272a;" />');
+            // ✅ FIX: Added Download button for standard markdown images
+            escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, function(match, alt, url) {
+                return `
+                <div style="margin-top:10px; display:inline-block; max-width:100%;">
+                    <a href="${url}" target="_blank" style="display:block;">
+                        <img src="${url}" alt="${alt}" style="max-width:100%; border-radius:8px; border: 1px solid #27272a; cursor:zoom-in;" />
+                    </a>
+                    <a href="${url}" download="${alt || 'image'}.jpg" target="_blank" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; background:#27272a; color:#e4e4e7; padding:6px 12px; border-radius:6px; font-size:12px; text-decoration:none; border:1px solid #3f3f46; transition:0.2s;" onmouseover="this.style.background='#3f3f46'" onmouseout="this.style.background='#27272a'">
+                        ⬇️ Download Image
+                    </a>
+                </div>`;
+            });
 
             html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>'; 
         } 
