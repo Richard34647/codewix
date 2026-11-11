@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Live Auto-Refresh Snapshots)
+// CodeWix — script.js (Full Master File - Vision & Image Generation Fixed)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -15,12 +15,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// ✅ FIX: Allow right-clicking on images so users can save them
-document.addEventListener('contextmenu', function(event) {
-  if (event.target.tagName === 'IMG') return;
-  event.preventDefault();
-});
-
+document.addEventListener('contextmenu', event => event.preventDefault());
 document.addEventListener('keydown', function (e) {
   if (e.keyCode === 123) { e.preventDefault(); return false; }
   if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) { e.preventDefault(); return false; }
@@ -1368,33 +1363,24 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
 
             escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #27272a;"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
-            // ✅ FIX: Added Download button for AI Images
+            // ✅ ONLY CHANGE: Small download button placed side-by-side with the AI image
             escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
                 var imgUrl = '/api/generate-image?prompt=' + encodeURIComponent(prompt);
                 return `
-                <div style="margin-top:10px; display:inline-block; max-width:100%;">
+                <div style="margin-top:10px; display:block;">
                     <div style="color:var(--accent); font-size:14px; margin-bottom:8px;">🎨 Generating image... (this may take up to 45 seconds)</div>
-                    <a href="${imgUrl}" target="_blank" style="display:block;">
-                        <img src="${imgUrl}" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #27272a; cursor:zoom-in;" />
-                    </a>
-                    <a href="${imgUrl}" download="codewix-ai-image.jpg" target="_blank" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; background:#27272a; color:#e4e4e7; padding:6px 12px; border-radius:6px; font-size:12px; text-decoration:none; border:1px solid #3f3f46; transition:0.2s;" onmouseover="this.style.background='#3f3f46'" onmouseout="this.style.background='#27272a'">
-                        ⬇️ Download Image
-                    </a>
+                    <div style="display:flex; align-items:flex-start; gap:12px; max-width:100%;">
+                        <a href="${imgUrl}" target="_blank" style="display:block; flex-shrink:1; max-width:100%;">
+                            <img src="${imgUrl}" alt="AI Generated Image" style="max-width:100%; border-radius:8px; border: 1px solid #27272a; cursor:zoom-in; display:block;" />
+                        </a>
+                        <a href="${imgUrl}" download="codewix-ai-image.jpg" target="_blank" title="Download Image" style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; background:#27272a; color:#e4e4e7; border-radius:8px; text-decoration:none; border:1px solid #3f3f46; transition:0.2s; flex-shrink:0; font-size:18px;" onmouseover="this.style.background='#3f3f46'" onmouseout="this.style.background='#27272a'">
+                            ⬇️
+                        </a>
+                    </div>
                 </div>`;
             });
 
-            // ✅ FIX: Added Download button for standard markdown images
-            escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, function(match, alt, url) {
-                return `
-                <div style="margin-top:10px; display:inline-block; max-width:100%;">
-                    <a href="${url}" target="_blank" style="display:block;">
-                        <img src="${url}" alt="${alt}" style="max-width:100%; border-radius:8px; border: 1px solid #27272a; cursor:zoom-in;" />
-                    </a>
-                    <a href="${url}" download="${alt || 'image'}.jpg" target="_blank" style="display:inline-flex; align-items:center; gap:6px; margin-top:8px; background:#27272a; color:#e4e4e7; padding:6px 12px; border-radius:6px; font-size:12px; text-decoration:none; border:1px solid #3f3f46; transition:0.2s;" onmouseover="this.style.background='#3f3f46'" onmouseout="this.style.background='#27272a'">
-                        ⬇️ Download Image
-                    </a>
-                </div>`;
-            });
+            escaped = escaped.replace(/!\[(?!VIDEO|IMAGE)(.*?)\]\((https?:\/\/[^\s)]+)\)/gi, '<img src="$2" alt="$1" style="max-width:100%; border-radius:8px; margin-top:10px; border: 1px solid #27272a;" />');
 
             html += '<div class="text-part">' + escaped.replace(/\n/g, '<br>') + '</div>'; 
         } 
