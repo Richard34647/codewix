@@ -158,10 +158,7 @@ app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) =
       const isPremium = userRecord.customClaims?.premium === true;
       const newPremiumStatus = !isPremium;
       
-      // 1. Update Auth Claims
       await admin.auth().setCustomUserClaims(uid, { ...(userRecord.customClaims || {}), premium: newPremiumStatus });
-      
-      // 2. Update Firestore (This triggers the onSnapshot in script.js)
       await admin.firestore().collection('users').doc(uid).set({ premium: newPremiumStatus }, { merge: true });
       
       res.json({ ok: true });
@@ -406,7 +403,6 @@ app.post('/api/run', requireAuth, async (req, res) => {
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
   const lang = language.toLowerCase();
 
-  // Map all supported languages to Judge0 IDs
   const langMap = { 
     'php': 68, 
     'js': 63, 
@@ -430,15 +426,26 @@ app.post('/api/run', requireAuth, async (req, res) => {
   if (!langId) return res.status(400).json({ error: 'Unsupported language.' });
 
   try {
+    // Added User-Agent and Timeout to prevent 'fetch failed' on Render
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
       method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ language_id: langId, source_code: code })
+      headers: { 
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; CodeWixServer/1.0)'
+      }, 
+      body: JSON.stringify({ language_id: langId, source_code: code }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+
     const data = await response.json();
     
-    // Handle Judge0 rate limits or internal errors
     if (data.error) return res.status(500).json({ error: data.error });
+    if (data.message) return res.status(500).json({ error: data.message });
     
     res.json({ 
       output: data.stdout || '', 
@@ -446,7 +453,8 @@ app.post('/api/run', requireAuth, async (req, res) => {
       code: data.status ? data.status.id : 0 
     });
   } catch (err) { 
-    res.status(500).json({ error: 'Execution engine failed: ' + err.message }); 
+    console.error("Judge0 Error:", err);
+    res.status(500).json({ error: 'Execution engine failed. The free API might be temporarily down. Please try again later.' }); 
   }
 });
 
