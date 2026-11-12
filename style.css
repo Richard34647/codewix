@@ -1840,52 +1840,41 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
         margin: 8px;
         height: calc(100% - 16px);
     }
-}
 
-/* --- 2. AI Assistant Fixes (Overriding JS-injected UI) --- */
-@media (max-width: 768px) {
-    /* Hide the injected sidebar so the chat takes full width */
-    #cwHistorySidebar {
-        display: none !important;
+    /* ✅ FIX: Topbar Responsive Wrapping */
+    .studio-header { 
+        flex-direction: column; 
+        align-items: stretch; 
+        padding: 10px 14px; 
+        gap: 10px;
     }
-
-    /* Make the chat column take 100% width */
-    #cwChatColumn {
-        width: 100% !important;
-        flex: 1 1 100% !important;
-        min-width: 100% !important;
+    .header-brand { 
+        justify-content: space-between; 
+        width: 100%; 
     }
-
-    /* Fix the absolute positioned input wrapper so it stays at the bottom */
-    .cw-chat-area {
-        flex-direction: column !important;
-        height: 100dvh !important; /* Dynamic viewport height for mobile browsers */
-        overflow: hidden !important;
+    .studio-nav { 
+        order: 3;
+        width: 100%; 
+        justify-content: flex-start;
+        flex-wrap: nowrap; 
+        overflow-x: auto; 
+        padding-bottom: 5px; 
+        -webkit-overflow-scrolling: touch;
     }
-
-    .cw-input-wrapper {
-        position: relative !important;
-        bottom: auto !important;
-        left: auto !important;
-        transform: none !important;
-        width: 100% !important;
-        padding: 10px !important;
-        margin-bottom: env(safe-area-inset-bottom); /* iOS safe area */
+    .studio-nav a { 
+        margin: 0 12px 0 0;
+        flex-shrink: 0; 
     }
-    
-    .cw-input-box {
-        width: 100% !important;
-    }
-
-    /* Ensure the chat container doesn't get hidden behind the input */
-    .chat-container {
-        padding-bottom: 20px !important;
-        flex: 1 !important;
-        overflow-y: auto !important;
+    .user-session { 
+        width: 100%; 
+        justify-content: space-between; 
+        border-top: 1px solid #1e293b;
+        padding-top: 10px;
+        margin-top: 5px;
     }
 }
 
-/* --- 3. Admin Panel Mobile Fixes --- */
+/* --- 2. Admin Panel Mobile Fixes --- */
 @media (max-width: 768px) {
     body.admin-body {
         height: auto;
@@ -1948,7 +1937,7 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     }
 }
 
-/* --- 4. General Mobile Overrides for Main Site --- */
+/* --- 3. General Mobile Overrides for Main Site --- */
 @media (max-width: 900px) {
     .hero-inner { grid-template-columns: 1fr; gap: 40px; }
     .hero-copy { text-align: center; }
@@ -1985,12 +1974,6 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     .input-group input, .input-group textarea { font-size: 15px; padding: 11px; }
 
     footer { flex-direction: column; gap: 10px; padding: 20px 16px; }
-
-    .studio-header { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 8px; overflow: hidden; width: 100%; }
-    .studio-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; }
-    .studio-nav a { margin: 4px 8px; font-size: 13px; }
-    .user-session { font-size: 12px; gap: 8px; }
-    .exit-btn { padding: 3px 10px; font-size: 11px; }
 
     .modal { max-width: 100%; max-height: 90vh; border-radius: 10px; margin: 10px; }
     .project-row { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
@@ -2050,15 +2033,22 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     .comp-btn { width: 100%; }
 }
 
-
 /* =========================================
-   DASHBOARD MOBILE HAMBURGER MENU (FIXED)
+   DASHBOARD MOBILE HAMBURGER MENU
    ========================================= */
 .mobile-menu-btn {
     display: none;
+    background: none;
+    border: none;
+    color: #38bdf8;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 5px;
+    margin-right: 10px;
 }
 
 @media (max-width: 768px) {
+    /* Fix the header to not stack everything instantly */
     .studio-header {
         position: relative;
         flex-wrap: nowrap !important;
@@ -2077,7 +2067,8 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     }
 
     /* Hide nav links and user session by default on mobile */
-    .studio-nav, .user-session {
+    .studio-header .studio-nav, 
+    .studio-header .user-session {
         display: none !important;
         flex-direction: column;
         width: 100%;
