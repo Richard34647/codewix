@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Mobile Menus Fixed)
+// CodeWix — script.js (Full Master File - Final Fixes)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -573,7 +573,24 @@ window.addEventListener('DOMContentLoaded', function () {
     function markUnsaved() { if (unsavedIndicator) unsavedIndicator.style.display = (lastSavedSnapshot !== snapshot()) ? 'inline' : 'none'; }
     function isAsset(name) { return name.indexOf('asset:') === 0; }
     function assetDisplayName(name) { return name.substring(6); }
-    function iconForFile(name) { if (isAsset(name)) { var lower = name.toLowerCase(); if (lower.match(/\.(png|jpe?g|gif|webp|svg|bmp)$/)) return '🖼 '; if (lower.match(/\.(json|xml|yaml|yml)$/)) return '📋 '; return '📎 '; } if (name.endsWith('.html')) return '🌐 '; if (name.endsWith('.css')) return '🎨 '; if (name.endsWith('.js')) return '⚡ '; if (name.endsWith('.py')) return '🐍 '; return '📄 '; }
+    
+    // ✅ Icons for PHP, Python, and C/C++
+    function iconForFile(name) { 
+        if (isAsset(name)) { 
+            var lower = name.toLowerCase(); 
+            if (lower.match(/\.(png|jpe?g|gif|webp|svg|bmp)$/)) return '🖼 '; 
+            if (lower.match(/\.(json|xml|yaml|yml)$/)) return '📋 '; 
+            return '📎 '; 
+        } 
+        if (name.endsWith('.html')) return '🌐 '; 
+        if (name.endsWith('.css')) return '🎨 '; 
+        if (name.endsWith('.js')) return '⚡ '; 
+        if (name.endsWith('.py')) return '🐍 '; 
+        if (name.endsWith('.php')) return '🐘 '; 
+        if (name.endsWith('.c') || name.endsWith('.cpp') || name.endsWith('.h')) return '🇨 '; 
+        return '📄 '; 
+    }
+    
     function rebuildFileTree() { if (!fileTreeList) return; fileTreeList.innerHTML = ''; Object.keys(files).forEach(function (name) { var li = document.createElement('li'); li.className = 'file-item' + (name === activeFile ? ' active' : '') + (isAsset(name) ? ' asset-item' : ''); li.setAttribute('data-filename', name); li.textContent = iconForFile(name) + (isAsset(name) ? assetDisplayName(name) : name); fileTreeList.appendChild(li); }); if (currentFileLabel) currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile; }
     function resolveAssets(html) { if (!html) return ''; return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) { if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match; var key = 'asset:' + url; if (files[key]) return attr + '=' + quote + files[key] + quote; return match; }); }
     function renderPreview() { if (!livePreviewFrame) return; if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value; var resolvedHtml = resolveAssets(files['index.html'] || ''); livePreviewFrame.srcdoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + (files['style.css'] || '') + '</style></head><body>' + resolvedHtml + '<script>' + (files['script.js'] || '') + '<\/script></body></html>'; }
@@ -742,7 +759,7 @@ window.addEventListener('DOMContentLoaded', function () {
         outputContainer.style.display = 'block'; outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
         try {
           var idToken = await auth.currentUser.getIdToken(); var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); var data = await res.json(); if (!res.ok) throw new Error(data.error || 'Execution failed');
-          var finalOutput = data.output || ''; if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) { if (livePreviewFrame) livePreviewFrame.srcDoc = finalOutput; outputContainer.style.display = 'none'; showToast('Rendered Output', 'success'); return; }
+          var finalOutput = data.output || ''; if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) { if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; outputContainer.style.display = 'none'; showToast('Rendered Output', 'success'); return; }
           if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr; if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']'; outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
           var closeBtn = document.createElement('button'); closeBtn.textContent = '✕ Close Terminal'; closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; outputContainer.appendChild(closeBtn);
         } catch (err) { outputContainer.textContent = 'Error: ' + err.message; }
