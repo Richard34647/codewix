@@ -1840,41 +1840,52 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
         margin: 8px;
         height: calc(100% - 16px);
     }
+}
 
-    /* ✅ FIX: Topbar Responsive Wrapping */
-    .studio-header { 
-        flex-direction: column; 
-        align-items: stretch; 
-        padding: 10px 14px; 
-        gap: 10px;
+/* --- 2. AI Assistant Fixes (Overriding JS-injected UI) --- */
+@media (max-width: 768px) {
+    /* Hide the injected sidebar so the chat takes full width */
+    #cwHistorySidebar {
+        display: none !important;
     }
-    .header-brand { 
-        justify-content: space-between; 
-        width: 100%; 
+
+    /* Make the chat column take 100% width */
+    #cwChatColumn {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
     }
-    .studio-nav { 
-        order: 3;
-        width: 100%; 
-        justify-content: flex-start;
-        flex-wrap: nowrap; 
-        overflow-x: auto; 
-        padding-bottom: 5px; 
-        -webkit-overflow-scrolling: touch;
+
+    /* Fix the absolute positioned input wrapper so it stays at the bottom */
+    .cw-chat-area {
+        flex-direction: column !important;
+        height: 100dvh !important; /* Dynamic viewport height for mobile browsers */
+        overflow: hidden !important;
     }
-    .studio-nav a { 
-        margin: 0 12px 0 0;
-        flex-shrink: 0; 
+
+    .cw-input-wrapper {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        transform: none !important;
+        width: 100% !important;
+        padding: 10px !important;
+        margin-bottom: env(safe-area-inset-bottom); /* iOS safe area */
     }
-    .user-session { 
-        width: 100%; 
-        justify-content: space-between; 
-        border-top: 1px solid #1e293b;
-        padding-top: 10px;
-        margin-top: 5px;
+    
+    .cw-input-box {
+        width: 100% !important;
+    }
+
+    /* Ensure the chat container doesn't get hidden behind the input */
+    .chat-container {
+        padding-bottom: 20px !important;
+        flex: 1 !important;
+        overflow-y: auto !important;
     }
 }
 
-/* --- 2. Admin Panel Mobile Fixes --- */
+/* --- 3. Admin Panel Mobile Fixes --- */
 @media (max-width: 768px) {
     body.admin-body {
         height: auto;
@@ -1937,7 +1948,7 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     }
 }
 
-/* --- 3. General Mobile Overrides for Main Site --- */
+/* --- 4. General Mobile Overrides for Main Site --- */
 @media (max-width: 900px) {
     .hero-inner { grid-template-columns: 1fr; gap: 40px; }
     .hero-copy { text-align: center; }
@@ -1974,6 +1985,12 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     .input-group input, .input-group textarea { font-size: 15px; padding: 11px; }
 
     footer { flex-direction: column; gap: 10px; padding: 20px 16px; }
+
+    .studio-header { flex-wrap: wrap; height: auto; padding: 10px 14px; gap: 8px; overflow: hidden; width: 100%; }
+    .studio-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; }
+    .studio-nav a { margin: 4px 8px; font-size: 13px; }
+    .user-session { font-size: 12px; gap: 8px; }
+    .exit-btn { padding: 3px 10px; font-size: 11px; }
 
     .modal { max-width: 100%; max-height: 90vh; border-radius: 10px; margin: 10px; }
     .project-row { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
@@ -2031,4 +2048,79 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     .cat-pill { flex-shrink: 0; }
     .component-actions { flex-direction: column; }
     .comp-btn { width: 100%; }
+}
+
+
+/* =========================================
+   DASHBOARD MOBILE HAMBURGER MENU (FIXED)
+   ========================================= */
+.mobile-menu-btn {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .studio-header {
+        position: relative;
+        flex-wrap: nowrap !important;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px;
+    }
+    
+    .header-brand {
+        width: 100%;
+        justify-content: space-between !important;
+    }
+
+    .mobile-menu-btn {
+        display: block !important;
+    }
+
+    /* Hide nav links and user session by default on mobile */
+    .studio-nav, .user-session {
+        display: none !important;
+        flex-direction: column;
+        width: 100%;
+        background: #090d16;
+        border-top: 1px solid #1e293b;
+    }
+
+    /* Show them when the menu is toggled open */
+    .studio-header.mobile-menu-open {
+        flex-wrap: wrap !important;
+    }
+    .studio-header.mobile-menu-open .studio-nav, 
+    .studio-header.mobile-menu-open .user-session {
+        display: flex !important;
+    }
+
+    /* Style the links inside the mobile menu */
+    .studio-nav a {
+        margin: 8px 0 !important;
+        padding: 10px !important;
+        border-radius: 6px;
+        background: #0f172a;
+        text-align: center;
+    }
+    .studio-nav a:hover {
+        background: #1e293b;
+    }
+
+    /* Style injected elements (theme btn, notifications) */
+    .theme-toggle-btn, #notifBellBtn {
+        align-self: center;
+        margin: 10px 0 !important;
+    }
+    
+    #builderNavLink, #adminNavBtn, #upgradeNavBtn, #proNavBadge {
+        margin: 8px 0 !important;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .user-session {
+        padding: 15px 10px;
+        border-bottom: 1px solid #1e293b;
+        align-items: center;
+    }
 }
