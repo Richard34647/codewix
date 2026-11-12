@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Mobile AI & Dashboard Fixed)
+// CodeWix — script.js (Full Master File - Mobile Menus & Fixes)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -85,7 +85,21 @@ window.addEventListener('DOMContentLoaded', function () {
   if (savedTheme === 'light') document.body.classList.add('light-mode');
 
   var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
+  var headerBrand = document.querySelector('.header-brand');
+  
   if (navMenu && !isAdminPage) {
+    // ✅ Inject Mobile Menu Button for Dashboard
+    if (headerBrand) {
+        var mobileMenuBtn = document.createElement('button');
+        mobileMenuBtn.className = 'mobile-menu-btn';
+        mobileMenuBtn.innerHTML = '☰';
+        mobileMenuBtn.style.cssText = 'display:none; background:none; border:none; color:#38bdf8; font-size:24px; cursor:pointer; padding:5px; margin-right:10px;';
+        mobileMenuBtn.onclick = function() {
+            navMenu.classList.toggle('mobile-open');
+        };
+        headerBrand.insertBefore(mobileMenuBtn, headerBrand.firstChild);
+    }
+
     var themeBtn = document.createElement('button'); themeBtn.className = 'theme-toggle-btn'; themeBtn.id = 'themeToggleBtn';
     themeBtn.title = 'Toggle Dark/Light Mode'; themeBtn.innerHTML = document.body.classList.contains('light-mode') ? '🌙' : '☀️';
     themeBtn.addEventListener('click', function() {
@@ -1043,6 +1057,15 @@ window.addEventListener('DOMContentLoaded', function () {
     `;
 
     var historyListBox = $('cwHistoryList');
+    
+    // ✅ FIX: Define setSidebarOpen to prevent ReferenceError
+    function setSidebarOpen(isOpen) {
+        if (window.innerWidth <= 768) {
+            var sidebarEl = document.getElementById('cwHistorySidebar');
+            if (sidebarEl) sidebarEl.classList.toggle('open', isOpen);
+        }
+    }
+
     $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
 
     // Chat Themes Logic
