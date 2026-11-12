@@ -1,12 +1,9 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Vision & Image Generation Fixed)
+// CodeWix — script.js (Full Master File - Mobile AI & Dashboard Fixed)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
 
-// ==========================================================================
-// PWA (PROGRESSIVE WEB APP) REGISTRATION
-// ==========================================================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
@@ -14,8 +11,6 @@ if ('serviceWorker' in navigator) {
       .catch(error => console.log('[CodeWix] Service Worker registration failed:', error));
   });
 }
-
-// ✅ REMOVED: Right-click and dev tools blockers for debugging
 
 window.addEventListener('DOMContentLoaded', function () {
   var auth = null, db = null, storage = null, isUserPremium = false, isUserAdmin = false;
@@ -127,39 +122,25 @@ window.addEventListener('DOMContentLoaded', function () {
     auth.onAuthStateChanged(async function(user) {
       if (!user) return;
       
-      // ✅ FIX: Fetch token FIRST so UI knows the current premium status before snapshot fires
       const tokenResult = await user.getIdTokenResult(true);
       isUserPremium = tokenResult.claims.premium === true; 
       isUserAdmin = user.email === ADMIN_EMAIL;
 
-      // ✅ SNAPSHOT: Real-time listener checks for bans AND premium upgrades automatically
       if (db) {
-        var isFirstSnapshot = true; // Prevents reload loop on initial page load
+        var isFirstSnapshot = true;
         db.collection('users').doc(user.uid).onSnapshot(function(userDoc) {
           if (userDoc.exists) {
             var data = userDoc.data();
-            
-            // 1. Ban Check
-            if (data.banned === true) { 
-                window.location.href = 'ban.html'; 
-                return; 
-            }
-
-            // 2. Auto-Refresh on Admin Upgrade
+            if (data.banned === true) { window.location.href = 'ban.html'; return; }
             var firestorePremium = data.premium === true;
-            // Only reload if it's NOT the first load and the status actually changed
             if (!isFirstSnapshot && firestorePremium !== isUserPremium) {
-                console.log("[CodeWix] Premium status changed! Auto-refreshing...");
-                user.getIdToken(true).then(function() {
-                    window.location.reload();
-                });
+                user.getIdToken(true).then(function() { window.location.reload(); });
             }
             isFirstSnapshot = false;
           }
         });
       }
 
-      // FETCH NOTIFICATIONS
       if (db) {
         try {
           const snap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(10).get();
@@ -392,7 +373,6 @@ window.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // Support Chat Admin Logic
     var activeTicketId = null;
     var unsubscribeAdminChat = null;
 
@@ -403,24 +383,18 @@ window.addEventListener('DOMContentLoaded', function () {
         const snap = await db.collection('support_tickets').orderBy('updatedAt', 'desc').get();
         if (snap.empty) { list.innerHTML = '<p style="padding: 20px; color: #64748b;">No open tickets.</p>'; return; }
         list.innerHTML = snap.docs.map(doc => { const t = doc.data(); return `<div class="ticket-item" data-id="${doc.id}" style="padding: 15px; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background='transparent'"><h4 style="margin: 0 0 5px 0; color: #e2e8f0;">${escapeHtml(t.userEmail)}</h4><p style="margin: 0; font-size: 12px; color: #64748b;">${t.status === 'open' ? '🔴 Open' : '🟢 Closed'} · ${t.messages.length} msgs</p></div>`; }).join('');
-        
-        document.querySelectorAll('.ticket-item').forEach(el => {
-          el.onclick = () => openAdminChat(el.getAttribute('data-id'));
-        });
+        document.querySelectorAll('.ticket-item').forEach(el => { el.onclick = () => openAdminChat(el.getAttribute('data-id')); });
       } catch (err) { list.innerHTML = `<p style="padding: 20px; color: #f87171;">Error: ${err.message}</p>`; }
     };
 
     var openAdminChat = async function(id) {
       activeTicketId = id;
       if (unsubscribeAdminChat) unsubscribeAdminChat();
-      
       const doc = await db.collection('support_tickets').doc(id).get();
       if (!doc.exists) return;
-      
       $('adminChatHeader').textContent = 'Chatting with: ' + doc.data().userEmail;
       $('adminChatInput').disabled = false;
       $('adminChatSend').disabled = false;
-      
       unsubscribeAdminChat = db.collection('support_tickets').doc(id).onSnapshot(snap => {
         if (!snap.exists) return;
         const msgs = snap.data().messages || [];
@@ -435,18 +409,12 @@ window.addEventListener('DOMContentLoaded', function () {
         const text = $('adminChatInput').value.trim();
         if (!text || !activeTicketId) return;
         $('adminChatInput').value = '';
-        try {
-          await db.collection('support_tickets').doc(activeTicketId).update({
-            messages: firebase.firestore.FieldValue.arrayUnion({ sender: 'admin', text: text, timestamp: Date.now() }),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-        } catch (e) { showToast('Failed to send', 'error'); }
+        try { await db.collection('support_tickets').doc(activeTicketId).update({ messages: firebase.firestore.FieldValue.arrayUnion({ sender: 'admin', text: text, timestamp: Date.now() }), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); } catch (e) { showToast('Failed to send', 'error'); }
       };
       $('adminChatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') $('adminChatSend').click(); });
     }
 
     document.addEventListener('click', async function(e) {
-      // ✅ FIX: Admin self-upgrade — force token refresh + reload so nav/UI update
       if (e.target.classList.contains('toggle-premium-btn')) { const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; try { await fetch('/api/admin/update-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'toggle-premium' }) }); showToast('User premium status updated.', 'success'); if (auth.currentUser && uid === auth.currentUser.uid) { await auth.currentUser.getIdToken(true); window.location.reload(); return; } loadUsers(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
       if (e.target.classList.contains('ban-btn')) { if (!confirm('Are you sure you want to BAN this user?')) return; const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; try { await fetch('/api/admin/ban-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'ban' }) }); showToast('User banned.', 'success'); loadUsers(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
       if (e.target.classList.contains('unban-btn')) { const uid = e.target.getAttribute('data-uid'); e.target.disabled = true; try { await fetch('/api/admin/ban-user', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await getToken() }, body: JSON.stringify({ uid, action: 'unban' }) }); showToast('User unbanned.', 'success'); loadUsers(); } catch (err) { showToast(err.message, 'error'); e.target.disabled = false; } }
@@ -464,7 +432,6 @@ window.addEventListener('DOMContentLoaded', function () {
     if (auth) {
       auth.onAuthStateChanged(async function(user) {
         if (!user) { location.href = 'login.html'; return; }
-        // ✅ FIX: Force refresh token so admin upgrades reflect immediately
         const tokenResult = await user.getIdTokenResult(true); const isPremiumUser = tokenResult.claims.premium === true;
         var name = user.displayName || user.email.split('@')[0];
         if($('profName')) $('profName').innerHTML = name + ' <span id="profBadge" class="badge ' + (isPremiumUser ? 'pro' : 'free') + '">' + (isPremiumUser ? '💎 PRO' : 'Free') + '</span>' + (isPremiumUser ? ' <span style="color:#38bdf8; font-size:16px;" title="Verified Pro User">☑️</span>' : '');
@@ -533,24 +500,17 @@ window.addEventListener('DOMContentLoaded', function () {
       if (!text) return;
       const user = auth.currentUser;
       if (!user) return;
-      
       document.getElementById('supportInput').value = '';
-      
       try {
         if (!currentTicketId) {
           const ref = await db.collection('support_tickets').add({
-            userId: user.uid,
-            userEmail: user.email,
-            status: 'open',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            userId: user.uid, userEmail: user.email, status: 'open', createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             messages: [{ sender: 'user', text: text, timestamp: Date.now() }]
           });
           currentTicketId = ref.id;
         } else {
           await db.collection('support_tickets').doc(currentTicketId).update({
-            messages: firebase.firestore.FieldValue.arrayUnion({ sender: 'user', text: text, timestamp: Date.now() }),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            messages: firebase.firestore.FieldValue.arrayUnion({ sender: 'user', text: text, timestamp: Date.now() }), updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
         }
       } catch (e) { showToast('Failed to send message.', 'error'); }
@@ -570,7 +530,17 @@ window.addEventListener('DOMContentLoaded', function () {
     }
     cm = CodeMirror.fromTextArea(sourceEl, { theme: 'dracula', lineNumbers: true, lineWrapping: false, indentUnit: 2, tabSize: 2, smartIndent: true, autoCloseBrackets: true, autoCloseTags: true, matchBrackets: true, mode: 'htmlmixed', extraKeys: { 'Ctrl-Space': 'autocomplete', 'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } } });
     codeEditor = { get value() { return cm.getValue(); }, set value(v) { cm.setValue(v || ''); }, addEventListener: function (evt, fn) { if (evt === 'input') cm.on('change', fn); else if (evt === 'focus') cm.on('focus', fn); }, focus: function () { cm.focus(); }, _cm: cm };
-    window.__codewixSetEditorMode = function (filename) { if (!cm) return; var mode = 'htmlmixed', lower = (filename || '').toLowerCase(); if (lower.endsWith('.css')) mode = 'css'; else if (lower.endsWith('.js')) mode = 'javascript'; else if (lower.endsWith('.py')) mode = 'python'; else if (lower.endsWith('.json')) mode = { name: 'javascript', json: true }; cm.setOption('mode', mode); };
+    
+    // ✅ FIX: Catch CodeMirror simple mode error for missing modules
+    window.__codewixSetEditorMode = function (filename) { 
+        if (!cm) return; 
+        var mode = 'htmlmixed', lower = (filename || '').toLowerCase(); 
+        if (lower.endsWith('.css')) mode = 'css'; 
+        else if (lower.endsWith('.js')) mode = 'javascript'; 
+        else if (lower.endsWith('.py')) mode = 'python'; 
+        else if (lower.endsWith('.json')) mode = { name: 'javascript', json: true }; 
+        try { cm.setOption('mode', mode); } catch(e) { console.warn("CodeMirror Mode Error:", e); }
+    };
   })();
 
   var runCodeBtn = $('runCodeBtn'), livePreviewFrame = $('livePreviewFrame'), currentFileLabel = $('currentFileLabel'), fileTreeList = $('fileTreeList'), newFileBtn = $('newFileBtn'), uploadFileBtn = $('uploadFileBtn'), hiddenFileInput = $('hiddenFileInput'), fileContextMenu = $('fileContextMenu'), unsavedIndicator = $('unsavedIndicator'), saveProjectBtn = $('saveProjectBtn'), myProjectsBtn = $('myProjectsBtn'), newProjectBtn = $('newProjectBtn'), downloadFileBtn = $('downloadFileBtn'), downloadZipBtn = $('downloadZipBtn'), shareProjectBtn = $('shareProjectBtn'), projectsModal = $('projectsModal'), projectsListBox = $('projectsListContainer'), closeModalBtn = $('closeProjectsModalBtn'), projectStatusLbl = $('projectStatusLabel');
@@ -591,16 +561,13 @@ window.addEventListener('DOMContentLoaded', function () {
     function resolveAssets(html) { if (!html) return ''; return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) { if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match; var key = 'asset:' + url; if (files[key]) return attr + '=' + quote + files[key] + quote; return match; }); }
     function renderPreview() { if (!livePreviewFrame) return; if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value; var resolvedHtml = resolveAssets(files['index.html'] || ''); livePreviewFrame.srcdoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + (files['style.css'] || '') + '</style></head><body>' + resolvedHtml + '<script>' + (files['script.js'] || '') + '<\/script></body></html>'; }
     
-    // AUTO-SAVE LOGIC
     function triggerAutoSave() {
       clearTimeout(autoSaveTimer);
       autoSaveTimer = setTimeout(async () => {
         if (!currentProjectId || !db || !auth.currentUser) return;
         if (lastSavedSnapshot === snapshot()) return;
-        
         if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
         var payload = { files: files, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-        
         try {
           await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(currentProjectId).update(payload);
           lastSavedSnapshot = snapshot();
@@ -614,28 +581,20 @@ window.addEventListener('DOMContentLoaded', function () {
 
     if (codeEditor) { codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); lastSavedSnapshot = snapshot(); codeEditor.addEventListener('input', function () { if (isAsset(activeFile)) return; files[activeFile] = codeEditor.value; markUnsaved(); triggerAutoSave(); }); }
 
-    // PROJECT TEMPLATES
     var TEMPLATES = {
       blank: { name: 'Blank Project', files: { 'index.html': '<h1>New Project</h1>', 'style.css': 'body { font-family: sans-serif; text-align: center; }', 'script.js': '' } },
       portfolio: { name: 'Personal Portfolio', files: { 'index.html': '<header><h1>My Name</h1><p>Web Developer</p></header><section id="about"><h2>About Me</h2><p>I build things for the web.</p></section><section id="projects"><h2>Projects</h2><div class="grid"><div class="card">Project 1</div><div class="card">Project 2</div></div></section>', 'style.css': 'body { font-family: Arial; margin: 0; background: #f4f4f4; color: #333; } header { text-align: center; padding: 50px; background: #222; color: white; } .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; } .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }', 'script.js': 'console.log("Portfolio loaded");' } },
       landing: { name: 'Startup Landing Page', files: { 'index.html': '<nav><h2>StartupX</h2><a href="#" class="cta">Sign Up</a></nav><div class="hero"><h1>Build Faster.</h1><p>The ultimate tool for developers.</p><button>Get Started</button></div>', 'style.css': 'body { margin: 0; font-family: sans-serif; background: #0f172a; color: white; } nav { display: flex; justify-content: space-between; padding: 20px 50px; align-items: center; } .hero { text-align: center; padding: 100px 20px; } .hero h1 { font-size: 4rem; margin: 0; } .cta, button { background: #38bdf8; color: #020617; padding: 10px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; }', 'script.js': '' } }
     };
 
-    // ✨ NEW FEATURE: AI SITE BUILDER
     var aiSiteBuilderBtn = document.createElement('button');
     aiSiteBuilderBtn.className = 'studio-btn';
     aiSiteBuilderBtn.innerHTML = '✨ AI Site Builder';
     aiSiteBuilderBtn.style.cssText = 'background:#8b5cf6;color:#fff;border:none;margin-right:8px;';
-    if (newProjectBtn && newProjectBtn.parentNode) {
-        newProjectBtn.parentNode.insertBefore(aiSiteBuilderBtn, newProjectBtn);
-    }
+    if (newProjectBtn && newProjectBtn.parentNode) { newProjectBtn.parentNode.insertBefore(aiSiteBuilderBtn, newProjectBtn); }
 
     aiSiteBuilderBtn.addEventListener('click', function() {
-        if (!isUserPremium) {
-            showToast('💎 AI Site Builder is a Pro feature. Upgrade to unlock!', 'error');
-            return;
-        }
-
+        if (!isUserPremium) { showToast('💎 AI Site Builder is a Pro feature. Upgrade to unlock!', 'error'); return; }
         var modalHtml = `
             <div id="aiBuilderModal" class="modal-backdrop" style="display:flex; z-index:99999;">
                 <div class="modal" style="max-width:600px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
@@ -653,250 +612,102 @@ window.addEventListener('DOMContentLoaded', function () {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-
         document.getElementById('closeAiBuilder').onclick = () => document.getElementById('aiBuilderModal').remove();
-
         document.getElementById('generateSiteBtn').onclick = async function() {
             var promptText = document.getElementById('aiBuilderPrompt').value.trim();
             if (!promptText) return showToast('Please enter a prompt.', 'error');
-
-            var btn = this;
-            btn.disabled = true;
-            btn.textContent = 'Generating...';
-            btn.style.opacity = '0.7';
-            var statusEl = document.getElementById('aiBuilderStatus');
-            statusEl.style.display = 'block';
-            statusEl.textContent = 'AI is writing your code... This may take a minute.';
-
+            var btn = this; btn.disabled = true; btn.textContent = 'Generating...'; btn.style.opacity = '0.7';
+            var statusEl = document.getElementById('aiBuilderStatus'); statusEl.style.display = 'block'; statusEl.textContent = 'AI is writing your code... This may take a minute.';
             try {
                 var idToken = await auth.currentUser.getIdToken();
-                var payload = {
-                    model: 'openai/gpt-oss-120b',
-                    messages: [
-                        { role: 'system', content: 'You are an expert web developer. Output EXACTLY three markdown code blocks. 1: ```html filename="index.html", 2: ```css filename="style.css", 3: ```javascript filename="script.js". Do NOT output any other text outside the code blocks. Ensure the HTML links the CSS and JS files correctly.' },
-                        { role: 'user', content: 'Build a website: ' + promptText }
-                    ],
-                    temperature: 0.2
-                };
-
-                var response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-                    body: JSON.stringify(payload)
-                });
-
+                var payload = { model: 'openai/gpt-oss-120b', messages: [{ role: 'system', content: 'You are an expert web developer. Output EXACTLY three markdown code blocks. 1: ```html filename="index.html", 2: ```css filename="style.css", 3: ```javascript filename="script.js". Do NOT output any other text outside the code blocks. Ensure the HTML links the CSS and JS files correctly.' }, { role: 'user', content: 'Build a website: ' + promptText }], temperature: 0.2 };
+                var response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify(payload) });
                 if (!response.ok) throw new Error('AI generation failed.');
-
-                // Read stream
-                var reader = response.body.getReader();
-                var decoder = new TextDecoder('utf-8');
-                var fullText = '';
-                var buffer = '';
-                while (true) {
-                    var { done, value } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
-                    var lines = buffer.split('\n');
-                    buffer = lines.pop();
-                    for (var line of lines) {
-                        if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
-                            try {
-                                var parsed = JSON.parse(line.slice(6));
-                                if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
-                                    fullText += parsed.choices[0].delta.content;
-                                }
-                            } catch (e) {}
-                        }
-                    }
-                }
-
-                // Parse code blocks
-                var blocks = fullText.split('```');
-                var newFiles = {};
-                for (var i = 0; i < blocks.length; i++) {
-                    if (blocks[i].trim().startsWith('html')) {
-                        var lines = blocks[i].trim().split('\n');
-                        newFiles['index.html'] = lines.slice(1).join('\n').trim();
-                    } else if (blocks[i].trim().startsWith('css')) {
-                        var lines = blocks[i].trim().split('\n');
-                        newFiles['style.css'] = lines.slice(1).join('\n').trim();
-                    } else if (blocks[i].trim().startsWith('javascript') || blocks[i].trim().startsWith('js')) {
-                        var lines = blocks[i].trim().split('\n');
-                        newFiles['script.js'] = lines.slice(1).join('\n').trim();
-                    }
-                }
-
+                var reader = response.body.getReader(); var decoder = new TextDecoder('utf-8'); var fullText = ''; var buffer = '';
+                while (true) { var { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); var lines = buffer.split('\n'); buffer = lines.pop(); for (var line of lines) { if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') { try { var parsed = JSON.parse(line.slice(6)); if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) { fullText += parsed.choices[0].delta.content; } } catch (e) {} } } }
+                var blocks = fullText.split('```'); var newFiles = {};
+                for (var i = 0; i < blocks.length; i++) { if (blocks[i].trim().startsWith('html')) { var lines = blocks[i].trim().split('\n'); newFiles['index.html'] = lines.slice(1).join('\n').trim(); } else if (blocks[i].trim().startsWith('css')) { var lines = blocks[i].trim().split('\n'); newFiles['style.css'] = lines.slice(1).join('\n').trim(); } else if (blocks[i].trim().startsWith('javascript') || blocks[i].trim().startsWith('js')) { var lines = blocks[i].trim().split('\n'); newFiles['script.js'] = lines.slice(1).join('\n').trim(); } }
                 if (!newFiles['index.html']) throw new Error('AI failed to generate HTML. Please try a different prompt.');
-
-                // Load into editor
                 loadFilesIntoEditor(newFiles, null, promptText.substring(0, 24), null);
-                
-                document.getElementById('aiBuilderModal').remove();
-                showToast('✨ AI Project generated successfully!', 'success');
-
-            } catch (err) {
-                statusEl.textContent = 'Error: ' + err.message;
-                statusEl.style.color = '#f87171';
-                btn.disabled = false;
-                btn.textContent = 'Generate Project';
-                btn.style.opacity = '1';
-            }
+                document.getElementById('aiBuilderModal').remove(); showToast('✨ AI Project generated successfully!', 'success');
+            } catch (err) { statusEl.textContent = 'Error: ' + err.message; statusEl.style.color = '#f87171'; btn.disabled = false; btn.textContent = 'Generate Project'; btn.style.opacity = '1'; }
         };
     });
 
     if (newProjectBtn) {
       newProjectBtn.addEventListener('click', function() {
         let html = `<div id="tplModal" class="modal-backdrop" style="display:flex; z-index:99999;"><div class="modal" style="max-width:500px;"><div class="modal-header"><h2>Choose a Template</h2><button class="modal-close" id="closeTpl">×</button></div><div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">`;
-        Object.keys(TEMPLATES).forEach(key => {
-          html += `<button class="btn btn-primary tpl-btn" data-tpl="${key}" style="padding: 15px; font-size: 16px; text-align: left;">${TEMPLATES[key].name}</button>`;
-        });
+        Object.keys(TEMPLATES).forEach(key => { html += `<button class="btn btn-primary tpl-btn" data-tpl="${key}" style="padding: 15px; font-size: 16px; text-align: left;">${TEMPLATES[key].name}</button>`; });
         html += `</div></div></div>`;
         document.body.insertAdjacentHTML('beforeend', html);
         document.getElementById('closeTpl').onclick = () => document.getElementById('tplModal').remove();
-        document.querySelectorAll('.tpl-btn').forEach(btn => {
-          btn.onclick = () => {
-            const tpl = TEMPLATES[btn.getAttribute('data-tpl')];
-            loadFilesIntoEditor(tpl.files, null, tpl.name, null);
-            document.getElementById('tplModal').remove();
-            showToast('Template loaded! Save it to keep it.');
-          };
-        });
+        document.querySelectorAll('.tpl-btn').forEach(btn => { btn.onclick = () => { const tpl = TEMPLATES[btn.getAttribute('data-tpl')]; loadFilesIntoEditor(tpl.files, null, tpl.name, null); document.getElementById('tplModal').remove(); showToast('Template loaded! Save it to keep it.'); }; });
       });
     }
 
-    // FIREBASE STORAGE UPLOAD
     if (uploadFileBtn && hiddenFileInput) {
       uploadFileBtn.addEventListener('click', function () { hiddenFileInput.click(); });
       hiddenFileInput.addEventListener('change', async function () {
         var file = this.files && this.files[0]; if (!file) return;
         if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); this.value = ''; return; }
         if (!storage) { showToast('Storage not initialized.', 'error'); this.value = ''; return; }
-        
         var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024;
-        if (file.size > maxSize) { 
-            if (!isUserPremium) {
-                showToast('💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); 
-            } else {
-                showToast('File too large. Max 5MB.', 'error'); 
-            }
-            this.value = ''; 
-            return; 
-        }
-        
-        var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-');
-        uploadFileBtn.textContent = 'Uploading...';
-        
+        if (file.size > maxSize) { showToast(isUserPremium ? 'File too large. Max 5MB.' : '💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); this.value = ''; return; }
+        var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-'); uploadFileBtn.textContent = 'Uploading...';
         try {
           var storageRef = storage.ref('users/' + auth.currentUser.uid + '/assets/' + Date.now() + '_' + safeName);
-          var snapshot = await storageRef.put(file);
-          var downloadURL = await snapshot.ref.getDownloadURL();
-          
-          files['asset:' + safeName] = downloadURL;
-          rebuildFileTree(); markUnsaved(); renderPreview(); triggerAutoSave();
-          showToast('Uploaded to Storage!', 'success');
-        } catch (err) { 
-          console.error(err);
-          showToast('Upload failed: ' + err.message, 'error'); 
-        } finally { 
-          hiddenFileInput.value = ''; 
-          uploadFileBtn.textContent = '📤 Upload';
-        }
+          var snapshot = await storageRef.put(file); var downloadURL = await snapshot.ref.getDownloadURL();
+          files['asset:' + safeName] = downloadURL; rebuildFileTree(); markUnsaved(); renderPreview(); triggerAutoSave(); showToast('Uploaded to Storage!', 'success');
+        } catch (err) { showToast('Upload failed: ' + err.message, 'error'); } finally { hiddenFileInput.value = ''; uploadFileBtn.textContent = '📤 Upload'; }
       });
     }
 
-    // GITHUB EXPORT (PRO)
     var exportGithubBtn = document.createElement('button');
-    exportGithubBtn.className = 'studio-btn';
-    exportGithubBtn.innerHTML = '🐙 Export to GitHub';
-    exportGithubBtn.style.marginLeft = '10px';
+    exportGithubBtn.className = 'studio-btn'; exportGithubBtn.innerHTML = '🐙 Export to GitHub'; exportGithubBtn.style.marginLeft = '10px';
     if (downloadZipBtn && downloadZipBtn.parentNode) { downloadZipBtn.parentNode.insertBefore(exportGithubBtn, downloadZipBtn.nextSibling); }
-
     exportGithubBtn.addEventListener('click', async function() {
         if (!isUserPremium) return showToast('💎 GitHub Export is a Pro feature.', 'error');
-        if (!codeEditor) return;
-        if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
-
-        const repoUrl = prompt('Enter your GitHub Repository Link:\n(e.g., https://github.com/your-username/your-repo)');
-        if (!repoUrl) return;
-
-        const match = repoUrl.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^\/]+)\/([^\/]+)/);
-        if (!match) { return showToast('Invalid GitHub URL. Use format: https://github.com/username/repo', 'error'); }
-        const owner = match[1];
-        const repo = match[2].replace('.git', '').replace(/\//g, '');
-
+        if (!codeEditor) return; if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
+        const repoUrl = prompt('Enter your GitHub Repository Link:\n(e.g., https://github.com/your-username/your-repo)'); if (!repoUrl) return;
+        const match = repoUrl.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^\/]+)\/([^\/]+)/); if (!match) { return showToast('Invalid GitHub URL. Use format: https://github.com/username/repo', 'error'); }
+        const owner = match[1]; const repo = match[2].replace('.git', '').replace(/\//g, '');
         const tokenPrompt = `To push files to GitHub, you need a Personal Access Token (PAT).\n\nHere is exactly how to get it:\n1. Log into GitHub and click your profile picture (top right) -> Settings.\n2. Scroll down the left sidebar and click Developer settings.\n3. Expand Personal access tokens -> Tokens (classic).\n4. Click Generate new token (classic).\n5. Give it a name, set an expiration.\n6. IMPORTANT: Check the 'repo' checkbox (this allows code upload).\n7. Click Generate token at the bottom.\n8. Copy the token (starts with ghp_...) and paste it here:`;
-        const token = prompt(tokenPrompt);
-        if (!token) return;
-
+        const token = prompt(tokenPrompt); if (!token) return;
         exportGithubBtn.disabled = true; exportGithubBtn.textContent = 'Exporting...'; showToast('Connecting to GitHub...', 'success');
-
         try {
-            const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': `token ${token}` } });
-            if (!userRes.ok) throw new Error('Invalid Token. Please make sure you copied it correctly.');
-            
+            const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': `token ${token}` } }); if (!userRes.ok) throw new Error('Invalid Token.');
             for (const [filename, content] of Object.entries(files)) {
-                if (filename.startsWith('asset:')) continue; 
-                let sha = null;
+                if (filename.startsWith('asset:')) continue; let sha = null;
                 const getFileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, { headers: { 'Authorization': `token ${token}` } });
                 if (getFileRes.ok) { const fileData = await getFileRes.json(); sha = fileData.sha; }
-
-                const contentBytes = new TextEncoder().encode(content);
-                const base64Content = btoa(String.fromCharCode.apply(null, contentBytes));
-                const body = { message: `Update ${filename} via CodeWix`, content: base64Content };
-                if (sha) body.sha = sha;
-
-                const putRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, {
-                    method: 'PUT', headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-                });
-
+                const contentBytes = new TextEncoder().encode(content); const base64Content = btoa(String.fromCharCode.apply(null, contentBytes));
+                const body = { message: `Update ${filename} via CodeWix`, content: base64Content }; if (sha) body.sha = sha;
+                const putRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, { method: 'PUT', headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                 if (!putRes.ok) { const errData = await putRes.json(); throw new Error(errData.message || `Failed to upload ${filename}`); }
             }
-
-            showToast('Successfully deployed to GitHub!', 'success');
-            window.open(`https://github.com/${owner}/${repo}`, '_blank');
-        } catch (err) {
-            console.error(err); showToast(err.message, 'error');
-        } finally {
-            exportGithubBtn.disabled = false; exportGithubBtn.textContent = '🐙 Export to GitHub';
-        }
+            showToast('Successfully deployed to GitHub!', 'success'); window.open(`https://github.com/${owner}/${repo}`, '_blank');
+        } catch (err) { showToast(err.message, 'error'); } finally { exportGithubBtn.disabled = false; exportGithubBtn.textContent = '🐙 Export to GitHub'; }
     });
 
-    // APPLY TO IDE: LOAD FROM AI
     async function loadProjectFromAI() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const projectId = urlParams.get('project');
-        const pending = localStorage.getItem('cw_pending_code');
+        const urlParams = new URLSearchParams(window.location.search); const projectId = urlParams.get('project'); const pending = localStorage.getItem('cw_pending_code');
         if (!pending || !projectId || !db || !auth.currentUser) return;
-
         try {
             var data = JSON.parse(pending);
             if (Date.now() - data.ts < 60000) { 
-                let projectName = 'AI Generated Project';
-                let existingFiles = {};
-                if (projectId !== 'new') {
-                    const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).get();
-                    if (doc.exists) { const projData = doc.data(); existingFiles = projData.files || {}; projectName = projData.name || 'Untitled Project'; }
-                }
+                let projectName = 'AI Generated Project'; let existingFiles = {};
+                if (projectId !== 'new') { const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).get(); if (doc.exists) { const projData = doc.data(); existingFiles = projData.files || {}; projectName = projData.name || 'Untitled Project'; } }
                 if (data.filename) { existingFiles[data.filename] = data.code; }
                 loadFilesIntoEditor(existingFiles, projectId === 'new' ? null : projectId, projectName, null);
-                
                 const payload = { name: projectName, files: existingFiles, activeFile: data.filename, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-                if (projectId === 'new') {
-                    payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-                    const ref = await db.collection('users').doc(auth.currentUser.uid).collection('projects').add(payload);
-                    currentProjectId = ref.id; window.history.replaceState({}, '', '?project=' + ref.id);
-                } else {
-                    await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).update(payload);
-                }
-                showToast('🤖 AI Code applied and saved!', 'success');
-                lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + projectName;
+                if (projectId === 'new') { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); const ref = await db.collection('users').doc(auth.currentUser.uid).collection('projects').add(payload); currentProjectId = ref.id; window.history.replaceState({}, '', '?project=' + ref.id); } else { await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).update(payload); }
+                showToast('🤖 AI Code applied and saved!', 'success'); lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + projectName;
             }
         } catch(e) { console.error("Error applying AI code:", e); }
         localStorage.removeItem('cw_pending_code'); window.history.replaceState({}, document.title, window.location.pathname + (currentProjectId ? '?project=' + currentProjectId : ''));
     }
     if (auth) { auth.onAuthStateChanged(user => { if (user) loadProjectFromAI(); }); }
 
-    // MY PROJECTS MODAL
     if (myProjectsBtn) { myProjectsBtn.addEventListener('click', async function() { if (!db || !auth.currentUser) return showToast('Sign in first.', 'error'); projectsModal.style.display = 'flex'; projectsListBox.innerHTML = '<p style="color:#64748b;">Loading projects...</p>'; try { const snap = await db.collection('users').doc(auth.currentUser.uid).collection('projects').get(); if (snap.empty) { projectsListBox.innerHTML = '<p style="color:#64748b;">No saved projects found.</p>'; return; } let html = ''; snap.forEach(doc => { const p = doc.data(); const date = p.updatedAt ? formatDate(p.updatedAt) : 'Unknown'; html += `<div class="project-item" data-id="${doc.id}" data-name="${escapeHtml(p.name)}" style="padding:12px; border-bottom:1px solid #334155; cursor:pointer; display:flex; justify-content:space-between; align-items:center;"><div><h4 style="margin:0; color:#e2e8f0;">${escapeHtml(p.name || 'Untitled')}</h4><small style="color:#64748b;">Updated: ${date}</small></div><button class="btn btn-primary load-proj-btn" data-id="${doc.id}" style="padding:4px 8px; font-size:12px;">Load</button></div>`; }); projectsListBox.innerHTML = html; } catch (err) { projectsListBox.innerHTML = `<p style="color:#f87171;">Failed to load: ${err.message}</p>`; } }); }
     if (closeModalBtn) { closeModalBtn.addEventListener('click', function() { projectsModal.style.display = 'none'; }); }
     if (projectsListBox) { projectsListBox.addEventListener('click', async function(e) { const btn = e.target.closest('.load-proj-btn'); if (!btn) return; const id = btn.getAttribute('data-id'); btn.disabled = true; btn.textContent = 'Loading...'; try { const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(id).get(); if (doc.exists) { const data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled', null); projectsModal.style.display = 'none'; showToast('Project loaded!', 'success'); } } catch (err) { showToast('Failed to load: ' + err.message, 'error'); } finally { btn.disabled = false; btn.textContent = 'Load'; } }); }
@@ -971,7 +782,7 @@ window.addEventListener('DOMContentLoaded', function () {
       .cw-accent-text { color: var(--accent); }
       .cw-accent-border { border-color: var(--accent); }
 
-      #cwHistorySidebar { width: 280px; background: #141517; border-right: 1px solid #27272a; display: flex; flex-direction: column; transition: width 0.3s; flex-shrink: 0; }
+      #cwHistorySidebar { width: 280px; background: #141517; border-right: 1px solid #27272a; display: flex; flex-direction: column; transition: left 0.3s ease; flex-shrink: 0; z-index: 10001; }
       .cw-sb-header { padding: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: bold; color: #ffffff; }
       .cw-back-btn { color: #a1a1aa; text-decoration: none; display: flex; align-items: center; transition: 0.2s; margin-right: 10px; }
       .cw-back-btn:hover { color: #fff; }
@@ -1010,8 +821,10 @@ window.addEventListener('DOMContentLoaded', function () {
       .message-role { display: none; }
       .cw-copy-reply { font-size: 11px; color: #71717a; text-align: right; margin-top: 8px; cursor: pointer; display: block; }
       .cw-copy-reply:hover { color: #d4d4d8; }
-      .cw-input-wrapper { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 800px; padding: 0 20px; }
-      .cw-input-box { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+      
+      /* ✅ MOBILE FIX: Input Wrapper */
+      .cw-input-wrapper { position: fixed; bottom: 0; left: 0; right: 0; width: 100%; padding: 10px 20px; background: #0e0f11; z-index: 10000; }
+      .cw-input-box { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
       .cw-input-box:focus-within { border-color: #3f3f46; }
       .cw-input-actions { display: flex; align-items: center; justify-content: space-between; }
       .cw-input-left { display: flex; gap: 12px; color: #71717a; }
@@ -1022,7 +835,7 @@ window.addEventListener('DOMContentLoaded', function () {
       #sendBtn { background: var(--accent); color: #000; border: none; border-radius: 8px; padding: 8px 16px; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
       #sendBtn:hover { background: var(--accent-hover); }
       #sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-      .cw-input-footer { display: flex; justify-content: space-between; font-size: 11px; color: #52525b; margin-top: 12px; padding: 0 10px; }
+      .cw-input-footer { display: flex; justify-content: space-between; font-size: 11px; color: #52525b; margin-top: 12px; padding: 0 10px; display: none; }
       .cw-input-footer span { display: flex; align-items: center; gap: 6px; }
       .cw-chat-area > div:not(#cwHistorySidebar):not(#cwChatColumn) { display: none !important; }
       #cwHamburger, .ai-header, .chat-status, .modelIndicator, #modelIndicator { display: none !important; }
@@ -1036,6 +849,19 @@ window.addEventListener('DOMContentLoaded', function () {
       .theme-blue { --accent: #38bdf8; --accent-hover: #0ea5e9; --user-bubble: #0c4a6e; }
       .theme-purple { --accent: #a78bfa; --accent-hover: #8b5cf6; --user-bubble: #4c1d95; }
       .theme-rose { --accent: #fb7185; --accent-hover: #f43f5e; --user-bubble: #881337; }
+
+      /* ✅ MOBILE RESPONSIVE OVERRIDES */
+      @media (max-width: 768px) {
+        #cwHistorySidebar { position: absolute; left: -280px; height: 100%; z-index: 10001; }
+        #cwHistorySidebar.open { left: 0; }
+        .cw-main-header { padding: 15px 20px; justify-content: space-between; }
+        #cwMobileMenuBtn { display: block !important; background: none; border: none; color: var(--accent); font-size: 24px; cursor: pointer; margin-right: 15px; }
+        .cw-main-header > div { display: flex; align-items: center; }
+        .cw-input-wrapper { padding: 10px; }
+        .cw-input-box { border-radius: 12px; padding: 10px; }
+        .chat-container { padding: 15px 10px 120px; }
+        .message-content { padding: 12px 14px; font-size: 14px; max-width: 95%; }
+      }
     `;
     document.head.appendChild(CSS);
 
@@ -1056,7 +882,15 @@ window.addEventListener('DOMContentLoaded', function () {
       sidebar.id = 'cwHistorySidebar';
       chatCol.id = 'cwChatColumn';
       
-      chatCol.innerHTML = `<div class="cw-main-header">YOUR CONVERSATION <div class="dot"></div></div>`;
+      // ✅ FIX: Add Mobile Menu Button to header
+      chatCol.innerHTML = `
+        <div class="cw-main-header">
+          <div>
+            <button id="cwMobileMenuBtn" style="display:none;">☰</button>
+            YOUR CONVERSATION <div class="dot"></div>
+          </div>
+        </div>
+      `;
       chatCol.appendChild(chatContainer);
       
       inputWrapper.className = 'cw-input-wrapper';
@@ -1094,6 +928,11 @@ window.addEventListener('DOMContentLoaded', function () {
       chatArea.appendChild(sidebar);
       chatArea.appendChild(chatCol);
       
+      // ✅ FIX: Hook up Mobile Menu Toggle
+      document.getElementById('cwMobileMenuBtn').onclick = function() {
+        sidebar.classList.toggle('open');
+      };
+
       // Hook up Attachment
       inputWrapper.querySelector('#newAttachBtn').onclick = function() { attachInput.click(); };
 
@@ -1124,7 +963,6 @@ window.addEventListener('DOMContentLoaded', function () {
                       interimTranscript += event.results[i][0].transcript;
                   }
               }
-              // Update the input live
               chatInput.value = finalTranscript + interimTranscript;
               chatInput.focus();
           };
@@ -1138,7 +976,6 @@ window.addEventListener('DOMContentLoaded', function () {
           recognition.onend = function() {
               isRecording = false;
               micBtn.style.animation = 'none';
-              // If the user stopped, ensure the final text is in the box
               chatInput.value = finalTranscript;
           };
 
@@ -1359,7 +1196,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
 
             escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #27272a;"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
-            // ✅ ONLY CHANGE: Small download button placed side-by-side with the AI image
+            // ✅ Download button placed side-by-side with the AI image
             escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
                 var imgUrl = '/api/generate-image?prompt=' + encodeURIComponent(prompt);
                 return `
@@ -1434,7 +1271,6 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
         authUser = user; 
         currentUserName = getUsername(); 
         
-        // Load Username and Avatar into the sidebar
         var name = user.displayName || user.email.split('@')[0];
         var sbName = document.getElementById('cwUserName');
         var sbAvatar = document.getElementById('cwUserAvatar');
@@ -1583,7 +1419,6 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       if (!authUser) { showToast('Sign in first.', 'error'); return; }
       var hasImages = pendingAttachments.some(function (a) { return a.type === 'image'; });
       
-      // FIXED: Use the current Groq vision model
       if (hasImages && !/vision/.test(model)) { 
           model = 'qwen/qwen3.8-27b'; 
           if (modelSelect) modelSelect.value = model; 
@@ -1759,7 +1594,6 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
       auth.onAuthStateChanged(async function(user) {
         if (!user) { location.href = 'login.html'; return; }
         const token = await user.getIdToken();
-        // ✅ FIX: Force refresh token so admin upgrades reflect immediately
         const tokenResult = await user.getIdTokenResult(true);
         isPremiumUser = tokenResult.claims.premium === true;
 
