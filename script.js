@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Mobile Menus & Fixes)
+// CodeWix — script.js (Full Master File - Mobile Menus & AI Layout Fixed)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -84,22 +84,28 @@ window.addEventListener('DOMContentLoaded', function () {
   var savedTheme = localStorage.getItem('codewix_theme');
   if (savedTheme === 'light') document.body.classList.add('light-mode');
 
-  var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
+  var studioHeader = document.querySelector('.studio-header');
   var headerBrand = document.querySelector('.header-brand');
+  var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
   
-  if (navMenu && !isAdminPage) {
-    // ✅ Inject Mobile Menu Button for Dashboard
-    if (headerBrand) {
-        var mobileMenuBtn = document.createElement('button');
-        mobileMenuBtn.className = 'mobile-menu-btn';
-        mobileMenuBtn.innerHTML = '☰';
-        mobileMenuBtn.style.cssText = 'display:none; background:none; border:none; color:#38bdf8; font-size:24px; cursor:pointer; padding:5px; margin-right:10px;';
-        mobileMenuBtn.onclick = function() {
-            navMenu.classList.toggle('mobile-open');
-        };
-        headerBrand.insertBefore(mobileMenuBtn, headerBrand.firstChild);
-    }
+  // ✅ FIX: Dashboard Mobile Hamburger Menu Button (Hidden on Desktop via CSS)
+  if (studioHeader && headerBrand && !isAdminPage) {
+      if (!document.getElementById('mobileMenuBtn')) {
+          var mobileMenuBtn = document.createElement('button');
+          mobileMenuBtn.id = 'mobileMenuBtn';
+          mobileMenuBtn.className = 'mobile-menu-btn';
+          mobileMenuBtn.innerHTML = '☰';
+          
+          mobileMenuBtn.onclick = function() {
+              var isOpen = studioHeader.classList.toggle('mobile-menu-open');
+              // Change to X when open, back to bars when closed
+              mobileMenuBtn.innerHTML = isOpen ? '✕' : '☰';
+          };
+          headerBrand.insertBefore(mobileMenuBtn, headerBrand.firstChild);
+      }
+  }
 
+  if (navMenu && !isAdminPage) {
     var themeBtn = document.createElement('button'); themeBtn.className = 'theme-toggle-btn'; themeBtn.id = 'themeToggleBtn';
     themeBtn.title = 'Toggle Dark/Light Mode'; themeBtn.innerHTML = document.body.classList.contains('light-mode') ? '🌙' : '☀️';
     themeBtn.addEventListener('click', function() {
@@ -545,7 +551,6 @@ window.addEventListener('DOMContentLoaded', function () {
     cm = CodeMirror.fromTextArea(sourceEl, { theme: 'dracula', lineNumbers: true, lineWrapping: false, indentUnit: 2, tabSize: 2, smartIndent: true, autoCloseBrackets: true, autoCloseTags: true, matchBrackets: true, mode: 'htmlmixed', extraKeys: { 'Ctrl-Space': 'autocomplete', 'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } } });
     codeEditor = { get value() { return cm.getValue(); }, set value(v) { cm.setValue(v || ''); }, addEventListener: function (evt, fn) { if (evt === 'input') cm.on('change', fn); else if (evt === 'focus') cm.on('focus', fn); }, focus: function () { cm.focus(); }, _cm: cm };
     
-    // ✅ FIX: Catch CodeMirror simple mode error for missing modules
     window.__codewixSetEditorMode = function (filename) { 
         if (!cm) return; 
         var mode = 'htmlmixed', lower = (filename || '').toLowerCase(); 
@@ -796,7 +801,7 @@ window.addEventListener('DOMContentLoaded', function () {
       .cw-accent-text { color: var(--accent); }
       .cw-accent-border { border-color: var(--accent); }
 
-      #cwHistorySidebar { width: 280px; background: #141517; border-right: 1px solid #27272a; display: flex; flex-direction: column; transition: left 0.3s ease; flex-shrink: 0; z-index: 10001; }
+      #cwHistorySidebar { width: 280px; background: #141517; border-right: 1px solid #27272a; display: flex; flex-direction: column; flex-shrink: 0; z-index: 1000; transition: left 0.3s ease; }
       .cw-sb-header { padding: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: bold; color: #ffffff; }
       .cw-back-btn { color: #a1a1aa; text-decoration: none; display: flex; align-items: center; transition: 0.2s; margin-right: 10px; }
       .cw-back-btn:hover { color: #fff; }
@@ -820,10 +825,10 @@ window.addEventListener('DOMContentLoaded', function () {
       .cw-user-details h4 { margin: 0; font-size: 14px; color: #fff; font-weight: 500; }
       .cw-user-details p { margin: 0; font-size: 12px; color: #71717a; }
       
-      #cwChatColumn { flex: 1; display: flex; flex-direction: column; background: #0e0f11; position: relative; min-width: 0; }
+      #cwChatColumn { flex: 1; display: flex; flex-direction: column; background: #0e0f11; position: relative; min-width: 0; height: 100vh; }
       .cw-main-header { padding: 20px 30px; font-size: 12px; font-weight: 600; color: #71717a; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
       .cw-main-header .dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 10px rgba(52, 211, 153, 0.5); }
-      .chat-container { flex: 1; overflow-y: auto; padding: 20px 30px 120px; display: flex; flex-direction: column; gap: 24px; }
+      .chat-container { flex: 1; overflow-y: auto; padding: 20px 30px 20px; display: flex; flex-direction: column; gap: 24px; }
       .chat-message { display: flex; gap: 16px; max-width: 800px; width: 100%; margin: 0 auto; }
       .chat-message.user-message { flex-direction: row-reverse; }
       .cw-msg-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
@@ -836,9 +841,8 @@ window.addEventListener('DOMContentLoaded', function () {
       .cw-copy-reply { font-size: 11px; color: #71717a; text-align: right; margin-top: 8px; cursor: pointer; display: block; }
       .cw-copy-reply:hover { color: #d4d4d8; }
       
-      /* ✅ MOBILE FIX: Input Wrapper */
-      .cw-input-wrapper { position: fixed; bottom: 0; left: 0; right: 0; width: 100%; padding: 10px 20px; background: #0e0f11; z-index: 10000; }
-      .cw-input-box { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 -10px 40px rgba(0,0,0,0.5); }
+      .cw-input-wrapper { width: 100%; padding: 20px; background: #0e0f11; flex-shrink: 0; }
+      .cw-input-box { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
       .cw-input-box:focus-within { border-color: #3f3f46; }
       .cw-input-actions { display: flex; align-items: center; justify-content: space-between; }
       .cw-input-left { display: flex; gap: 12px; color: #71717a; }
@@ -873,7 +877,7 @@ window.addEventListener('DOMContentLoaded', function () {
         .cw-main-header > div { display: flex; align-items: center; }
         .cw-input-wrapper { padding: 10px; }
         .cw-input-box { border-radius: 12px; padding: 10px; }
-        .chat-container { padding: 15px 10px 120px; }
+        .chat-container { padding: 15px 10px 20px; }
         .message-content { padding: 12px 14px; font-size: 14px; max-width: 95%; }
       }
     `;
@@ -1062,7 +1066,10 @@ window.addEventListener('DOMContentLoaded', function () {
     function setSidebarOpen(isOpen) {
         if (window.innerWidth <= 768) {
             var sidebarEl = document.getElementById('cwHistorySidebar');
-            if (sidebarEl) sidebarEl.classList.toggle('open', isOpen);
+            if (sidebarEl) {
+                if (isOpen) sidebarEl.classList.add('open');
+                else sidebarEl.classList.remove('open');
+            }
         }
     }
 
