@@ -1769,11 +1769,11 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
 @media (max-width: 768px) {
     .studio-workspace {
         flex-direction: column;
-        height: auto; /* FIX: Let the page scroll naturally instead of breaking calc() */
+        height: auto; /* Let the page scroll naturally instead of breaking calc() */
         overflow: visible;
     }
 
-    /* FIX: Make the file explorer horizontal so it doesn't push the editor off screen */
+    /* Make the file explorer horizontal so it doesn't push the editor off screen */
     .file-explorer {
         width: 100% !important;
         height: auto !important;
@@ -1783,8 +1783,8 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     }
 
     .editor-area, .preview-area {
-        flex: none; /* FIX: Remove flex-grow */
-        height: 50vh; /* FIX: Each takes up half the screen height */
+        flex: none; /* Remove flex-grow */
+        height: 50vh; /* Each takes up half the screen height */
         min-height: 350px;
         width: 100%;
         border-right: none;
@@ -1830,9 +1830,62 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     .file-item.active {
         border: 1px solid #38bdf8;
     }
+    
+    /* Fix CodeMirror editor height on mobile */
+    .CodeMirror {
+        height: 100% !important;
+        min-height: 250px;
+    }
+    .preview-frame-container {
+        margin: 8px;
+        height: calc(100% - 16px);
+    }
 }
 
-/* --- 2. Admin Panel Mobile Fixes --- */
+/* --- 2. AI Assistant Fixes (Overriding JS-injected UI) --- */
+@media (max-width: 768px) {
+    /* Hide the injected sidebar so the chat takes full width */
+    #cwHistorySidebar {
+        display: none !important;
+    }
+
+    /* Make the chat column take 100% width */
+    #cwChatColumn {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+
+    /* Fix the absolute positioned input wrapper so it stays at the bottom */
+    .cw-chat-area {
+        flex-direction: column !important;
+        height: 100dvh !important; /* Dynamic viewport height for mobile browsers */
+        overflow: hidden !important;
+    }
+
+    .cw-input-wrapper {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        transform: none !important;
+        width: 100% !important;
+        padding: 10px !important;
+        margin-bottom: env(safe-area-inset-bottom); /* iOS safe area */
+    }
+    
+    .cw-input-box {
+        width: 100% !important;
+    }
+
+    /* Ensure the chat container doesn't get hidden behind the input */
+    .chat-container {
+        padding-bottom: 20px !important;
+        flex: 1 !important;
+        overflow-y: auto !important;
+    }
+}
+
+/* --- 3. Admin Panel Mobile Fixes --- */
 @media (max-width: 768px) {
     body.admin-body {
         height: auto;
@@ -1895,7 +1948,7 @@ tr:hover td { background-color: rgba(255,255,255,0.02); }
     }
 }
 
-/* --- 3. General Mobile Overrides for Main Site --- */
+/* --- 4. General Mobile Overrides for Main Site --- */
 @media (max-width: 900px) {
     .hero-inner { grid-template-columns: 1fr; gap: 40px; }
     .hero-copy { text-align: center; }
