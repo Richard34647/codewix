@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Mobile Menus & AI Layout Fixed)
+// CodeWix — script.js (Full Master File - Mobile Menus Fixed)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -85,11 +85,10 @@ window.addEventListener('DOMContentLoaded', function () {
   if (savedTheme === 'light') document.body.classList.add('light-mode');
 
   var studioHeader = document.querySelector('.studio-header');
-  var headerBrand = document.querySelector('.header-brand');
   var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
   
-  // ✅ FIX: Dashboard Mobile Hamburger Menu Button (Hidden on Desktop via CSS)
-  if (studioHeader && headerBrand && !isAdminPage) {
+  // ✅ Inject Mobile Menu Button for Dashboard
+  if (studioHeader && !isAdminPage) {
       if (!document.getElementById('mobileMenuBtn')) {
           var mobileMenuBtn = document.createElement('button');
           mobileMenuBtn.id = 'mobileMenuBtn';
@@ -98,10 +97,9 @@ window.addEventListener('DOMContentLoaded', function () {
           
           mobileMenuBtn.onclick = function() {
               var isOpen = studioHeader.classList.toggle('mobile-menu-open');
-              // Change to X when open, back to bars when closed
               mobileMenuBtn.innerHTML = isOpen ? '✕' : '☰';
           };
-          headerBrand.insertBefore(mobileMenuBtn, headerBrand.firstChild);
+          studioHeader.insertBefore(mobileMenuBtn, studioHeader.firstChild);
       }
   }
 
@@ -744,7 +742,7 @@ window.addEventListener('DOMContentLoaded', function () {
         outputContainer.style.display = 'block'; outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
         try {
           var idToken = await auth.currentUser.getIdToken(); var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); var data = await res.json(); if (!res.ok) throw new Error(data.error || 'Execution failed');
-          var finalOutput = data.output || ''; if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) { if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; outputContainer.style.display = 'none'; showToast('Rendered Output', 'success'); return; }
+          var finalOutput = data.output || ''; if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) { if (livePreviewFrame) livePreviewFrame.srcDoc = finalOutput; outputContainer.style.display = 'none'; showToast('Rendered Output', 'success'); return; }
           if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr; if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']'; outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
           var closeBtn = document.createElement('button'); closeBtn.textContent = '✕ Close Terminal'; closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; outputContainer.appendChild(closeBtn);
         } catch (err) { outputContainer.textContent = 'Error: ' + err.message; }
