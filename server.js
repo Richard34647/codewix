@@ -153,9 +153,14 @@ async function checkContentForViolations(text) {
       })
     });
 
+    if (!response.ok) {
+       const errText = await response.text();
+       throw new Error(`Groq API Error ${response.status}: ${errText}`);
+    }
+
     const data = await response.json();
     
-    // Safely extract content in case Groq returns a safety filter error or empty object
+    // Safely extract content in case Groq returns an empty object
     const result = data?.choices?.[0]?.message?.content?.trim() || "";
     
     if (result.startsWith('VIOLATION:')) {
@@ -289,6 +294,11 @@ app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
     const data = await response.json();
     
     console.log("Groq Raw Response:", JSON.stringify(data, null, 2));
+    
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Groq API Error', details: data });
+    }
+
     const rawContent = data?.choices?.[0]?.message?.content || "No content returned from AI";
     
     res.json({ 
