@@ -146,10 +146,10 @@ async function checkContentForViolations(text) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b', // ✅ Updated to use GPT-OSS 120B
+        model: 'openai/gpt-oss-120b', 
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.1,
-        max_tokens: 50
+        max_tokens: 500 // ✅ Increased to allow reasoning model to finish
       })
     });
 
@@ -284,10 +284,10 @@ app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b', // ✅ Updated to use GPT-OSS 120B
+        model: 'openai/gpt-oss-120b', 
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.1,
-        max_tokens: 50
+        max_tokens: 500 // ✅ Increased to allow reasoning model to finish
       })
     });
 
