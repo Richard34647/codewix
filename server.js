@@ -146,7 +146,7 @@ async function checkContentForViolations(text) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
       body: JSON.stringify({
-        model: 'llama3-8b-8192', // ✅ CHANGED to the most stable Groq model
+        model: 'openai/gpt-oss-120b', // ✅ Updated to use GPT-OSS 120B
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.1,
         max_tokens: 50
@@ -284,7 +284,7 @@ app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
       body: JSON.stringify({
-        model: 'llama3-8b-8192', // ✅ CHANGED to the most stable Groq model
+        model: 'openai/gpt-oss-120b', // ✅ Updated to use GPT-OSS 120B
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.1,
         max_tokens: 50
@@ -477,7 +477,7 @@ app.post('/api/chat', requireAuth, requireNotBanned, checkRateLimit, async (req,
 
   try {
     let finalModel = model || 'openai/gpt-oss-120b';
-    if (!req.isPremium && finalModel.includes('70b')) finalModel = 'llama3-8b-8192';
+    if (!req.isPremium && finalModel.includes('70b')) finalModel = 'openai/gpt-oss-120b';
     const body = { model: finalModel, messages, temperature: temperature || 0.7, max_completion_tokens: max_completion_tokens || 2048, stream: true, stream_options: { include_usage: true } };
     if (reasoning_effort && req.isPremium) body.reasoning_effort = reasoning_effort;
 
