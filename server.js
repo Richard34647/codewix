@@ -4,9 +4,8 @@ const cors = require('cors');
 const path = require('path');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
-const { exec } = require('child_process');
 const fs = require('fs');
-const os = require('os');
+const cron = require('node-cron'); // ✅ Added for the crawler
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -116,6 +115,135 @@ async function requireAdmin(req, res, next) {
 }
 
 // ==========================================
+// ✅ NEW: AI CONTENT MODERATION & BAN CRAWLER
+// ==========================================
+
+// 1. Function to ask AI if text violates ToS
+async function checkContentForViolations(text) {
+  if (!text || text.trim().length < 5) return { violation: false };
+  if (!GROQ_API_KEY) return { violation: false }; // Fail safe
+
+  try {
+    const prompt = `Analyze the following text for severe violations of a platform's Terms of Service. 
+    Focus strictly on: Hate Speech, Harassment, Explicit Adult Content (pornography), Illegal Acts, or extreme violence.
+    Respond ONLY with exactly "SAFE" if it is okay, or "VIOLATION: [Short Reason]" if it violates.
+    
+    Text to analyze:
+    "${text.substring(0, 2000)}"`;
+
+    const response = await fetch(GROQ_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant', // Fast model for moderation
+        messages: [{ role: 'system', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 50
+      })
+    });
+
+    const data = await response.json();
+    const result = data.choices[0].message.content.trim();
+    
+    if (result.startsWith('VIOLATION:')) {
+      return { violation: true, reason: result.replace('VIOLATION:', '').trim() };
+    }
+    return { violation: false };
+  } catch (err) {
+    console.error("Moderation Check Failed:", err.message);
+    return { violation: false };
+  }
+}
+
+// 2. Function to issue a strike or ban
+async function issueStrike(uid, reason, isAutoBan = false) {
+  try {
+    const userRef = admin.firestore().collection('users').doc(uid);
+    const userDoc = await userRef.get();
+    let strikes = (userDoc.exists && userDoc.data().strikes) ? userDoc.data().strikes : 0;
+    strikes += 1;
+
+    if (strikes >= 3 || isAutoBan) {
+      // BAN USER
+      await admin.auth().updateUser(uid, { disabled: true });
+      await userRef.set({ banned: true, strikes: strikes, banReason: reason }, { merge: true });
+      console.log(`🚫 [BANNED] User ${uid} banned for: ${reason}`);
+    } else {
+      // WARN USER (Issue strike)
+      await userRef.set({ strikes: strikes, lastStrikeReason: reason }, { merge: true });
+      
+      // Create a notification for them
+      await admin.firestore().collection('notifications').add({
+        title: '⚠️ Terms of Service Warning',
+        message: `A violation was detected on your account: "${reason}". You now have ${strikes}/3 strikes. If you reach 3 strikes, your account will be permanently banned.`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log(`⚠️ [STRIKE] User ${uid} got strike ${strikes}/3 for: ${reason}`);
+    }
+  } catch (err) {
+    console.error("Failed to issue strike:", err);
+  }
+}
+
+// 3. The Crawler (Runs every 6 hours)
+cron.schedule('0 */6 * * *', async () => {
+  console.log('🕷️ Starting automated ToS crawler...');
+  try {
+    const usersSnap = await admin.firestore().collection('users').where('banned', '==', false).get();
+    
+    for (const userDoc of usersSnap.docs) {
+      const uid = userDoc.id;
+      const userData = userDoc.data();
+      
+      // 1. Check Usernames
+      if (userData.displayName) {
+        const check = await checkContentForViolations(userData.displayName);
+        if (check.violation) {
+          await issueStrike(uid, `Inappropriate username: ${check.reason}`);
+          continue; // Skip rest of checks if username is bad
+        }
+      }
+      
+      // 2. Check their Published Sites
+      const sitesSnap = await admin.firestore().collection('published').where('uid', '==', uid).get();
+      for (const siteDoc of sitesSnap.docs) {
+        const site = siteDoc.data();
+        const textToScan = `${site.projectName || ''} ${site.description || ''}`;
+        const check = await checkContentForViolations(textToScan);
+        
+        if (check.violation) {
+          await issueStrike(uid, `Inappropriate published site (${site.projectName}): ${check.reason}`);
+          // Optionally take down the site immediately
+          await admin.firestore().collection('published').doc(siteDoc.id).update({ hidden: true });
+          break; // Move to next user
+        }
+      }
+
+      // 3. Check AI Chat Messages (Optional - takes longer)
+      // To save tokens, we only check the *latest* 5 chats.
+      const chatsSnap = await admin.firestore().collection('users').doc(uid).collection('chats').orderBy('updatedAt', 'desc').limit(5).get();
+      for (const chatDoc of chatsSnap.docs) {
+        const chat = chatDoc.data();
+        if (chat.messages && chat.messages.length > 0) {
+          const lastMsg = chat.messages[chat.messages.length - 1];
+          if (lastMsg.role === 'user' && typeof lastMsg.content === 'string') {
+            const check = await checkContentForViolations(lastMsg.content);
+            if (check.violation) {
+              await issueStrike(uid, `Inappropriate AI chat prompt: ${check.reason}`);
+              break; 
+            }
+          }
+        }
+      }
+    }
+    console.log('🕷️ Crawler finished.');
+  } catch (err) {
+    console.error('Crawler error:', err);
+  }
+});
+
+
+// ==========================================
 // ADMIN ROUTES
 // ==========================================
 app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
@@ -126,26 +254,30 @@ app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
     let premiumCount = 0; 
     usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
     
-    res.json({ 
-      totalUsers: usersList.users.length, 
-      premiumUsers: premiumCount, 
-      totalProjects: projectsSnap.size, 
-      totalLessons: lessonsSnap.size
-    });
+    res.json({ totalUsers: usersList.users.length, premiumUsers: premiumCount, totalProjects: projectsSnap.size, totalLessons: lessonsSnap.size });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const listUsersResult = await admin.auth().listUsers(1000);
-    const users = listUsersResult.users.map(u => ({ 
-      uid: u.uid, 
-      email: u.email || 'No Email', 
-      displayName: u.displayName || 'No Name', 
-      premium: u.customClaims?.premium === true,
-      joined: new Date(u.metadata.creationTime).toLocaleDateString(),
-      banned: u.disabled === true
-    }));
+    const users = [];
+    
+    for (const u of listUsersResult.users) {
+      const userDoc = await admin.firestore().collection('users').doc(u.uid).get();
+      const firestoreData = userDoc.exists ? userDoc.data() : {};
+      
+      users.push({ 
+        uid: u.uid, 
+        email: u.email || 'No Email', 
+        displayName: u.displayName || 'No Name', 
+        premium: u.customClaims?.premium === true,
+        joined: new Date(u.metadata.creationTime).toLocaleDateString(),
+        banned: u.disabled === true,
+        strikes: firestoreData.strikes || 0,
+        lastStrikeReason: firestoreData.lastStrikeReason || ''
+      });
+    }
     res.json({ users });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -157,10 +289,8 @@ app.post('/api/admin/update-user', requireAuth, requireAdmin, async (req, res) =
       const userRecord = await admin.auth().getUser(uid);
       const isPremium = userRecord.customClaims?.premium === true;
       const newPremiumStatus = !isPremium;
-      
       await admin.auth().setCustomUserClaims(uid, { ...(userRecord.customClaims || {}), premium: newPremiumStatus });
       await admin.firestore().collection('users').doc(uid).set({ premium: newPremiumStatus }, { merge: true });
-      
       res.json({ ok: true });
     } else if (action === 'delete') { 
       await admin.auth().deleteUser(uid); 
@@ -185,6 +315,8 @@ app.post('/api/admin/ban-user', requireAuth, requireAdmin, async (req, res) => {
     }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ... (Rest of the admin routes remain the same) ...
 
 app.get('/api/admin/projects', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -211,27 +343,21 @@ app.get('/api/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
       const usageDoc = await admin.firestore().collection('users').doc(user.uid).collection('usage').doc(today).get();
       if (usageDoc.exists) {
         const tokens = usageDoc.data().tokens || 0;
-        if (tokens > 0) {
-          topConsumers.push({ email: user.email, tokens: tokens });
-          totalTokens += tokens;
-        }
+        if (tokens > 0) { topConsumers.push({ email: user.email, tokens: tokens }); totalTokens += tokens; }
       }
     }
     topConsumers.sort((a, b) => b.tokens - a.tokens);
-    topConsumers = topConsumers.slice(0, 10);
-
-    res.json({ totalTokensToday: totalTokens, topConsumers });
+    res.json({ totalTokensToday: totalTokens, topConsumers: topConsumers.slice(0, 10) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
-// NOTIFICATIONS ROUTES
+// NOTIFICATIONS, SELAR, AI CHAT
 // ==========================================
 app.get('/api/notifications', requireAuth, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('notifications').orderBy('createdAt', 'desc').limit(20).get();
-    const notifications = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json({ notifications });
+    res.json({ notifications: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -239,45 +365,31 @@ app.post('/api/admin/notifications', requireAuth, requireAdmin, async (req, res)
   const { title, message } = req.body;
   if (!title || !message) return res.status(400).json({ error: 'Title and message are required.' });
   try {
-    const ref = await admin.firestore().collection('notifications').add({
-      title, message, createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    const ref = await admin.firestore().collection('notifications').add({ title, message, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     res.json({ ok: true, id: ref.id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/admin/notifications/:id', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    await admin.firestore().collection('notifications').doc(req.params.id).delete();
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { await admin.firestore().collection('notifications').doc(req.params.id).delete(); res.json({ ok: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// SELAR WEBHOOK
-// ==========================================
 app.post('/api/selar-webhook', async (req, res) => {
   try {
     const secret = req.headers['x-selar-signature'] || req.query.secret;
     if (SELAR_WEBHOOK_SECRET && secret !== SELAR_WEBHOOK_SECRET) return res.status(401).send('Unauthorized');
-    
     const payload = JSON.parse(req.body.toString());
     if (payload.event === 'charge.success' || payload.event === 'sale.completed' || payload.event === 'subscription.created') {
       const customerEmail = payload.data.customer.email;
       if (!customerEmail) return res.status(400).send('No email provided');
-      
       const userRecord = await admin.auth().getUserByEmail(customerEmail);
       await admin.auth().setCustomUserClaims(userRecord.uid, { premium: true });
       await admin.firestore().collection('users').doc(userRecord.uid).set({ premium: true, upgradedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-      console.log(`✅ User ${customerEmail} upgraded to PRO.`);
     }
     res.status(200).send('Webhook received');
   } catch (err) { res.status(500).send('Webhook failed'); }
 });
 
-// ==========================================
-// AI CHAT ROUTE
-// ==========================================
 app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
@@ -286,14 +398,10 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
   try {
     let finalModel = model || 'openai/gpt-oss-120b';
     if (!req.isPremium && finalModel.includes('70b')) finalModel = 'llama-3.1-8b-instant';
-
     const body = { model: finalModel, messages, temperature: temperature || 0.7, max_completion_tokens: max_completion_tokens || 2048, stream: true, stream_options: { include_usage: true } };
     if (reasoning_effort && req.isPremium) body.reasoning_effort = reasoning_effort;
 
-    const groqRes = await fetch(GROQ_ENDPOINT, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY }, body: JSON.stringify(body)
-    });
-
+    const groqRes = await fetch(GROQ_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY }, body: JSON.stringify(body) });
     if (!groqRes.ok) { const errData = await groqRes.json(); return res.status(groqRes.status).json(errData); }
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -311,8 +419,7 @@ app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
         const chunk = decoder.decode(value, { stream: true });
         res.write(chunk);
         buffer += chunk;
-        let lines = buffer.split('\n');
-        buffer = lines.pop(); 
+        let lines = buffer.split('\n'); buffer = lines.pop(); 
         for (let line of lines) {
           if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
             try { const parsed = JSON.parse(line.slice(6)); if (parsed.usage && parsed.usage.total_tokens) totalTokensUsed = parsed.usage.total_tokens; } catch (e) {}
@@ -339,128 +446,53 @@ app.get('/api/user/usage', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// AI HORDE IMAGE GENERATION ROUTE
-// ==========================================
 app.get('/api/generate-image', async (req, res) => {
   const { prompt } = req.query;
   if (!prompt) return res.status(400).json({ error: 'Prompt required' });
-
   try {
     const generateRes = await fetch('https://aihorde.net/api/v2/generate/async', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
-      body: JSON.stringify({
-        prompt: prompt,
-        params: { width: 512, height: 512, steps: 20, n: 1, sampler_name: "k_euler" },
-        nsfw: false, censor_nsfw: true, models: ["stable_diffusion"]
-      })
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
+      body: JSON.stringify({ prompt: prompt, params: { width: 512, height: 512, steps: 20, n: 1, sampler_name: "k_euler" }, nsfw: false, censor_nsfw: true, models: ["stable_diffusion"] })
     });
-
     const generateData = await generateRes.json();
-    if (!generateData.id) throw new Error('Failed to queue image generation. AI Horde might be busy.');
-
-    const jobId = generateData.id;
-    let isDone = false;
-    let imageUrl = null;
-
+    if (!generateData.id) throw new Error('Failed to queue image generation.');
+    const jobId = generateData.id; let isDone = false; let imageUrl = null;
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 2000)); 
       const checkRes = await fetch(`https://aihorde.net/api/v2/generate/check/${jobId}`, { headers: { 'apikey': '0000000000' } });
       const checkData = await checkRes.json();
       if (checkData.done) { isDone = true; break; }
     }
-
-    if (!isDone) throw new Error('Image generation timed out. AI Horde is very busy right now.');
-
+    if (!isDone) throw new Error('Image generation timed out.');
     const statusRes = await fetch(`https://aihorde.net/api/v2/generate/status/${jobId}`, { headers: { 'apikey': '0000000000' } });
     const statusData = await statusRes.json();
-    
-    if (statusData.generations && statusData.generations.length > 0) {
-      imageUrl = statusData.generations[0].img;
-    } else {
-      throw new Error('No image generated by AI Horde');
-    }
-
-    const imageRes = await fetch(imageUrl);
-    const imageBuffer = await imageRes.arrayBuffer();
-    
-    res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.send(Buffer.from(imageBuffer));
-
-  } catch (err) {
-    console.error('AI Horde Error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+    if (statusData.generations && statusData.generations.length > 0) imageUrl = statusData.generations[0].img;
+    else throw new Error('No image generated by AI Horde');
+    const imageRes = await fetch(imageUrl); const imageBuffer = await imageRes.arrayBuffer();
+    res.set('Content-Type', 'image/jpeg'); res.set('Cache-Control', 'public, max-age=86400'); res.send(Buffer.from(imageBuffer));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// RUN CODE ROUTE (FIXED)
-// ==========================================
 app.post('/api/run', requireAuth, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
   const lang = language.toLowerCase();
-
-  const langMap = { 
-    'php': 68, 
-    'js': 63, 
-    'javascript': 63, 
-    'py': 71, 
-    'python': 71, 
-    'cpp': 54, 
-    'c++': 54, 
-    'c': 50, 
-    'java': 62, 
-    'rb': 72, 
-    'ruby': 72, 
-    'go': 60, 
-    'rs': 73, 
-    'rust': 73, 
-    'ts': 74, 
-    'cs': 51 
-  };
-  
+  const langMap = { 'php': 68, 'js': 63, 'javascript': 63, 'py': 71, 'python': 71, 'cpp': 54, 'c++': 54, 'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 };
   const langId = langMap[lang];
   if (!langId) return res.status(400).json({ error: 'Unsupported language.' });
-
   try {
-    // Added User-Agent and Timeout to prevent 'fetch failed' on Render
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
+    const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 15000);
     const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
-      method: 'POST', 
-      headers: { 
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; CodeWixServer/1.0)'
-      }, 
-      body: JSON.stringify({ language_id: langId, source_code: code }),
-      signal: controller.signal
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; CodeWixServer/1.0)' }, body: JSON.stringify({ language_id: langId, source_code: code }), signal: controller.signal
     });
-    
     clearTimeout(timeoutId);
-
     const data = await response.json();
-    
     if (data.error) return res.status(500).json({ error: data.error });
     if (data.message) return res.status(500).json({ error: data.message });
-    
-    res.json({ 
-      output: data.stdout || '', 
-      stderr: data.stderr || data.compile_output || '', 
-      code: data.status ? data.status.id : 0 
-    });
-  } catch (err) { 
-    console.error("Judge0 Error:", err);
-    res.status(500).json({ error: 'Execution engine failed. The free API might be temporarily down. Please try again later.' }); 
-  }
+    res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
+  } catch (err) { res.status(500).json({ error: 'Execution engine failed. The free API might be temporarily down.' }); }
 });
 
-// ==========================================
-// CONTACT & VERIFICATION
-// ==========================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body || {};
   if (!name || !email || !message) return res.status(400).json({ error: 'Fields required.' });
@@ -488,44 +520,38 @@ app.post('/api/send-verification-email', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// LESSONS
-// ==========================================
 app.get('/api/lessons', async (req, res) => {
-  try {
-    const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get();
-    res.json({ lessons: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) });
-  } catch (err) { if (err.code === 5) return res.json({ lessons: [] }); res.status(500).json({ error: err.message }); }
+  try { const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get(); res.json({ lessons: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) }); } catch (err) { if (err.code === 5) return res.json({ lessons: [] }); res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/admin/lessons', requireAuth, requireAdmin, async (req, res) => {
   const { title, description, difficulty, content } = req.body || {};
-  try {
-    const ref = await admin.firestore().collection('lessons').add({ title, description, difficulty, content, createdAt: admin.firestore.FieldValue.serverTimestamp() });
-    res.json({ ok: true, id: ref.id });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { const ref = await admin.firestore().collection('lessons').add({ title, description, difficulty, content, createdAt: admin.firestore.FieldValue.serverTimestamp() }); res.json({ ok: true, id: ref.id }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res) => {
   try { await admin.firestore().collection('lessons').doc(req.params.id).delete(); res.json({ ok: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==========================================
-// PUBLISH & SITES
-// ==========================================
 app.post('/api/publish', requireAuth, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
-  const safeDescription = description || '';
   
+  // ✅ NEW: Real-time moderation on publish
+  const textToScan = `${projectName} ${description}`;
+  const moderation = await checkContentForViolations(textToScan);
+  if (moderation.violation) {
+      await issueStrike(req.user.uid, `Violation on publish: ${moderation.reason}`);
+      return res.status(403).json({ error: 'Your site was flagged for violating our Terms of Service and cannot be published.' });
+  }
+
+  const safeDescription = description || '';
   if (!req.isPremium) {
     const existing = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
     if (existing.size >= 1) return res.status(403).json({ error: 'Free users can only publish 1 site. Upgrade to Pro!' });
   }
-
   let finalPassword = null;
   if (password && req.isPremium) finalPassword = password;
-
   const pubRef = admin.firestore().collection('published').doc(slug);
   try {
     await admin.firestore().runTransaction(async (tx) => {
@@ -548,8 +574,7 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
   try {
     const ref = admin.firestore().collection('published').doc(req.body.slug);
     const doc = await ref.get();
-    if (doc.exists && doc.data().uid === req.user.uid) { await ref.delete(); res.json({ ok: true }); } 
-    else { res.status(403).json({ error: 'Not your site.' }); }
+    if (doc.exists && doc.data().uid === req.user.uid) { await ref.delete(); res.json({ ok: true }); } else { res.status(403).json({ error: 'Not your site.' }); }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -557,11 +582,7 @@ app.get('/api/my-published', requireAuth, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
     let sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
-    sites.sort((a, b) => {
-      const timeA = a.updatedAt ? (a.updatedAt._seconds || 0) : 0;
-      const timeB = b.updatedAt ? (b.updatedAt._seconds || 0) : 0;
-      return timeB - timeA;
-    });
+    sites.sort((a, b) => { const timeA = a.updatedAt ? (a.updatedAt._seconds || 0) : 0; const timeB = b.updatedAt ? (b.updatedAt._seconds || 0) : 0; return timeB - timeA; });
     sites = sites.map(s => ({ ...s, updatedAt: s.updatedAt ? new Date(s.updatedAt._seconds * 1000).toISOString() : null }));
     res.json({ sites });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -589,28 +610,20 @@ app.put('/api/published/:slug', requireAuth, async (req, res) => {
 
 app.get('/api/explore', async (req, res) => {
   try {
-    const snap = await admin.firestore().collection('published').orderBy('updatedAt', 'desc').limit(60).get();
+    const snap = await admin.firestore().collection('published').where('hidden', '!=', true).orderBy('updatedAt', 'desc').limit(60).get();
     const sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
-    
     const uids = [...new Set(sites.map(s => s.uid))];
     if (uids.length === 0) return res.json({ sites: [] });
-    
     const usersResult = await admin.auth().getUsers(uids.map(uid => ({ uid })));
     const premiumUids = new Set(usersResult.users.filter(u => u.customClaims?.premium).map(u => u.uid));
-
-    const enrichedSites = sites.map(s => ({
-      ...s,
-      updatedAt: s.updatedAt?.toDate().toISOString(),
-      isPremiumOwner: premiumUids.has(s.uid)
-    }));
-
+    const enrichedSites = sites.map(s => ({ ...s, updatedAt: s.updatedAt?.toDate().toISOString(), isPremiumOwner: premiumUids.has(s.uid) }));
     res.json({ sites: enrichedSites });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/user/:username', async (req, res) => {
   try {
-    const snap = await admin.firestore().collection('published').where('username', '==', req.params.username).orderBy('updatedAt', 'desc').get();
+    const snap = await admin.firestore().collection('published').where('username', '==', req.params.username).where('hidden', '!=', true).orderBy('updatedAt', 'desc').get();
     res.json({ username: req.params.username, count: snap.size, sites: snap.docs.map(doc => ({ slug: doc.id, ...doc.data(), updatedAt: doc.data().updatedAt?.toDate().toISOString() })) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -619,25 +632,18 @@ app.get('/s/:slug', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
     const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
-    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    if (!doc.exists || doc.data().hidden) return res.status(404).sendFile(path.join(__dirname, '404.html'));
     const data = doc.data();
-    
     if (data.password && data.password !== req.query.pw) {
       return res.send(`<html><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:100px;"><h2>🔒 Password Protected</h2><form method="GET" style="margin-top:20px;"><input type="password" name="pw" placeholder="Password" style="padding:10px;border-radius:5px;"><button type="submit" style="padding:10px 20px;background:#38bdf8;border:none;border-radius:5px;">Unlock</button></form></body></html>`);
     }
-
     let isPremiumOwner = false;
     try { const ownerRecord = await admin.auth().getUser(data.uid); isPremiumOwner = ownerRecord.customClaims?.premium === true; } catch (err) {}
-
     const files = data.files || {};
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
-    
     let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
     let watermarkHtml = '';
-    if (!isPremiumOwner) {
-      watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
-    }
-
+    if (!isPremiumOwner) watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
     res.send(html);
   } catch (err) { next(); }
@@ -647,7 +653,7 @@ app.get('/s/:slug/*', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
     const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
-    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    if (!doc.exists || doc.data().hidden) return res.status(404).sendFile(path.join(__dirname, '404.html'));
     const data = doc.data();
     if (data.password && data.password !== req.query.pw) return res.status(401).send('Password required');
     const filename = req.params[0];
@@ -660,24 +666,18 @@ app.get('/s/:slug/*', async (req, res, next) => {
         try { const ownerRecord = await admin.auth().getUser(data.uid); isPremiumOwner = ownerRecord.customClaims?.premium === true; } catch (err) {}
         let rawHtml = resolveAssetUrls(content, files);
         let watermarkHtml = '';
-        if (!isPremiumOwner) {
-          watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
-        }
+        if (!isPremiumOwner) watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
         const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
         return res.send(html);
       }
       if (content.startsWith('data:')) {
-        const parts = content.split(',');
-        const mimeMatch = parts[0].match(/:(.*?);/);
+        const parts = content.split(','); const mimeMatch = parts[0].match(/:(.*?);/);
         const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
         const buffer = Buffer.from(parts[1], 'base64');
         return res.type(mime).send(buffer);
       }
       let contentType = 'text/plain';
-      if (ext === '.css') contentType = 'text/css';
-      else if (ext === '.js') contentType = 'application/javascript';
-      else if (ext === '.json') contentType = 'application/json';
-      else if (ext === '.svg') contentType = 'image/svg+xml';
+      if (ext === '.css') contentType = 'text/css'; else if (ext === '.js') contentType = 'application/javascript'; else if (ext === '.json') contentType = 'application/json'; else if (ext === '.svg') contentType = 'image/svg+xml';
       return res.type(contentType).send(content);
     }
     return res.status(404).sendFile(path.join(__dirname, '404.html'));
