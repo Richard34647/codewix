@@ -92,7 +92,6 @@ async function requireAuth(req, res, next) {
   }
 }
 
-// ✅ NEW: Prevent banned users from using the API even if they have a cached token
 async function requireNotBanned(req, res, next) {
   try {
     const doc = await admin.firestore().collection('users').doc(req.user.uid).get();
@@ -101,7 +100,7 @@ async function requireNotBanned(req, res, next) {
     }
     next();
   } catch (e) {
-    next(); // Fail open if Firestore is down, auth already passed
+    next(); 
   }
 }
 
@@ -197,14 +196,12 @@ async function runCrawler() {
   const stats = { scanned: 0, strikes: 0, banned: 0 };
 
   try {
-    // ✅ FIXED: Get ALL users instead of filtering by 'banned == false' in the query
     const usersSnap = await admin.firestore().collection('users').get();
     
     for (const userDoc of usersSnap.docs) {
       const uid = userDoc.id;
       const userData = userDoc.data();
       
-      // Skip if already banned
       if (userData.banned === true) continue;
       stats.scanned++;
 
@@ -214,7 +211,7 @@ async function runCrawler() {
         if (check.violation) {
           await issueStrike(uid, `Inappropriate username: ${check.reason}`);
           stats.strikes++;
-          continue; // Move to next user
+          continue; 
         }
       }
       
@@ -222,7 +219,7 @@ async function runCrawler() {
       const sitesSnap = await admin.firestore().collection('published').where('uid', '==', uid).get();
       for (const siteDoc of sitesSnap.docs) {
         const site = siteDoc.data();
-        if (site.hidden === true) continue; // Skip already hidden sites
+        if (site.hidden === true) continue; 
 
         const textToScan = `${site.projectName || ''} ${site.description || ''}`;
         const check = await checkContentForViolations(textToScan);
@@ -265,7 +262,37 @@ cron.schedule('0 */6 * * *', () => {
   runCrawler().catch(console.error);
 });
 
-// ✅ NEW: Endpoint to trigger crawler manually
+// ✅ NEW: Temporary Debug Route to test the AI directly
+app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const textToTest = req.body.text;
+    console.log("Testing AI with text:", textToTest);
+    const prompt = `Analyze the following text for severe violations of a platform's Terms of Service. 
+    Focus strictly on: Hate Speech, Harassment, Explicit Adult Content (pornography), Illegal Acts, or extreme violence.
+    Respond ONLY with exactly "SAFE" if it is okay, or "VIOLATION: [Short Reason]" if it violates.
+    
+    Text to analyze:
+    "${textToTest}"`;
+
+    const response = await fetch(GROQ_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'system', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 50
+      })
+    });
+
+    const data = await response.json();
+    res.json({ raw_ai_response: data.choices[0].message.content, is_api_key_missing: !GROQ_API_KEY });
+  } catch (err) {
+    res.status(500).json({ error: err.message, is_api_key_missing: !GROQ_API_KEY });
+  }
+});
+
+// Endpoint to trigger crawler manually
 app.post('/api/admin/run-crawler', requireAuth, requireAdmin, async (req, res) => {
   try {
     const result = await runCrawler();
