@@ -154,7 +154,9 @@ async function checkContentForViolations(text) {
     });
 
     const data = await response.json();
-    const result = data.choices[0].message.content.trim();
+    
+    // Safely extract content in case Groq returns a safety filter error or empty object
+    const result = data?.choices?.[0]?.message?.content?.trim() || "";
     
     if (result.startsWith('VIOLATION:')) {
       return { violation: true, reason: result.replace('VIOLATION:', '').trim() };
@@ -262,11 +264,10 @@ cron.schedule('0 */6 * * *', () => {
   runCrawler().catch(console.error);
 });
 
-// ✅ NEW: Temporary Debug Route to test the AI directly
+// ✅ Temporary Debug Route to test the AI directly
 app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
   try {
     const textToTest = req.body.text;
-    console.log("Testing AI with text:", textToTest);
     const prompt = `Analyze the following text for severe violations of a platform's Terms of Service. 
     Focus strictly on: Hate Speech, Harassment, Explicit Adult Content (pornography), Illegal Acts, or extreme violence.
     Respond ONLY with exactly "SAFE" if it is okay, or "VIOLATION: [Short Reason]" if it violates.
@@ -286,7 +287,15 @@ app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
     });
 
     const data = await response.json();
-    res.json({ raw_ai_response: data.choices[0].message.content, is_api_key_missing: !GROQ_API_KEY });
+    
+    console.log("Groq Raw Response:", JSON.stringify(data, null, 2));
+    const rawContent = data?.choices?.[0]?.message?.content || "No content returned from AI";
+    
+    res.json({ 
+      raw_ai_response: rawContent, 
+      full_groq_data: data,
+      is_api_key_missing: !GROQ_API_KEY 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message, is_api_key_missing: !GROQ_API_KEY });
   }
