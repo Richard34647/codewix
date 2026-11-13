@@ -5,7 +5,7 @@ const path = require('path');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
 const fs = require('fs');
-const cron = require('node-cron'); // ✅ Added for the crawler
+const cron = require('node-cron'); // ✅ Required for the crawler
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -92,6 +92,19 @@ async function requireAuth(req, res, next) {
   }
 }
 
+// ✅ NEW: Prevent banned users from using the API even if they have a cached token
+async function requireNotBanned(req, res, next) {
+  try {
+    const doc = await admin.firestore().collection('users').doc(req.user.uid).get();
+    if (doc.exists && doc.data().banned === true) {
+      return res.status(403).json({ error: 'Account banned. You cannot perform this action.' });
+    }
+    next();
+  } catch (e) {
+    next(); // Fail open if Firestore is down, auth already passed
+  }
+}
+
 async function checkRateLimit(req, res, next) {
   if (req.isPremium) return next(); 
   const uid = req.user.uid;
@@ -115,10 +128,9 @@ async function requireAdmin(req, res, next) {
 }
 
 // ==========================================
-// ✅ NEW: AI CONTENT MODERATION & BAN CRAWLER
+// AI CONTENT MODERATION & BAN CRAWLER
 // ==========================================
 
-// 1. Function to ask AI if text violates ToS
 async function checkContentForViolations(text) {
   if (!text || text.trim().length < 5) return { violation: false };
   if (!GROQ_API_KEY) return { violation: false }; // Fail safe
@@ -135,7 +147,7 @@ async function checkContentForViolations(text) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant', // Fast model for moderation
+        model: 'llama-3.1-8b-instant',
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.1,
         max_tokens: 50
@@ -155,7 +167,6 @@ async function checkContentForViolations(text) {
   }
 }
 
-// 2. Function to issue a strike or ban
 async function issueStrike(uid, reason, isAutoBan = false) {
   try {
     const userRef = admin.firestore().collection('users').doc(uid);
@@ -164,15 +175,11 @@ async function issueStrike(uid, reason, isAutoBan = false) {
     strikes += 1;
 
     if (strikes >= 3 || isAutoBan) {
-      // BAN USER
       await admin.auth().updateUser(uid, { disabled: true });
       await userRef.set({ banned: true, strikes: strikes, banReason: reason }, { merge: true });
       console.log(`🚫 [BANNED] User ${uid} banned for: ${reason}`);
     } else {
-      // WARN USER (Issue strike)
       await userRef.set({ strikes: strikes, lastStrikeReason: reason }, { merge: true });
-      
-      // Create a notification for them
       await admin.firestore().collection('notifications').add({
         title: '⚠️ Terms of Service Warning',
         message: `A violation was detected on your account: "${reason}". You now have ${strikes}/3 strikes. If you reach 3 strikes, your account will be permanently banned.`,
@@ -185,42 +192,50 @@ async function issueStrike(uid, reason, isAutoBan = false) {
   }
 }
 
-// 3. The Crawler (Runs every 6 hours)
-cron.schedule('0 */6 * * *', async () => {
+async function runCrawler() {
   console.log('🕷️ Starting automated ToS crawler...');
+  const stats = { scanned: 0, strikes: 0, banned: 0 };
+
   try {
-    const usersSnap = await admin.firestore().collection('users').where('banned', '==', false).get();
+    // ✅ FIXED: Get ALL users instead of filtering by 'banned == false' in the query
+    const usersSnap = await admin.firestore().collection('users').get();
     
     for (const userDoc of usersSnap.docs) {
       const uid = userDoc.id;
       const userData = userDoc.data();
       
+      // Skip if already banned
+      if (userData.banned === true) continue;
+      stats.scanned++;
+
       // 1. Check Usernames
       if (userData.displayName) {
         const check = await checkContentForViolations(userData.displayName);
         if (check.violation) {
           await issueStrike(uid, `Inappropriate username: ${check.reason}`);
-          continue; // Skip rest of checks if username is bad
+          stats.strikes++;
+          continue; // Move to next user
         }
       }
       
-      // 2. Check their Published Sites
+      // 2. Check Published Sites
       const sitesSnap = await admin.firestore().collection('published').where('uid', '==', uid).get();
       for (const siteDoc of sitesSnap.docs) {
         const site = siteDoc.data();
+        if (site.hidden === true) continue; // Skip already hidden sites
+
         const textToScan = `${site.projectName || ''} ${site.description || ''}`;
         const check = await checkContentForViolations(textToScan);
         
         if (check.violation) {
           await issueStrike(uid, `Inappropriate published site (${site.projectName}): ${check.reason}`);
-          // Optionally take down the site immediately
+          stats.strikes++;
           await admin.firestore().collection('published').doc(siteDoc.id).update({ hidden: true });
-          break; // Move to next user
+          break; 
         }
       }
 
-      // 3. Check AI Chat Messages (Optional - takes longer)
-      // To save tokens, we only check the *latest* 5 chats.
+      // 3. Check AI Chat Messages (Latest 5)
       const chatsSnap = await admin.firestore().collection('users').doc(uid).collection('chats').orderBy('updatedAt', 'desc').limit(5).get();
       for (const chatDoc of chatsSnap.docs) {
         const chat = chatDoc.data();
@@ -230,18 +245,35 @@ cron.schedule('0 */6 * * *', async () => {
             const check = await checkContentForViolations(lastMsg.content);
             if (check.violation) {
               await issueStrike(uid, `Inappropriate AI chat prompt: ${check.reason}`);
+              stats.strikes++;
               break; 
             }
           }
         }
       }
     }
-    console.log('🕷️ Crawler finished.');
+    console.log('🕷️ Crawler finished.', stats);
+    return stats;
   } catch (err) {
     console.error('Crawler error:', err);
+    throw err;
   }
+}
+
+// Schedule the crawler every 6 hours
+cron.schedule('0 */6 * * *', () => {
+  runCrawler().catch(console.error);
 });
 
+// ✅ NEW: Endpoint to trigger crawler manually
+app.post('/api/admin/run-crawler', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await runCrawler();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ==========================================
 // ADMIN ROUTES
@@ -316,8 +348,6 @@ app.post('/api/admin/ban-user', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ... (Rest of the admin routes remain the same) ...
-
 app.get('/api/admin/projects', requireAuth, requireAdmin, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').orderBy('views', 'desc').get();
@@ -390,7 +420,7 @@ app.post('/api/selar-webhook', async (req, res) => {
   } catch (err) { res.status(500).send('Webhook failed'); }
 });
 
-app.post('/api/chat', requireAuth, checkRateLimit, async (req, res) => {
+app.post('/api/chat', requireAuth, requireNotBanned, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'messages required.' });
@@ -473,7 +503,7 @@ app.get('/api/generate-image', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/run', requireAuth, async (req, res) => {
+app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
   const lang = language.toLowerCase();
@@ -533,11 +563,10 @@ app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res)
   try { await admin.firestore().collection('lessons').doc(req.params.id).delete(); res.json({ ok: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/publish', requireAuth, async (req, res) => {
+app.post('/api/publish', requireAuth, requireNotBanned, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
   
-  // ✅ NEW: Real-time moderation on publish
   const textToScan = `${projectName} ${description}`;
   const moderation = await checkContentForViolations(textToScan);
   if (moderation.violation) {
