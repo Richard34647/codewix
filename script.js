@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - Final Fixes)
+// CodeWix — script.js (Full Master File - With Moderation Strikes)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -352,8 +352,20 @@ window.addEventListener('DOMContentLoaded', function () {
       try {
         const res = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + await getToken() } }); const data = await res.json();
         const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; if (!tbody) return;
-        if (!data.users || data.users.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No users found.</td></tr>'; return; }
-        tbody.innerHTML = data.users.map(u => `<tr><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.displayName)}</td><td>${u.banned ? '<span style="color:#ef4444;font-weight:bold;">BANNED</span>' : 'Active'}</td><td><span class="badge ${u.premium ? 'premium' : 'free'}">${u.premium ? 'Premium' : 'Free'}</span></td><td><button class="btn btn-warning toggle-premium-btn" data-uid="${u.uid}">${u.premium ? 'Revoke Pro' : 'Make Pro'}</button>${u.banned ? `<button class="btn btn-success unban-btn" data-uid="${u.uid}">Unban</button>` : `<button class="btn btn-danger ban-btn" data-uid="${u.uid}">Ban</button>`}</td></tr>`).join('');
+        if (!data.users || data.users.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>'; return; }
+        
+        // ✅ UPDATED: Added Strikes column
+        tbody.innerHTML = data.users.map(u => `<tr>
+          <td>${escapeHtml(u.email)}</td>
+          <td>${escapeHtml(u.displayName)}</td>
+          <td>${u.banned ? '<span style="color:#ef4444;font-weight:bold;">BANNED</span>' : 'Active'}</td>
+          <td><span class="badge ${u.premium ? 'premium' : 'free'}">${u.premium ? 'Premium' : 'Free'}</span></td>
+          <td>${u.strikes > 0 ? `<span style="color:#fbbf24; font-weight:bold;" title="${escapeHtml(u.lastStrikeReason)}">${u.strikes} / 3</span>` : '0'}</td>
+          <td>
+            <button class="btn btn-warning toggle-premium-btn" data-uid="${u.uid}">${u.premium ? 'Revoke Pro' : 'Make Pro'}</button>
+            ${u.banned ? `<button class="btn btn-success unban-btn" data-uid="${u.uid}">Unban</button>` : `<button class="btn btn-danger ban-btn" data-uid="${u.uid}">Ban</button>`}
+          </td>
+        </tr>`).join('');
       } catch (err) { showToast(err.message, 'error'); }
     };
 
