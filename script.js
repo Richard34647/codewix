@@ -159,26 +159,47 @@ window.addEventListener('DOMContentLoaded', function () {
         });
       }
 
+      // ✅ FIXED: Fetch BOTH global announcements AND private user warnings
       if (db) {
         try {
-          const snap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(10).get();
+          const globalSnap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(5).get();
+          const userSnap = await db.collection('users').doc(user.uid).collection('notifications').orderBy('createdAt', 'desc').limit(5).get();
+          
+          let allNotifs = [];
+          globalSnap.forEach(doc => allNotifs.push({ id: doc.id, ...doc.data() }));
+          userSnap.forEach(doc => allNotifs.push({ id: doc.id, ...doc.data() }));
+          
+          // Sort by newest first
+          allNotifs.sort((a, b) => {
+              const timeA = a.createdAt ? a.createdAt.toMillis() : 0;
+              const timeB = b.createdAt ? b.createdAt.toMillis() : 0;
+              return timeB - timeA;
+          });
+
           const notifList = document.getElementById('notifList');
           const badge = document.getElementById('notifBadge');
+          
           if (notifList) {
-            if (snap.empty) { notifList.innerHTML = '<p style="padding:20px; text-align:center; color:#64748b;">No notifications yet.</p>'; } 
-            else {
+            if (allNotifs.length === 0) { 
+              notifList.innerHTML = '<p style="padding:20px; text-align:center; color:#64748b;">No notifications yet.</p>'; 
+            } else {
               let html = ''; let latestTime = 0;
-              snap.forEach(doc => {
-                const n = doc.data(); const time = n.createdAt ? n.createdAt.toMillis() : Date.now();
+              allNotifs.slice(0, 10).forEach(n => {
+                const time = n.createdAt ? n.createdAt.toMillis() : Date.now();
                 if (time > latestTime) latestTime = time;
-                html += `<div style="padding:12px; border-bottom:1px solid #334155;"><h4 style="margin:0 0 4px 0; color:#38bdf8; font-size:13px;">${escapeHtml(n.title)}</h4><p style="margin:0; color:#cbd5e1; font-size:12px; line-height:1.4;">${escapeHtml(n.message)}</p></div>`;
+                
+                // Warnings in amber, announcements in blue
+                const isWarning = n.title && n.title.includes('⚠️');
+                const titleColor = isWarning ? '#fbbf24' : '#38bdf8';
+                
+                html += `<div style="padding:12px; border-bottom:1px solid #334155;"><h4 style="margin:0 0 4px 0; color:${titleColor}; font-size:13px;">${escapeHtml(n.title)}</h4><p style="margin:0; color:#cbd5e1; font-size:12px; line-height:1.4;">${escapeHtml(n.message)}</p></div>`;
               });
               notifList.innerHTML = html;
               const lastRead = localStorage.getItem('lastReadNotif') || 0;
               if (latestTime > lastRead && badge) { badge.style.display = 'block'; localStorage.setItem('lastReadNotif', latestTime); }
             }
           }
-        } catch(e) {}
+        } catch(e) { console.error("Error loading notifications:", e); }
       }
 
       if (navMenu && !isAdminPage) {
@@ -354,7 +375,6 @@ window.addEventListener('DOMContentLoaded', function () {
         const tbody = $('adminUsersTable') ? $('adminUsersTable').querySelector('tbody') : null; if (!tbody) return;
         if (!data.users || data.users.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No users found.</td></tr>'; return; }
         
-        // ✅ UPDATED: Added Strikes column
         tbody.innerHTML = data.users.map(u => `<tr>
           <td>${escapeHtml(u.email)}</td>
           <td>${escapeHtml(u.displayName)}</td>
@@ -586,7 +606,6 @@ window.addEventListener('DOMContentLoaded', function () {
     function isAsset(name) { return name.indexOf('asset:') === 0; }
     function assetDisplayName(name) { return name.substring(6); }
     
-    // ✅ Icons for PHP, Python, and C/C++
     function iconForFile(name) { 
         if (isAsset(name)) { 
             var lower = name.toLowerCase(); 
