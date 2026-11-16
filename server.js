@@ -5,7 +5,7 @@ const path = require('path');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
 const fs = require('fs');
-const cron = require('node-cron'); // ✅ Required for the crawler
+const cron = require('node-cron'); 
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -132,7 +132,7 @@ async function requireAdmin(req, res, next) {
 
 async function checkContentForViolations(text) {
   if (!text || text.trim().length < 5) return { violation: false };
-  if (!GROQ_API_KEY) return { violation: false }; // Fail safe
+  if (!GROQ_API_KEY) return { violation: false }; 
 
   try {
     const prompt = `Analyze the following text for severe violations of a platform's Terms of Service. 
@@ -149,7 +149,7 @@ async function checkContentForViolations(text) {
         model: 'openai/gpt-oss-120b', 
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.1,
-        max_tokens: 500 // ✅ Increased to allow reasoning model to finish
+        max_tokens: 500 
       })
     });
 
@@ -159,8 +159,6 @@ async function checkContentForViolations(text) {
     }
 
     const data = await response.json();
-    
-    // Safely extract content in case Groq returns an empty object
     const result = data?.choices?.[0]?.message?.content?.trim() || "";
     
     if (result.startsWith('VIOLATION:')) {
@@ -174,6 +172,7 @@ async function checkContentForViolations(text) {
 }
 
 async function issueStrike(uid, reason, isAutoBan = false) {
+  let didBan = false;
   try {
     const userRef = admin.firestore().collection('users').doc(uid);
     const userDoc = await userRef.get();
@@ -181,12 +180,23 @@ async function issueStrike(uid, reason, isAutoBan = false) {
     strikes += 1;
 
     if (strikes >= 3 || isAutoBan) {
-      await admin.auth().updateUser(uid, { disabled: true });
+      didBan = true;
+      // 1. Update Firestore FIRST
       await userRef.set({ banned: true, strikes: strikes, banReason: reason }, { merge: true });
+      
+      // 2. Try to disable in Auth
+      try {
+        await admin.auth().updateUser(uid, { disabled: true });
+      } catch (authErr) {
+        console.error(`[AUTH ERROR] Failed to disable user ${uid} in Firebase Auth:`, authErr.message);
+      }
+      
       console.log(`🚫 [BANNED] User ${uid} banned for: ${reason}`);
     } else {
       await userRef.set({ strikes: strikes, lastStrikeReason: reason }, { merge: true });
-      await admin.firestore().collection('notifications').add({
+      
+      // ✅ FIXED: Send notification to the USER'S private subcollection
+      await admin.firestore().collection('users').doc(uid).collection('notifications').add({
         title: '⚠️ Terms of Service Warning',
         message: `A violation was detected on your account: "${reason}". You now have ${strikes}/3 strikes. If you reach 3 strikes, your account will be permanently banned.`,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -196,6 +206,7 @@ async function issueStrike(uid, reason, isAutoBan = false) {
   } catch (err) {
     console.error("Failed to issue strike:", err);
   }
+  return didBan;
 }
 
 async function runCrawler() {
@@ -216,8 +227,9 @@ async function runCrawler() {
       if (userData.displayName) {
         const check = await checkContentForViolations(userData.displayName);
         if (check.violation) {
-          await issueStrike(uid, `Inappropriate username: ${check.reason}`);
+          const wasBanned = await issueStrike(uid, `Inappropriate username: ${check.reason}`);
           stats.strikes++;
+          if (wasBanned) stats.banned++;
           continue; 
         }
       }
@@ -232,8 +244,9 @@ async function runCrawler() {
         const check = await checkContentForViolations(textToScan);
         
         if (check.violation) {
-          await issueStrike(uid, `Inappropriate published site (${site.projectName}): ${check.reason}`);
+          const wasBanned = await issueStrike(uid, `Inappropriate published site (${site.projectName}): ${check.reason}`);
           stats.strikes++;
+          if (wasBanned) stats.banned++;
           await admin.firestore().collection('published').doc(siteDoc.id).update({ hidden: true });
           break; 
         }
@@ -248,8 +261,9 @@ async function runCrawler() {
           if (lastMsg.role === 'user' && typeof lastMsg.content === 'string') {
             const check = await checkContentForViolations(lastMsg.content);
             if (check.violation) {
-              await issueStrike(uid, `Inappropriate AI chat prompt: ${check.reason}`);
+              const wasBanned = await issueStrike(uid, `Inappropriate AI chat prompt: ${check.reason}`);
               stats.strikes++;
+              if (wasBanned) stats.banned++;
               break; 
             }
           }
@@ -269,7 +283,7 @@ cron.schedule('0 */6 * * *', () => {
   runCrawler().catch(console.error);
 });
 
-// ✅ Temporary Debug Route to test the AI directly
+// ✅ Debug Route
 app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
   try {
     const textToTest = req.body.text;
@@ -287,13 +301,11 @@ app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
         model: 'openai/gpt-oss-120b', 
         messages: [{ role: 'system', content: prompt }],
         temperature: 0.1,
-        max_tokens: 500 // ✅ Increased to allow reasoning model to finish
+        max_tokens: 500 
       })
     });
 
     const data = await response.json();
-    
-    console.log("Groq Raw Response:", JSON.stringify(data, null, 2));
     
     if (!response.ok) {
       return res.status(response.status).json({ 
