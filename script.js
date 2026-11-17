@@ -1,3 +1,6 @@
+
+
+
 // ==========================================================================
 // CodeWix — script.js (Full Master File - With Moderation Strikes & Autocomplete)
 // ==========================================================================
@@ -846,21 +849,64 @@ window.addEventListener('DOMContentLoaded', function () {
       if (remixId && db && auth && auth.currentUser) { localStorage.removeItem('codewix_remix_project_id'); db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(remixId).get().then(function(doc) { if (doc.exists) { var data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Remix', null); showToast('Remix loaded!', 'success'); } }).catch(function(err) { console.error(err); }); }
 
       if (runCodeBtn) {
-        runCodeBtn.addEventListener('click', async function () {
-          var ext = activeFile.split('.').pop().toLowerCase();
-          if (['html', 'css', 'js', 'htm'].includes(ext)) { renderPreview(); showToast('Preview refreshed'); var term = $('terminalOutput'); if (term) term.style.display = 'none'; return; }
-          if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; } if (!codeEditor) return; var code = codeEditor.value; if (!code.trim()) { showToast('No code to run.', 'error'); return; }
-          var outputContainer = $('terminalOutput');
-          if (!outputContainer) { outputContainer = document.createElement('div'); outputContainer.id = 'terminalOutput'; outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;'; var parent = livePreviewFrame ? livePreviewFrame.parentNode : null; if (parent) { parent.style.position = 'relative'; parent.appendChild(outputContainer); } }
-          outputContainer.style.display = 'block'; outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
-          try {
-            var idToken = await auth.currentUser.getIdToken(); var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); var data = await res.json(); if (!res.ok) throw new Error(data.error || 'Execution failed');
-            var finalOutput = data.output || ''; if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) { if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; outputContainer.style.display = 'none'; showToast('Rendered Output', 'success'); return; }
-            if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr; if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']'; outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
-            var closeBtn = document.createElement('button'); closeBtn.textContent = '✕ Close Terminal'; closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; outputContainer.appendChild(closeBtn);
-          } catch (err) { outputContainer.textContent = 'Error: ' + err.message; }
-        });
-      }
+      runCodeBtn.addEventListener('click', async function () {
+        var ext = activeFile.split('.').pop().toLowerCase();
+        
+        if (['html', 'css', 'js', 'htm'].includes(ext)) { 
+            renderPreview(); 
+            showToast('Preview refreshed'); 
+            var term = $('terminalOutput'); 
+            if (term) term.style.display = 'none'; 
+            return; 
+        }
+
+        if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; } 
+        if (!codeEditor) return; 
+        var code = codeEditor.value; 
+        if (!code.trim()) { showToast('No code to run.', 'error'); return; }
+
+        var outputContainer = $('terminalOutput');
+        if (!outputContainer) { 
+            outputContainer = document.createElement('div'); 
+            outputContainer.id = 'terminalOutput'; 
+            outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;'; 
+            var parent = livePreviewFrame ? livePreviewFrame.parentNode : null; 
+            if (parent) { parent.style.position = 'relative'; parent.appendChild(outputContainer); } 
+        }
+        outputContainer.style.display = 'block'; 
+        outputContainer.textContent = 'Compiling ' + activeFile + '...\n\n';
+
+        try {
+          var idToken = await auth.currentUser.getIdToken(); 
+          var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); 
+          var data = await res.json(); 
+          
+          if (data.stderr) {
+             outputContainer.textContent = '❌ Compile Error:\n\n' + data.stderr;
+             var closeBtn = document.createElement('button'); 
+             closeBtn.textContent = '✕ Close Terminal'; 
+             closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; 
+             closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; 
+             outputContainer.appendChild(closeBtn);
+             return;
+          }
+
+          var finalOutput = data.output || ''; 
+          
+          if (ext === 'wix' || finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html') || finalOutput.toLowerCase().includes('<div')) { 
+              if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; 
+              outputContainer.style.display = 'none'; 
+              showToast('WixScript Compiled Successfully', 'success'); 
+              return; 
+          }
+
+          outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
+          
+        } catch (err) { 
+          outputContainer.textContent = 'Error: ' + err.message; 
+        }
+      });
+    }
       renderPreview();
 
       if (fileTreeList) {
@@ -2013,3 +2059,7 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
   }
 
 }); // end DOMContentLoaded
+
+
+
+
