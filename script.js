@@ -1,5 +1,5 @@
 // ==========================================================================
-// CodeWix — script.js (Full Master File - With Moderation Strikes)
+// CodeWix — script.js (Full Master File - With Moderation Strikes & Autocomplete)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -159,7 +159,7 @@ window.addEventListener('DOMContentLoaded', function () {
         });
       }
 
-      // ✅ FIXED: Fetch BOTH global announcements AND private user warnings
+      // Fetch BOTH global announcements AND private user warnings
       if (db) {
         try {
           const globalSnap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(5).get();
@@ -169,7 +169,6 @@ window.addEventListener('DOMContentLoaded', function () {
           globalSnap.forEach(doc => allNotifs.push({ id: doc.id, ...doc.data() }));
           userSnap.forEach(doc => allNotifs.push({ id: doc.id, ...doc.data() }));
           
-          // Sort by newest first
           allNotifs.sort((a, b) => {
               const timeA = a.createdAt ? a.createdAt.toMillis() : 0;
               const timeB = b.createdAt ? b.createdAt.toMillis() : 0;
@@ -188,7 +187,6 @@ window.addEventListener('DOMContentLoaded', function () {
                 const time = n.createdAt ? n.createdAt.toMillis() : Date.now();
                 if (time > latestTime) latestTime = time;
                 
-                // Warnings in amber, announcements in blue
                 const isWarning = n.title && n.title.includes('⚠️');
                 const titleColor = isWarning ? '#fbbf24' : '#38bdf8';
                 
@@ -572,262 +570,330 @@ window.addEventListener('DOMContentLoaded', function () {
   // IDE & CODE EDITOR
   // ======================================================================
   var cm = null, codeEditor = null;
-  (function initCodeMirror() {
-    var sourceEl = $('codeEditorSource');
-    if (!sourceEl || typeof CodeMirror === 'undefined') {
-      if (sourceEl) { sourceEl.style.cssText = 'display:block;width:100%;height:100%;background:#020617;color:#e2e8f0;border:none;padding:16px;font-family:monospace;'; codeEditor = { get value() { return sourceEl.value; }, set value(v) { sourceEl.value = v; }, addEventListener: function (t, fn) { if (t === 'input') sourceEl.addEventListener('input', fn); }, focus: function () { sourceEl.focus(); } }; }
-      return;
-    }
-    cm = CodeMirror.fromTextArea(sourceEl, { theme: 'dracula', lineNumbers: true, lineWrapping: false, indentUnit: 2, tabSize: 2, smartIndent: true, autoCloseBrackets: true, autoCloseTags: true, matchBrackets: true, mode: 'htmlmixed', extraKeys: { 'Ctrl-Space': 'autocomplete', 'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } } });
-    codeEditor = { get value() { return cm.getValue(); }, set value(v) { cm.setValue(v || ''); }, addEventListener: function (evt, fn) { if (evt === 'input') cm.on('change', fn); else if (evt === 'focus') cm.on('focus', fn); }, focus: function () { cm.focus(); }, _cm: cm };
+  
+  // ✅ NEW: Function to dynamically load CodeMirror Hint Addons
+  function loadCodeMirrorHints(callback) {
+    if (window.CodeMirror && window.CodeMirror.hint) return callback();
     
-    window.__codewixSetEditorMode = function (filename) { 
-        if (!cm) return; 
-        var mode = 'htmlmixed', lower = (filename || '').toLowerCase(); 
-        if (lower.endsWith('.css')) mode = 'css'; 
-        else if (lower.endsWith('.js')) mode = 'javascript'; 
-        else if (lower.endsWith('.py')) mode = 'python'; 
-        else if (lower.endsWith('.json')) mode = { name: 'javascript', json: true }; 
-        try { cm.setOption('mode', mode); } catch(e) { console.warn("CodeMirror Mode Error:", e); }
-    };
-  })();
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.css';
+    document.head.appendChild(css);
 
-  var runCodeBtn = $('runCodeBtn'), livePreviewFrame = $('livePreviewFrame'), currentFileLabel = $('currentFileLabel'), fileTreeList = $('fileTreeList'), newFileBtn = $('newFileBtn'), uploadFileBtn = $('uploadFileBtn'), hiddenFileInput = $('hiddenFileInput'), fileContextMenu = $('fileContextMenu'), unsavedIndicator = $('unsavedIndicator'), saveProjectBtn = $('saveProjectBtn'), myProjectsBtn = $('myProjectsBtn'), newProjectBtn = $('newProjectBtn'), downloadFileBtn = $('downloadFileBtn'), downloadZipBtn = $('downloadZipBtn'), shareProjectBtn = $('shareProjectBtn'), projectsModal = $('projectsModal'), projectsListBox = $('projectsListContainer'), closeModalBtn = $('closeProjectsModalBtn'), projectStatusLbl = $('projectStatusLabel');
+    var scripts = [
+        'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/xml-hint.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/html-hint.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/css-hint.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/javascript-hint.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/anyword-hint.min.js'
+    ];
 
-  var renameFileBtn = $('renameFileBtn');
-  if (!renameFileBtn && newFileBtn) { renameFileBtn = document.createElement('button'); renameFileBtn.id = 'renameFileBtn'; renameFileBtn.className = newFileBtn.className || 'studio-btn ghost-btn'; renameFileBtn.textContent = '✏️ Rename'; renameFileBtn.style.cssText = 'margin-left:6px;margin-right:6px;'; newFileBtn.parentNode.insertBefore(renameFileBtn, newFileBtn.nextSibling); }
-
-  if (codeEditor || runCodeBtn || fileTreeList) {
-    var DEFAULT_FILES = { 'index.html': '<h1>Hello World!</h1>\n<p>Edit me then click Build & Run.</p>\n<button onclick="hi()">Click Me</button>\n<script>\nfunction hi(){ alert("Sandbox JS works!"); }\n<\/script>', 'style.css': 'body{background:#0f172a;color:#38bdf8;text-align:center;padding-top:50px;font-family:sans-serif}h1{font-size:3rem}button{background:#34d399;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold}', 'script.js': 'console.log("Sandbox script running.");' };
-    var files = Object.assign({}, DEFAULT_FILES), activeFile = 'index.html', currentProjectId = null, currentProjectName = null, currentShareId = null, lastSavedSnapshot = null, contextTargetFile = null, autoSaveTimer = null;
-    
-    function snapshot() { return JSON.stringify(files); }
-    function markUnsaved() { if (unsavedIndicator) unsavedIndicator.style.display = (lastSavedSnapshot !== snapshot()) ? 'inline' : 'none'; }
-    function isAsset(name) { return name.indexOf('asset:') === 0; }
-    function assetDisplayName(name) { return name.substring(6); }
-    
-    function iconForFile(name) { 
-        if (isAsset(name)) { 
-            var lower = name.toLowerCase(); 
-            if (lower.match(/\.(png|jpe?g|gif|webp|svg|bmp)$/)) return '🖼 '; 
-            if (lower.match(/\.(json|xml|yaml|yml)$/)) return '📋 '; 
-            return '📎 '; 
-        } 
-        if (name.endsWith('.html')) return '🌐 '; 
-        if (name.endsWith('.css')) return '🎨 '; 
-        if (name.endsWith('.js')) return '⚡ '; 
-        if (name.endsWith('.py')) return '🐍 '; 
-        if (name.endsWith('.php')) return '🐘 '; 
-        if (name.endsWith('.c') || name.endsWith('.cpp') || name.endsWith('.h')) return '🇨 '; 
-        return '📄 '; 
-    }
-    
-    function rebuildFileTree() { if (!fileTreeList) return; fileTreeList.innerHTML = ''; Object.keys(files).forEach(function (name) { var li = document.createElement('li'); li.className = 'file-item' + (name === activeFile ? ' active' : '') + (isAsset(name) ? ' asset-item' : ''); li.setAttribute('data-filename', name); li.textContent = iconForFile(name) + (isAsset(name) ? assetDisplayName(name) : name); fileTreeList.appendChild(li); }); if (currentFileLabel) currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile; }
-    function resolveAssets(html) { if (!html) return ''; return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) { if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match; var key = 'asset:' + url; if (files[key]) return attr + '=' + quote + files[key] + quote; return match; }); }
-    function renderPreview() { if (!livePreviewFrame) return; if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value; var resolvedHtml = resolveAssets(files['index.html'] || ''); livePreviewFrame.srcdoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + (files['style.css'] || '') + '</style></head><body>' + resolvedHtml + '<script>' + (files['script.js'] || '') + '<\/script></body></html>'; }
-    
-    function triggerAutoSave() {
-      clearTimeout(autoSaveTimer);
-      autoSaveTimer = setTimeout(async () => {
-        if (!currentProjectId || !db || !auth.currentUser) return;
-        if (lastSavedSnapshot === snapshot()) return;
-        if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
-        var payload = { files: files, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-        try {
-          await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(currentProjectId).update(payload);
-          lastSavedSnapshot = snapshot();
-          if (unsavedIndicator) unsavedIndicator.style.display = 'none';
-          if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + currentProjectName + ' (Auto-saved)';
-        } catch(e) { console.warn("Auto-save failed", e); }
-      }, 3000);
-    }
-
-    function loadFilesIntoEditor(newFiles, projectId, projectName, shareId) { files = Object.assign({}, DEFAULT_FILES, newFiles || {}); activeFile = 'index.html'; currentProjectId = projectId || null; currentProjectName = projectName || null; currentShareId = shareId || null; lastSavedSnapshot = snapshot(); if (codeEditor) codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); rebuildFileTree(); renderPreview(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = currentProjectName ? 'Project: ' + currentProjectName : 'No project loaded'; }
-
-    if (codeEditor) { codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); lastSavedSnapshot = snapshot(); codeEditor.addEventListener('input', function () { if (isAsset(activeFile)) return; files[activeFile] = codeEditor.value; markUnsaved(); triggerAutoSave(); }); }
-
-    var TEMPLATES = {
-      blank: { name: 'Blank Project', files: { 'index.html': '<h1>New Project</h1>', 'style.css': 'body { font-family: sans-serif; text-align: center; }', 'script.js': '' } },
-      portfolio: { name: 'Personal Portfolio', files: { 'index.html': '<header><h1>My Name</h1><p>Web Developer</p></header><section id="about"><h2>About Me</h2><p>I build things for the web.</p></section><section id="projects"><h2>Projects</h2><div class="grid"><div class="card">Project 1</div><div class="card">Project 2</div></div></section>', 'style.css': 'body { font-family: Arial; margin: 0; background: #f4f4f4; color: #333; } header { text-align: center; padding: 50px; background: #222; color: white; } .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; } .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }', 'script.js': 'console.log("Portfolio loaded");' } },
-      landing: { name: 'Startup Landing Page', files: { 'index.html': '<nav><h2>StartupX</h2><a href="#" class="cta">Sign Up</a></nav><div class="hero"><h1>Build Faster.</h1><p>The ultimate tool for developers.</p><button>Get Started</button></div>', 'style.css': 'body { margin: 0; font-family: sans-serif; background: #0f172a; color: white; } nav { display: flex; justify-content: space-between; padding: 20px 50px; align-items: center; } .hero { text-align: center; padding: 100px 20px; } .hero h1 { font-size: 4rem; margin: 0; } .cta, button { background: #38bdf8; color: #020617; padding: 10px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; }', 'script.js': '' } }
-    };
-
-    var aiSiteBuilderBtn = document.createElement('button');
-    aiSiteBuilderBtn.className = 'studio-btn';
-    aiSiteBuilderBtn.innerHTML = '✨ AI Site Builder';
-    aiSiteBuilderBtn.style.cssText = 'background:#8b5cf6;color:#fff;border:none;margin-right:8px;';
-    if (newProjectBtn && newProjectBtn.parentNode) { newProjectBtn.parentNode.insertBefore(aiSiteBuilderBtn, newProjectBtn); }
-
-    aiSiteBuilderBtn.addEventListener('click', function() {
-        if (!isUserPremium) { showToast('💎 AI Site Builder is a Pro feature. Upgrade to unlock!', 'error'); return; }
-        var modalHtml = `
-            <div id="aiBuilderModal" class="modal-backdrop" style="display:flex; z-index:99999;">
-                <div class="modal" style="max-width:600px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
-                    <div class="modal-header" style="border-bottom:1px solid #334155; padding:18px 22px;">
-                        <h2 style="color:#8b5cf6; font-size:18px;">✨ AI Site Builder (Pro)</h2>
-                        <button class="modal-close" id="closeAiBuilder" style="color:#94a3b8;">×</button>
-                    </div>
-                    <div class="modal-body" style="padding:24px;">
-                        <p style="color:#cbd5e1; margin-bottom:16px; font-size:14px; line-height:1.5;">Describe the website you want to build. The AI will automatically generate the HTML, CSS, and JavaScript files for you.</p>
-                        <textarea id="aiBuilderPrompt" rows="4" placeholder="E.g., A modern landing page for a coffee shop with a hero section, menu, and contact form." style="width:100%; padding:12px; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#fff; font-family:inherit; font-size:14px; outline:none; resize:vertical; margin-bottom:16px;"></textarea>
-                        <div id="aiBuilderStatus" style="display:none; color:#38bdf8; font-size:14px; margin-bottom:16px; text-align:center; font-weight:bold;"></div>
-                        <button id="generateSiteBtn" class="button" style="width:100%; background:#8b5cf6; color:#fff; padding:12px; font-size:16px; border-radius:8px; border:none; font-weight:bold; cursor:pointer;">Generate Project</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        document.getElementById('closeAiBuilder').onclick = () => document.getElementById('aiBuilderModal').remove();
-        document.getElementById('generateSiteBtn').onclick = async function() {
-            var promptText = document.getElementById('aiBuilderPrompt').value.trim();
-            if (!promptText) return showToast('Please enter a prompt.', 'error');
-            var btn = this; btn.disabled = true; btn.textContent = 'Generating...'; btn.style.opacity = '0.7';
-            var statusEl = document.getElementById('aiBuilderStatus'); statusEl.style.display = 'block'; statusEl.textContent = 'AI is writing your code... This may take a minute.';
-            try {
-                var idToken = await auth.currentUser.getIdToken();
-                var payload = { model: 'openai/gpt-oss-120b', messages: [{ role: 'system', content: 'You are an expert web developer. Output EXACTLY three markdown code blocks. 1: ```html filename="index.html", 2: ```css filename="style.css", 3: ```javascript filename="script.js". Do NOT output any other text outside the code blocks. Ensure the HTML links the CSS and JS files correctly.' }, { role: 'user', content: 'Build a website: ' + promptText }], temperature: 0.2 };
-                var response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error('AI generation failed.');
-                var reader = response.body.getReader(); var decoder = new TextDecoder('utf-8'); var fullText = ''; var buffer = '';
-                while (true) { var { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); var lines = buffer.split('\n'); buffer = lines.pop(); for (var line of lines) { if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') { try { var parsed = JSON.parse(line.slice(6)); if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) { fullText += parsed.choices[0].delta.content; } } catch (e) {} } } }
-                var blocks = fullText.split('```'); var newFiles = {};
-                for (var i = 0; i < blocks.length; i++) { if (blocks[i].trim().startsWith('html')) { var lines = blocks[i].trim().split('\n'); newFiles['index.html'] = lines.slice(1).join('\n').trim(); } else if (blocks[i].trim().startsWith('css')) { var lines = blocks[i].trim().split('\n'); newFiles['style.css'] = lines.slice(1).join('\n').trim(); } else if (blocks[i].trim().startsWith('javascript') || blocks[i].trim().startsWith('js')) { var lines = blocks[i].trim().split('\n'); newFiles['script.js'] = lines.slice(1).join('\n').trim(); } }
-                if (!newFiles['index.html']) throw new Error('AI failed to generate HTML. Please try a different prompt.');
-                loadFilesIntoEditor(newFiles, null, promptText.substring(0, 24), null);
-                document.getElementById('aiBuilderModal').remove(); showToast('✨ AI Project generated successfully!', 'success');
-            } catch (err) { statusEl.textContent = 'Error: ' + err.message; statusEl.style.color = '#f87171'; btn.disabled = false; btn.textContent = 'Generate Project'; btn.style.opacity = '1'; }
-        };
+    var loaded = 0;
+    scripts.forEach(function(src) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = function() {
+        loaded++;
+        if (loaded === scripts.length) callback();
+      };
+      document.head.appendChild(s);
     });
+  }
 
-    if (newProjectBtn) {
-      newProjectBtn.addEventListener('click', function() {
-        let html = `<div id="tplModal" class="modal-backdrop" style="display:flex; z-index:99999;"><div class="modal" style="max-width:500px;"><div class="modal-header"><h2>Choose a Template</h2><button class="modal-close" id="closeTpl">×</button></div><div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">`;
-        Object.keys(TEMPLATES).forEach(key => { html += `<button class="btn btn-primary tpl-btn" data-tpl="${key}" style="padding: 15px; font-size: 16px; text-align: left;">${TEMPLATES[key].name}</button>`; });
-        html += `</div></div></div>`;
-        document.body.insertAdjacentHTML('beforeend', html);
-        document.getElementById('closeTpl').onclick = () => document.getElementById('tplModal').remove();
-        document.querySelectorAll('.tpl-btn').forEach(btn => { btn.onclick = () => { const tpl = TEMPLATES[btn.getAttribute('data-tpl')]; loadFilesIntoEditor(tpl.files, null, tpl.name, null); document.getElementById('tplModal').remove(); showToast('Template loaded! Save it to keep it.'); }; });
+  // Initialize CodeMirror after loading hints
+  loadCodeMirrorHints(function() {
+    (function initCodeMirror() {
+      var sourceEl = $('codeEditorSource');
+      if (!sourceEl || typeof CodeMirror === 'undefined') {
+        if (sourceEl) { sourceEl.style.cssText = 'display:block;width:100%;height:100%;background:#020617;color:#e2e8f0;border:none;padding:16px;font-family:monospace;'; codeEditor = { get value() { return sourceEl.value; }, set value(v) { sourceEl.value = v; }, addEventListener: function (t, fn) { if (t === 'input') sourceEl.addEventListener('input', fn); }, focus: function () { sourceEl.focus(); } }; }
+        return;
+      }
+      
+      cm = CodeMirror.fromTextArea(sourceEl, { 
+          theme: 'dracula', 
+          lineNumbers: true, 
+          lineWrapping: false, 
+          indentUnit: 2, 
+          tabSize: 2, 
+          smartIndent: true, 
+          autoCloseBrackets: true, 
+          autoCloseTags: true, 
+          matchBrackets: true, 
+          mode: 'htmlmixed', 
+          extraKeys: { 
+              'Ctrl-Space': 'autocomplete',
+              'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } 
+          } 
       });
-    }
-
-    if (uploadFileBtn && hiddenFileInput) {
-      uploadFileBtn.addEventListener('click', function () { hiddenFileInput.click(); });
-      hiddenFileInput.addEventListener('change', async function () {
-        var file = this.files && this.files[0]; if (!file) return;
-        if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); this.value = ''; return; }
-        if (!storage) { showToast('Storage not initialized.', 'error'); this.value = ''; return; }
-        var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024;
-        if (file.size > maxSize) { showToast(isUserPremium ? 'File too large. Max 5MB.' : '💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); this.value = ''; return; }
-        var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-'); uploadFileBtn.textContent = 'Uploading...';
-        try {
-          var storageRef = storage.ref('users/' + auth.currentUser.uid + '/assets/' + Date.now() + '_' + safeName);
-          var snapshot = await storageRef.put(file); var downloadURL = await snapshot.ref.getDownloadURL();
-          files['asset:' + safeName] = downloadURL; rebuildFileTree(); markUnsaved(); renderPreview(); triggerAutoSave(); showToast('Uploaded to Storage!', 'success');
-        } catch (err) { showToast('Upload failed: ' + err.message, 'error'); } finally { hiddenFileInput.value = ''; uploadFileBtn.textContent = '📤 Upload'; }
+      
+      // ✅ NEW: Trigger autocomplete automatically as the user types
+      cm.on("inputRead", function(editor, change) {
+          if (change.origin !== "+input") return;
+          var char = change.text[0];
+          // Trigger suggestions on letters, dots, or HTML tags
+          if (/^[a-zA-Z<>\.]$/.test(char)) {
+              setTimeout(function() {
+                  editor.showHint({ completeSingle: false, alignWithWord: true });
+              }, 50);
+          }
       });
-    }
 
-    var exportGithubBtn = document.createElement('button');
-    exportGithubBtn.className = 'studio-btn'; exportGithubBtn.innerHTML = '🐙 Export to GitHub'; exportGithubBtn.style.marginLeft = '10px';
-    if (downloadZipBtn && downloadZipBtn.parentNode) { downloadZipBtn.parentNode.insertBefore(exportGithubBtn, downloadZipBtn.nextSibling); }
-    exportGithubBtn.addEventListener('click', async function() {
-        if (!isUserPremium) return showToast('💎 GitHub Export is a Pro feature.', 'error');
-        if (!codeEditor) return; if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
-        const repoUrl = prompt('Enter your GitHub Repository Link:\n(e.g., https://github.com/your-username/your-repo)'); if (!repoUrl) return;
-        const match = repoUrl.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^\/]+)\/([^\/]+)/); if (!match) { return showToast('Invalid GitHub URL. Use format: https://github.com/username/repo', 'error'); }
-        const owner = match[1]; const repo = match[2].replace('.git', '').replace(/\//g, '');
-        const tokenPrompt = `To push files to GitHub, you need a Personal Access Token (PAT).\n\nHere is exactly how to get it:\n1. Log into GitHub and click your profile picture (top right) -> Settings.\n2. Scroll down the left sidebar and click Developer settings.\n3. Expand Personal access tokens -> Tokens (classic).\n4. Click Generate new token (classic).\n5. Give it a name, set an expiration.\n6. IMPORTANT: Check the 'repo' checkbox (this allows code upload).\n7. Click Generate token at the bottom.\n8. Copy the token (starts with ghp_...) and paste it here:`;
-        const token = prompt(tokenPrompt); if (!token) return;
-        exportGithubBtn.disabled = true; exportGithubBtn.textContent = 'Exporting...'; showToast('Connecting to GitHub...', 'success');
-        try {
-            const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': `token ${token}` } }); if (!userRes.ok) throw new Error('Invalid Token.');
-            for (const [filename, content] of Object.entries(files)) {
-                if (filename.startsWith('asset:')) continue; let sha = null;
-                const getFileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, { headers: { 'Authorization': `token ${token}` } });
-                if (getFileRes.ok) { const fileData = await getFileRes.json(); sha = fileData.sha; }
-                const contentBytes = new TextEncoder().encode(content); const base64Content = btoa(String.fromCharCode.apply(null, contentBytes));
-                const body = { message: `Update ${filename} via CodeWix`, content: base64Content }; if (sha) body.sha = sha;
-                const putRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, { method: 'PUT', headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                if (!putRes.ok) { const errData = await putRes.json(); throw new Error(errData.message || `Failed to upload ${filename}`); }
-            }
-            showToast('Successfully deployed to GitHub!', 'success'); window.open(`https://github.com/${owner}/${repo}`, '_blank');
-        } catch (err) { showToast(err.message, 'error'); } finally { exportGithubBtn.disabled = false; exportGithubBtn.textContent = '🐙 Export to GitHub'; }
-    });
+      codeEditor = { get value() { return cm.getValue(); }, set value(v) { cm.setValue(v || ''); }, addEventListener: function (evt, fn) { if (evt === 'input') cm.on('change', fn); else if (evt === 'focus') cm.on('focus', fn); }, focus: function () { cm.focus(); }, _cm: cm };
+      
+      window.__codewixSetEditorMode = function (filename) { 
+          if (!cm) return; 
+          var mode = 'htmlmixed', lower = (filename || '').toLowerCase(); 
+          if (lower.endsWith('.css')) mode = 'css'; 
+          else if (lower.endsWith('.js')) mode = 'javascript'; 
+          else if (lower.endsWith('.py')) mode = 'python'; 
+          else if (lower.endsWith('.json')) mode = { name: 'javascript', json: true }; 
+          try { cm.setOption('mode', mode); } catch(e) { console.warn("CodeMirror Mode Error:", e); }
+      };
+      
+      // Manually trigger the rest of the IDE setup that depends on `codeEditor` being defined
+      setupIDE();
+    })();
+  });
 
-    async function loadProjectFromAI() {
-        const urlParams = new URLSearchParams(window.location.search); const projectId = urlParams.get('project'); const pending = localStorage.getItem('cw_pending_code');
-        if (!pending || !projectId || !db || !auth.currentUser) return;
-        try {
-            var data = JSON.parse(pending);
-            if (Date.now() - data.ts < 60000) { 
-                let projectName = 'AI Generated Project'; let existingFiles = {};
-                if (projectId !== 'new') { const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).get(); if (doc.exists) { const projData = doc.data(); existingFiles = projData.files || {}; projectName = projData.name || 'Untitled Project'; } }
-                if (data.filename) { existingFiles[data.filename] = data.code; }
-                loadFilesIntoEditor(existingFiles, projectId === 'new' ? null : projectId, projectName, null);
-                const payload = { name: projectName, files: existingFiles, activeFile: data.filename, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-                if (projectId === 'new') { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); const ref = await db.collection('users').doc(auth.currentUser.uid).collection('projects').add(payload); currentProjectId = ref.id; window.history.replaceState({}, '', '?project=' + ref.id); } else { await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).update(payload); }
-                showToast('🤖 AI Code applied and saved!', 'success'); lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + projectName;
-            }
-        } catch(e) { console.error("Error applying AI code:", e); }
-        localStorage.removeItem('cw_pending_code'); window.history.replaceState({}, document.title, window.location.pathname + (currentProjectId ? '?project=' + currentProjectId : ''));
-    }
-    if (auth) { auth.onAuthStateChanged(user => { if (user) loadProjectFromAI(); }); }
+  function setupIDE() {
+    var runCodeBtn = $('runCodeBtn'), livePreviewFrame = $('livePreviewFrame'), currentFileLabel = $('currentFileLabel'), fileTreeList = $('fileTreeList'), newFileBtn = $('newFileBtn'), uploadFileBtn = $('uploadFileBtn'), hiddenFileInput = $('hiddenFileInput'), fileContextMenu = $('fileContextMenu'), unsavedIndicator = $('unsavedIndicator'), saveProjectBtn = $('saveProjectBtn'), myProjectsBtn = $('myProjectsBtn'), newProjectBtn = $('newProjectBtn'), downloadFileBtn = $('downloadFileBtn'), downloadZipBtn = $('downloadZipBtn'), shareProjectBtn = $('shareProjectBtn'), projectsModal = $('projectsModal'), projectsListBox = $('projectsListContainer'), closeModalBtn = $('closeProjectsModalBtn'), projectStatusLbl = $('projectStatusLabel');
 
-    if (myProjectsBtn) { myProjectsBtn.addEventListener('click', async function() { if (!db || !auth.currentUser) return showToast('Sign in first.', 'error'); projectsModal.style.display = 'flex'; projectsListBox.innerHTML = '<p style="color:#64748b;">Loading projects...</p>'; try { const snap = await db.collection('users').doc(auth.currentUser.uid).collection('projects').get(); if (snap.empty) { projectsListBox.innerHTML = '<p style="color:#64748b;">No saved projects found.</p>'; return; } let html = ''; snap.forEach(doc => { const p = doc.data(); const date = p.updatedAt ? formatDate(p.updatedAt) : 'Unknown'; html += `<div class="project-item" data-id="${doc.id}" data-name="${escapeHtml(p.name)}" style="padding:12px; border-bottom:1px solid #334155; cursor:pointer; display:flex; justify-content:space-between; align-items:center;"><div><h4 style="margin:0; color:#e2e8f0;">${escapeHtml(p.name || 'Untitled')}</h4><small style="color:#64748b;">Updated: ${date}</small></div><button class="btn btn-primary load-proj-btn" data-id="${doc.id}" style="padding:4px 8px; font-size:12px;">Load</button></div>`; }); projectsListBox.innerHTML = html; } catch (err) { projectsListBox.innerHTML = `<p style="color:#f87171;">Failed to load: ${err.message}</p>`; } }); }
-    if (closeModalBtn) { closeModalBtn.addEventListener('click', function() { projectsModal.style.display = 'none'; }); }
-    if (projectsListBox) { projectsListBox.addEventListener('click', async function(e) { const btn = e.target.closest('.load-proj-btn'); if (!btn) return; const id = btn.getAttribute('data-id'); btn.disabled = true; btn.textContent = 'Loading...'; try { const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(id).get(); if (doc.exists) { const data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled', null); projectsModal.style.display = 'none'; showToast('Project loaded!', 'success'); } } catch (err) { showToast('Failed to load: ' + err.message, 'error'); } finally { btn.disabled = false; btn.textContent = 'Load'; } }); }
+    var renameFileBtn = $('renameFileBtn');
+    if (!renameFileBtn && newFileBtn) { renameFileBtn = document.createElement('button'); renameFileBtn.id = 'renameFileBtn'; renameFileBtn.className = newFileBtn.className || 'studio-btn ghost-btn'; renameFileBtn.textContent = '✏️ Rename'; renameFileBtn.style.cssText = 'margin-left:6px;margin-right:6px;'; newFileBtn.parentNode.insertBefore(renameFileBtn, newFileBtn.nextSibling); }
 
-    var remixId = localStorage.getItem('codewix_remix_project_id');
-    if (remixId && db && auth && auth.currentUser) { localStorage.removeItem('codewix_remix_project_id'); db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(remixId).get().then(function(doc) { if (doc.exists) { var data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Remix', null); showToast('Remix loaded!', 'success'); } }).catch(function(err) { console.error(err); }); }
+    if (codeEditor || runCodeBtn || fileTreeList) {
+      var DEFAULT_FILES = { 'index.html': '<h1>Hello World!</h1>\n<p>Edit me then click Build & Run.</p>\n<button onclick="hi()">Click Me</button>\n<script>\nfunction hi(){ alert("Sandbox JS works!"); }\n<\/script>', 'style.css': 'body{background:#0f172a;color:#38bdf8;text-align:center;padding-top:50px;font-family:sans-serif}h1{font-size:3rem}button{background:#34d399;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-weight:bold}', 'script.js': 'console.log("Sandbox script running.");' };
+      var files = Object.assign({}, DEFAULT_FILES), activeFile = 'index.html', currentProjectId = null, currentProjectName = null, currentShareId = null, lastSavedSnapshot = null, contextTargetFile = null, autoSaveTimer = null;
+      
+      function snapshot() { return JSON.stringify(files); }
+      function markUnsaved() { if (unsavedIndicator) unsavedIndicator.style.display = (lastSavedSnapshot !== snapshot()) ? 'inline' : 'none'; }
+      function isAsset(name) { return name.indexOf('asset:') === 0; }
+      function assetDisplayName(name) { return name.substring(6); }
+      
+      function iconForFile(name) { 
+          if (isAsset(name)) { 
+              var lower = name.toLowerCase(); 
+              if (lower.match(/\.(png|jpe?g|gif|webp|svg|bmp)$/)) return '🖼 '; 
+              if (lower.match(/\.(json|xml|yaml|yml)$/)) return '📋 '; 
+              return '📎 '; 
+          } 
+          if (name.endsWith('.html')) return '🌐 '; 
+          if (name.endsWith('.css')) return '🎨 '; 
+          if (name.endsWith('.js')) return '⚡ '; 
+          if (name.endsWith('.py')) return '🐍 '; 
+          if (name.endsWith('.php')) return '🐘 '; 
+          if (name.endsWith('.c') || name.endsWith('.cpp') || name.endsWith('.h')) return '🇨 '; 
+          return '📄 '; 
+      }
+      
+      function rebuildFileTree() { if (!fileTreeList) return; fileTreeList.innerHTML = ''; Object.keys(files).forEach(function (name) { var li = document.createElement('li'); li.className = 'file-item' + (name === activeFile ? ' active' : '') + (isAsset(name) ? ' asset-item' : ''); li.setAttribute('data-filename', name); li.textContent = iconForFile(name) + (isAsset(name) ? assetDisplayName(name) : name); fileTreeList.appendChild(li); }); if (currentFileLabel) currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile; }
+      function resolveAssets(html) { if (!html) return ''; return html.replace(/(src|href)=(["'])([^"'\n]+)\2/gi, function (match, attr, quote, url) { if (/^(https?:|\/\/|#|data:|mailto:|tel:)/i.test(url)) return match; var key = 'asset:' + url; if (files[key]) return attr + '=' + quote + files[key] + quote; return match; }); }
+      function renderPreview() { if (!livePreviewFrame) return; if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value; var resolvedHtml = resolveAssets(files['index.html'] || ''); livePreviewFrame.srcdoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + (files['style.css'] || '') + '</style></head><body>' + resolvedHtml + '<script>' + (files['script.js'] || '') + '<\/script></body></html>'; }
+      
+      function triggerAutoSave() {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(async () => {
+          if (!currentProjectId || !db || !auth.currentUser) return;
+          if (lastSavedSnapshot === snapshot()) return;
+          if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
+          var payload = { files: files, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+          try {
+            await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(currentProjectId).update(payload);
+            lastSavedSnapshot = snapshot();
+            if (unsavedIndicator) unsavedIndicator.style.display = 'none';
+            if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + currentProjectName + ' (Auto-saved)';
+          } catch(e) { console.warn("Auto-save failed", e); }
+        }, 3000);
+      }
 
-    if (runCodeBtn) {
-      runCodeBtn.addEventListener('click', async function () {
-        var ext = activeFile.split('.').pop().toLowerCase();
-        if (['html', 'css', 'js', 'htm'].includes(ext)) { renderPreview(); showToast('Preview refreshed'); var term = $('terminalOutput'); if (term) term.style.display = 'none'; return; }
-        if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; } if (!codeEditor) return; var code = codeEditor.value; if (!code.trim()) { showToast('No code to run.', 'error'); return; }
-        var outputContainer = $('terminalOutput');
-        if (!outputContainer) { outputContainer = document.createElement('div'); outputContainer.id = 'terminalOutput'; outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;'; var parent = livePreviewFrame ? livePreviewFrame.parentNode : null; if (parent) { parent.style.position = 'relative'; parent.appendChild(outputContainer); } }
-        outputContainer.style.display = 'block'; outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
-        try {
-          var idToken = await auth.currentUser.getIdToken(); var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); var data = await res.json(); if (!res.ok) throw new Error(data.error || 'Execution failed');
-          var finalOutput = data.output || ''; if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) { if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; outputContainer.style.display = 'none'; showToast('Rendered Output', 'success'); return; }
-          if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr; if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']'; outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
-          var closeBtn = document.createElement('button'); closeBtn.textContent = '✕ Close Terminal'; closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; outputContainer.appendChild(closeBtn);
-        } catch (err) { outputContainer.textContent = 'Error: ' + err.message; }
+      function loadFilesIntoEditor(newFiles, projectId, projectName, shareId) { files = Object.assign({}, DEFAULT_FILES, newFiles || {}); activeFile = 'index.html'; currentProjectId = projectId || null; currentProjectName = projectName || null; currentShareId = shareId || null; lastSavedSnapshot = snapshot(); if (codeEditor) codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); rebuildFileTree(); renderPreview(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = currentProjectName ? 'Project: ' + currentProjectName : 'No project loaded'; }
+
+      if (codeEditor) { codeEditor.value = files[activeFile]; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); lastSavedSnapshot = snapshot(); codeEditor.addEventListener('input', function () { if (isAsset(activeFile)) return; files[activeFile] = codeEditor.value; markUnsaved(); triggerAutoSave(); }); }
+
+      var TEMPLATES = {
+        blank: { name: 'Blank Project', files: { 'index.html': '<h1>New Project</h1>', 'style.css': 'body { font-family: sans-serif; text-align: center; }', 'script.js': '' } },
+        portfolio: { name: 'Personal Portfolio', files: { 'index.html': '<header><h1>My Name</h1><p>Web Developer</p></header><section id="about"><h2>About Me</h2><p>I build things for the web.</p></section><section id="projects"><h2>Projects</h2><div class="grid"><div class="card">Project 1</div><div class="card">Project 2</div></div></section>', 'style.css': 'body { font-family: Arial; margin: 0; background: #f4f4f4; color: #333; } header { text-align: center; padding: 50px; background: #222; color: white; } .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; } .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }', 'script.js': 'console.log("Portfolio loaded");' } },
+        landing: { name: 'Startup Landing Page', files: { 'index.html': '<nav><h2>StartupX</h2><a href="#" class="cta">Sign Up</a></nav><div class="hero"><h1>Build Faster.</h1><p>The ultimate tool for developers.</p><button>Get Started</button></div>', 'style.css': 'body { margin: 0; font-family: sans-serif; background: #0f172a; color: white; } nav { display: flex; justify-content: space-between; padding: 20px 50px; align-items: center; } .hero { text-align: center; padding: 100px 20px; } .hero h1 { font-size: 4rem; margin: 0; } .cta, button { background: #38bdf8; color: #020617; padding: 10px 20px; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; font-size: 1.2rem; }', 'script.js': '' } }
+      };
+
+      var aiSiteBuilderBtn = document.createElement('button');
+      aiSiteBuilderBtn.className = 'studio-btn';
+      aiSiteBuilderBtn.innerHTML = '✨ AI Site Builder';
+      aiSiteBuilderBtn.style.cssText = 'background:#8b5cf6;color:#fff;border:none;margin-right:8px;';
+      if (newProjectBtn && newProjectBtn.parentNode) { newProjectBtn.parentNode.insertBefore(aiSiteBuilderBtn, newProjectBtn); }
+
+      aiSiteBuilderBtn.addEventListener('click', function() {
+          if (!isUserPremium) { showToast('💎 AI Site Builder is a Pro feature. Upgrade to unlock!', 'error'); return; }
+          var modalHtml = `
+              <div id="aiBuilderModal" class="modal-backdrop" style="display:flex; z-index:99999;">
+                  <div class="modal" style="max-width:600px; background:#1e293b; border:1px solid #334155; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+                      <div class="modal-header" style="border-bottom:1px solid #334155; padding:18px 22px;">
+                          <h2 style="color:#8b5cf6; font-size:18px;">✨ AI Site Builder (Pro)</h2>
+                          <button class="modal-close" id="closeAiBuilder" style="color:#94a3b8;">×</button>
+                      </div>
+                      <div class="modal-body" style="padding:24px;">
+                          <p style="color:#cbd5e1; margin-bottom:16px; font-size:14px; line-height:1.5;">Describe the website you want to build. The AI will automatically generate the HTML, CSS, and JavaScript files for you.</p>
+                          <textarea id="aiBuilderPrompt" rows="4" placeholder="E.g., A modern landing page for a coffee shop with a hero section, menu, and contact form." style="width:100%; padding:12px; background:#0f172a; border:1px solid #334155; border-radius:8px; color:#fff; font-family:inherit; font-size:14px; outline:none; resize:vertical; margin-bottom:16px;"></textarea>
+                          <div id="aiBuilderStatus" style="display:none; color:#38bdf8; font-size:14px; margin-bottom:16px; text-align:center; font-weight:bold;"></div>
+                          <button id="generateSiteBtn" class="button" style="width:100%; background:#8b5cf6; color:#fff; padding:12px; font-size:16px; border-radius:8px; border:none; font-weight:bold; cursor:pointer;">Generate Project</button>
+                      </div>
+                  </div>
+              </div>
+          `;
+          document.body.insertAdjacentHTML('beforeend', modalHtml);
+          document.getElementById('closeAiBuilder').onclick = () => document.getElementById('aiBuilderModal').remove();
+          document.getElementById('generateSiteBtn').onclick = async function() {
+              var promptText = document.getElementById('aiBuilderPrompt').value.trim();
+              if (!promptText) return showToast('Please enter a prompt.', 'error');
+              var btn = this; btn.disabled = true; btn.textContent = 'Generating...'; btn.style.opacity = '0.7';
+              var statusEl = document.getElementById('aiBuilderStatus'); statusEl.style.display = 'block'; statusEl.textContent = 'AI is writing your code... This may take a minute.';
+              try {
+                  var idToken = await auth.currentUser.getIdToken();
+                  var payload = { model: 'openai/gpt-oss-120b', messages: [{ role: 'system', content: 'You are an expert web developer. Output EXACTLY three markdown code blocks. 1: ```html filename="index.html", 2: ```css filename="style.css", 3: ```javascript filename="script.js". Do NOT output any other text outside the code blocks. Ensure the HTML links the CSS and JS files correctly.' }, { role: 'user', content: 'Build a website: ' + promptText }], temperature: 0.2 };
+                  var response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify(payload) });
+                  if (!response.ok) throw new Error('AI generation failed.');
+                  var reader = response.body.getReader(); var decoder = new TextDecoder('utf-8'); var fullText = ''; var buffer = '';
+                  while (true) { var { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); var lines = buffer.split('\n'); buffer = lines.pop(); for (var line of lines) { if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') { try { var parsed = JSON.parse(line.slice(6)); if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) { fullText += parsed.choices[0].delta.content; } } catch (e) {} } } }
+                  var blocks = fullText.split('```'); var newFiles = {};
+                  for (var i = 0; i < blocks.length; i++) { if (blocks[i].trim().startsWith('html')) { var lines = blocks[i].trim().split('\n'); newFiles['index.html'] = lines.slice(1).join('\n').trim(); } else if (blocks[i].trim().startsWith('css')) { var lines = blocks[i].trim().split('\n'); newFiles['style.css'] = lines.slice(1).join('\n').trim(); } else if (blocks[i].trim().startsWith('javascript') || blocks[i].trim().startsWith('js')) { var lines = blocks[i].trim().split('\n'); newFiles['script.js'] = lines.slice(1).join('\n').trim(); } }
+                  if (!newFiles['index.html']) throw new Error('AI failed to generate HTML. Please try a different prompt.');
+                  loadFilesIntoEditor(newFiles, null, promptText.substring(0, 24), null);
+                  document.getElementById('aiBuilderModal').remove(); showToast('✨ AI Project generated successfully!', 'success');
+              } catch (err) { statusEl.textContent = 'Error: ' + err.message; statusEl.style.color = '#f87171'; btn.disabled = false; btn.textContent = 'Generate Project'; btn.style.opacity = '1'; }
+          };
       });
-    }
-    renderPreview();
 
-    if (fileTreeList) {
-      fileTreeList.addEventListener('click', function (e) {
-        var item = e.target.closest('.file-item'); if (!item || !codeEditor) return; if (!isAsset(activeFile)) files[activeFile] = codeEditor.value; document.querySelectorAll('.file-item').forEach(function (el) { el.classList.remove('active'); }); item.classList.add('active'); activeFile = item.getAttribute('data-filename');
-        if (currentFileLabel) currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile;
-        if (isAsset(activeFile)) { codeEditor.value = files[activeFile]; if (cm) cm.setOption('readOnly', true); } else { if (cm) cm.setOption('readOnly', false); codeEditor.value = files[activeFile] || ''; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); }
-        if (cm) cm.focus(); var term = $('terminalOutput'); if (term) term.style.display = 'none';
+      if (newProjectBtn) {
+        newProjectBtn.addEventListener('click', function() {
+          let html = `<div id="tplModal" class="modal-backdrop" style="display:flex; z-index:99999;"><div class="modal" style="max-width:500px;"><div class="modal-header"><h2>Choose a Template</h2><button class="modal-close" id="closeTpl">×</button></div><div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">`;
+          Object.keys(TEMPLATES).forEach(key => { html += `<button class="btn btn-primary tpl-btn" data-tpl="${key}" style="padding: 15px; font-size: 16px; text-align: left;">${TEMPLATES[key].name}</button>`; });
+          html += `</div></div></div>`;
+          document.body.insertAdjacentHTML('beforeend', html);
+          document.getElementById('closeTpl').onclick = () => document.getElementById('tplModal').remove();
+          document.querySelectorAll('.tpl-btn').forEach(btn => { btn.onclick = () => { const tpl = TEMPLATES[btn.getAttribute('data-tpl')]; loadFilesIntoEditor(tpl.files, null, tpl.name, null); document.getElementById('tplModal').remove(); showToast('Template loaded! Save it to keep it.'); }; });
+        });
+      }
+
+      if (uploadFileBtn && hiddenFileInput) {
+        uploadFileBtn.addEventListener('click', function () { hiddenFileInput.click(); });
+        hiddenFileInput.addEventListener('change', async function () {
+          var file = this.files && this.files[0]; if (!file) return;
+          if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); this.value = ''; return; }
+          if (!storage) { showToast('Storage not initialized.', 'error'); this.value = ''; return; }
+          var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024;
+          if (file.size > maxSize) { showToast(isUserPremium ? 'File too large. Max 5MB.' : '💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); this.value = ''; return; }
+          var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-'); uploadFileBtn.textContent = 'Uploading...';
+          try {
+            var storageRef = storage.ref('users/' + auth.currentUser.uid + '/assets/' + Date.now() + '_' + safeName);
+            var snapshot = await storageRef.put(file); var downloadURL = await snapshot.ref.getDownloadURL();
+            files['asset:' + safeName] = downloadURL; rebuildFileTree(); markUnsaved(); renderPreview(); triggerAutoSave(); showToast('Uploaded to Storage!', 'success');
+          } catch (err) { showToast('Upload failed: ' + err.message, 'error'); } finally { hiddenFileInput.value = ''; uploadFileBtn.textContent = '📤 Upload'; }
+        });
+      }
+
+      var exportGithubBtn = document.createElement('button');
+      exportGithubBtn.className = 'studio-btn'; exportGithubBtn.innerHTML = '🐙 Export to GitHub'; exportGithubBtn.style.marginLeft = '10px';
+      if (downloadZipBtn && downloadZipBtn.parentNode) { downloadZipBtn.parentNode.insertBefore(exportGithubBtn, downloadZipBtn.nextSibling); }
+      exportGithubBtn.addEventListener('click', async function() {
+          if (!isUserPremium) return showToast('💎 GitHub Export is a Pro feature.', 'error');
+          if (!codeEditor) return; if (!isAsset(activeFile)) files[activeFile] = codeEditor.value;
+          const repoUrl = prompt('Enter your GitHub Repository Link:\n(e.g., https://github.com/your-username/your-repo)'); if (!repoUrl) return;
+          const match = repoUrl.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^\/]+)\/([^\/]+)/); if (!match) { return showToast('Invalid GitHub URL. Use format: https://github.com/username/repo', 'error'); }
+          const owner = match[1]; const repo = match[2].replace('.git', '').replace(/\//g, '');
+          const tokenPrompt = `To push files to GitHub, you need a Personal Access Token (PAT).\n\nHere is exactly how to get it:\n1. Log into GitHub and click your profile picture (top right) -> Settings.\n2. Scroll down the left sidebar and click Developer settings.\n3. Expand Personal access tokens -> Tokens (classic).\n4. Click Generate new token (classic).\n5. Give it a name, set an expiration.\n6. IMPORTANT: Check the 'repo' checkbox (this allows code upload).\n7. Click Generate token at the bottom.\n8. Copy the token (starts with ghp_...) and paste it here:`;
+          const token = prompt(tokenPrompt); if (!token) return;
+          exportGithubBtn.disabled = true; exportGithubBtn.textContent = 'Exporting...'; showToast('Connecting to GitHub...', 'success');
+          try {
+              const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': `token ${token}` } }); if (!userRes.ok) throw new Error('Invalid Token.');
+              for (const [filename, content] of Object.entries(files)) {
+                  if (filename.startsWith('asset:')) continue; let sha = null;
+                  const getFileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, { headers: { 'Authorization': `token ${token}` } });
+                  if (getFileRes.ok) { const fileData = await getFileRes.json(); sha = fileData.sha; }
+                  const contentBytes = new TextEncoder().encode(content); const base64Content = btoa(String.fromCharCode.apply(null, contentBytes));
+                  const body = { message: `Update ${filename} via CodeWix`, content: base64Content }; if (sha) body.sha = sha;
+                  const putRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, { method: 'PUT', headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                  if (!putRes.ok) { const errData = await putRes.json(); throw new Error(errData.message || `Failed to upload ${filename}`); }
+              }
+              showToast('Successfully deployed to GitHub!', 'success'); window.open(`https://github.com/${owner}/${repo}`, '_blank');
+          } catch (err) { showToast(err.message, 'error'); } finally { exportGithubBtn.disabled = false; exportGithubBtn.textContent = '🐙 Export to GitHub'; }
       });
-      fileTreeList.addEventListener('contextmenu', function (e) { var item = e.target.closest('.file-item'); if (!item) return; e.preventDefault(); contextTargetFile = item.getAttribute('data-filename'); if (fileContextMenu) { fileContextMenu.style.left = e.pageX + 'px'; fileContextMenu.style.top = e.pageY + 'px'; fileContextMenu.style.display = 'block'; } });
-    }
 
-    document.addEventListener('click', function (e) { if (fileContextMenu && !e.target.closest('#fileContextMenu')) fileContextMenu.style.display = 'none'; });
+      async function loadProjectFromAI() {
+          const urlParams = new URLSearchParams(window.location.search); const projectId = urlParams.get('project'); const pending = localStorage.getItem('cw_pending_code');
+          if (!pending || !projectId || !db || !auth.currentUser) return;
+          try {
+              var data = JSON.parse(pending);
+              if (Date.now() - data.ts < 60000) { 
+                  let projectName = 'AI Generated Project'; let existingFiles = {};
+                  if (projectId !== 'new') { const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).get(); if (doc.exists) { const projData = doc.data(); existingFiles = projData.files || {}; projectName = projData.name || 'Untitled Project'; } }
+                  if (data.filename) { existingFiles[data.filename] = data.code; }
+                  loadFilesIntoEditor(existingFiles, projectId === 'new' ? null : projectId, projectName, null);
+                  const payload = { name: projectName, files: existingFiles, activeFile: data.filename, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                  if (projectId === 'new') { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); const ref = await db.collection('users').doc(auth.currentUser.uid).collection('projects').add(payload); currentProjectId = ref.id; window.history.replaceState({}, '', '?project=' + ref.id); } else { await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(projectId).update(payload); }
+                  showToast('🤖 AI Code applied and saved!', 'success'); lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + projectName;
+              }
+          } catch(e) { console.error("Error applying AI code:", e); }
+          localStorage.removeItem('cw_pending_code'); window.history.replaceState({}, document.title, window.location.pathname + (currentProjectId ? '?project=' + currentProjectId : ''));
+      }
+      if (auth) { auth.onAuthStateChanged(user => { if (user) loadProjectFromAI(); }); }
 
-    if (fileContextMenu) { fileContextMenu.addEventListener('click', function (e) { var btn = e.target.closest('button[data-action]'); if (!btn || !contextTargetFile) return; var action = btn.getAttribute('data-action'), target = contextTargetFile; fileContextMenu.style.display = 'none'; if (action === 'delete') { if (!confirm('Delete file?')) return; delete files[target]; if (activeFile === target) { activeFile = Object.keys(files)[0] || 'index.html'; if (codeEditor) codeEditor.value = files[activeFile] || ''; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); } rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Deleted'); } }); }
+      if (myProjectsBtn) { myProjectsBtn.addEventListener('click', async function() { if (!db || !auth.currentUser) return showToast('Sign in first.', 'error'); projectsModal.style.display = 'flex'; projectsListBox.innerHTML = '<p style="color:#64748b;">Loading projects...</p>'; try { const snap = await db.collection('users').doc(auth.currentUser.uid).collection('projects').get(); if (snap.empty) { projectsListBox.innerHTML = '<p style="color:#64748b;">No saved projects found.</p>'; return; } let html = ''; snap.forEach(doc => { const p = doc.data(); const date = p.updatedAt ? formatDate(p.updatedAt) : 'Unknown'; html += `<div class="project-item" data-id="${doc.id}" data-name="${escapeHtml(p.name)}" style="padding:12px; border-bottom:1px solid #334155; cursor:pointer; display:flex; justify-content:space-between; align-items:center;"><div><h4 style="margin:0; color:#e2e8f0;">${escapeHtml(p.name || 'Untitled')}</h4><small style="color:#64748b;">Updated: ${date}</small></div><button class="btn btn-primary load-proj-btn" data-id="${doc.id}" style="padding:4px 8px; font-size:12px;">Load</button></div>`; }); projectsListBox.innerHTML = html; } catch (err) { projectsListBox.innerHTML = `<p style="color:#f87171;">Failed to load: ${err.message}</p>`; } }); }
+      if (closeModalBtn) { closeModalBtn.addEventListener('click', function() { projectsModal.style.display = 'none'; }); }
+      if (projectsListBox) { projectsListBox.addEventListener('click', async function(e) { const btn = e.target.closest('.load-proj-btn'); if (!btn) return; const id = btn.getAttribute('data-id'); btn.disabled = true; btn.textContent = 'Loading...'; try { const doc = await db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(id).get(); if (doc.exists) { const data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Untitled', null); projectsModal.style.display = 'none'; showToast('Project loaded!', 'success'); } } catch (err) { showToast('Failed to load: ' + err.message, 'error'); } finally { btn.disabled = false; btn.textContent = 'Load'; } }); }
 
-    if (newFileBtn) { newFileBtn.addEventListener('click', function () { var name = prompt('New filename:'); if (!name) return; var clean = name.trim().toLowerCase(); if (files[clean] !== undefined || files['asset:' + clean] !== undefined) { alert('Exists.'); return; } files[clean] = ''; rebuildFileTree(); var li = fileTreeList.querySelector('[data-filename="' + clean + '"]'); if (li) li.click(); if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(clean); markUnsaved(); }); }
+      var remixId = localStorage.getItem('codewix_remix_project_id');
+      if (remixId && db && auth && auth.currentUser) { localStorage.removeItem('codewix_remix_project_id'); db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(remixId).get().then(function(doc) { if (doc.exists) { var data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Remix', null); showToast('Remix loaded!', 'success'); } }).catch(function(err) { console.error(err); }); }
 
-    if (renameFileBtn) { renameFileBtn.addEventListener('click', function () { if (!activeFile) return; var currentName = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile; var newName = prompt('Rename to:', currentName); if (!newName) return; newName = newName.trim().toLowerCase(); if (!newName || newName === currentName) return; var key = isAsset(activeFile) ? 'asset:' + newName : newName; if (files[key] !== undefined) { alert('Exists.'); return; } files[key] = files[activeFile]; delete files[activeFile]; activeFile = key; rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Renamed'); }); }
+      if (runCodeBtn) {
+        runCodeBtn.addEventListener('click', async function () {
+          var ext = activeFile.split('.').pop().toLowerCase();
+          if (['html', 'css', 'js', 'htm'].includes(ext)) { renderPreview(); showToast('Preview refreshed'); var term = $('terminalOutput'); if (term) term.style.display = 'none'; return; }
+          if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; } if (!codeEditor) return; var code = codeEditor.value; if (!code.trim()) { showToast('No code to run.', 'error'); return; }
+          var outputContainer = $('terminalOutput');
+          if (!outputContainer) { outputContainer = document.createElement('div'); outputContainer.id = 'terminalOutput'; outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;'; var parent = livePreviewFrame ? livePreviewFrame.parentNode : null; if (parent) { parent.style.position = 'relative'; parent.appendChild(outputContainer); } }
+          outputContainer.style.display = 'block'; outputContainer.textContent = 'Compiling and running ' + activeFile + '...\n\n';
+          try {
+            var idToken = await auth.currentUser.getIdToken(); var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); var data = await res.json(); if (!res.ok) throw new Error(data.error || 'Execution failed');
+            var finalOutput = data.output || ''; if (!data.stderr && (finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html'))) { if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; outputContainer.style.display = 'none'; showToast('Rendered Output', 'success'); return; }
+            if (data.stderr) finalOutput += '\n[Errors]:\n' + data.stderr; if (!finalOutput.trim()) finalOutput = '[Process finished with exit code ' + data.code + ']'; outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
+            var closeBtn = document.createElement('button'); closeBtn.textContent = '✕ Close Terminal'; closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; outputContainer.appendChild(closeBtn);
+          } catch (err) { outputContainer.textContent = 'Error: ' + err.message; }
+        });
+      }
+      renderPreview();
 
-    if (uploadFileBtn && hiddenFileInput) { uploadFileBtn.addEventListener('click', function () { hiddenFileInput.click(); }); hiddenFileInput.addEventListener('change', async function () { var file = this.files && this.files[0]; if (!file) return; if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); this.value = ''; return; } var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024; if (file.size > maxSize) { if (!isUserPremium) { showToast('💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); } else { showToast('File too large. Max 5MB.', 'error'); } this.value = ''; return; } var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-'); try { files['asset:' + safeName] = await readFileAsDataURL(file); rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Added', 'success'); } catch (err) { showToast('Failed', 'error'); } finally { hiddenFileInput.value = ''; } }); }
+      if (fileTreeList) {
+        fileTreeList.addEventListener('click', function (e) {
+          var item = e.target.closest('.file-item'); if (!item || !codeEditor) return; if (!isAsset(activeFile)) files[activeFile] = codeEditor.value; document.querySelectorAll('.file-item').forEach(function (el) { el.classList.remove('active'); }); item.classList.add('active'); activeFile = item.getAttribute('data-filename');
+          if (currentFileLabel) currentFileLabel.textContent = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile;
+          if (isAsset(activeFile)) { codeEditor.value = files[activeFile]; if (cm) cm.setOption('readOnly', true); } else { if (cm) cm.setOption('readOnly', false); codeEditor.value = files[activeFile] || ''; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); }
+          if (cm) cm.focus(); var term = $('terminalOutput'); if (term) term.style.display = 'none';
+        });
+        fileTreeList.addEventListener('contextmenu', function (e) { var item = e.target.closest('.file-item'); if (!item) return; e.preventDefault(); contextTargetFile = item.getAttribute('data-filename'); if (fileContextMenu) { fileContextMenu.style.left = e.pageX + 'px'; fileContextMenu.style.top = e.pageY + 'px'; fileContextMenu.style.display = 'block'; } });
+      }
 
-    if (saveProjectBtn) { saveProjectBtn.addEventListener('click', function () { if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; } if (!isAsset(activeFile)) files[activeFile] = codeEditor.value; var name = currentProjectName; if (!name) { name = prompt('Project Name:', 'My Project'); if (!name) return; name = name.trim(); if (!name) return; } saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…'; var payload = { name: name, files: files, activeFile: activeFile, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }; var col = db.collection('users').doc(auth.currentUser.uid).collection('projects'); var promise; if (currentProjectId) promise = col.doc(currentProjectId).update(payload); else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; }); } promise.then(function () { currentProjectName = name; lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name; showToast('Saved ✔', 'success'); }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); }).finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; }); }); }
+      document.addEventListener('click', function (e) { if (fileContextMenu && !e.target.closest('#fileContextMenu')) fileContextMenu.style.display = 'none'; });
 
-    if (downloadZipBtn) { 
-      downloadZipBtn.addEventListener('click', async function () { 
-        if (!isUserPremium) return showToast('💎 ZIP Export is a Pro feature.', 'error');
-        if (typeof JSZip === 'undefined') { alert('ZIP missing.'); return; } 
-        if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value; 
-        downloadZipBtn.disabled = true; downloadZipBtn.textContent = 'Zipping…'; 
-        try { var zip = new JSZip(), assetFolder = zip.folder('assets'); Object.keys(files).forEach(function (name) { if (isAsset(name)) { try { assetFolder.file(assetDisplayName(name), dataUrlToBlob(files[name]), { binary: true }); } catch (e) {} } else zip.file(name, files[name] || ''); }); downloadBlob(await zip.generateAsync({ type: 'blob' }), 'codewix-project.zip'); showToast('Downloaded', 'success'); } catch (err) { showToast('ZIP failed', 'error'); } finally { downloadZipBtn.disabled = false; downloadZipBtn.textContent = '📦 Download All'; } 
-      }); 
+      if (fileContextMenu) { fileContextMenu.addEventListener('click', function (e) { var btn = e.target.closest('button[data-action]'); if (!btn || !contextTargetFile) return; var action = btn.getAttribute('data-action'), target = contextTargetFile; fileContextMenu.style.display = 'none'; if (action === 'delete') { if (!confirm('Delete file?')) return; delete files[target]; if (activeFile === target) { activeFile = Object.keys(files)[0] || 'index.html'; if (codeEditor) codeEditor.value = files[activeFile] || ''; if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(activeFile); } rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Deleted'); } }); }
+
+      if (newFileBtn) { newFileBtn.addEventListener('click', function () { var name = prompt('New filename:'); if (!name) return; var clean = name.trim().toLowerCase(); if (files[clean] !== undefined || files['asset:' + clean] !== undefined) { alert('Exists.'); return; } files[clean] = ''; rebuildFileTree(); var li = fileTreeList.querySelector('[data-filename="' + clean + '"]'); if (li) li.click(); if (window.__codewixSetEditorMode) window.__codewixSetEditorMode(clean); markUnsaved(); }); }
+
+      if (renameFileBtn) { renameFileBtn.addEventListener('click', function () { if (!activeFile) return; var currentName = isAsset(activeFile) ? assetDisplayName(activeFile) : activeFile; var newName = prompt('Rename to:', currentName); if (!newName) return; newName = newName.trim().toLowerCase(); if (!newName || newName === currentName) return; var key = isAsset(activeFile) ? 'asset:' + newName : newName; if (files[key] !== undefined) { alert('Exists.'); return; } files[key] = files[activeFile]; delete files[activeFile]; activeFile = key; rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Renamed'); }); }
+
+      if (uploadFileBtn && hiddenFileInput) { uploadFileBtn.addEventListener('click', function () { hiddenFileInput.click(); }); hiddenFileInput.addEventListener('change', async function () { var file = this.files && this.files[0]; if (!file) return; if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); this.value = ''; return; } var maxSize = isUserPremium ? 5 * 1024 * 1024 : 300 * 1024; if (file.size > maxSize) { if (!isUserPremium) { showToast('💎 Upgrade to Pro to upload files larger than 300KB!', 'error'); } else { showToast('File too large. Max 5MB.', 'error'); } this.value = ''; return; } var safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]/g, '-'); try { files['asset:' + safeName] = await readFileAsDataURL(file); rebuildFileTree(); markUnsaved(); renderPreview(); showToast('Added', 'success'); } catch (err) { showToast('Failed', 'error'); } finally { hiddenFileInput.value = ''; } }); }
+
+      if (saveProjectBtn) { saveProjectBtn.addEventListener('click', function () { if (!codeEditor || !db || !auth || !auth.currentUser) { showToast('Not ready.', 'error'); return; } if (!isAsset(activeFile)) files[activeFile] = codeEditor.value; var name = currentProjectName; if (!name) { name = prompt('Project Name:', 'My Project'); if (!name) return; name = name.trim(); if (!name) return; } saveProjectBtn.disabled = true; saveProjectBtn.textContent = 'Saving…'; var payload = { name: name, files: files, activeFile: activeFile, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }; var col = db.collection('users').doc(auth.currentUser.uid).collection('projects'); var promise; if (currentProjectId) promise = col.doc(currentProjectId).update(payload); else { payload.createdAt = firebase.firestore.FieldValue.serverTimestamp(); promise = col.add(payload).then(function (ref) { currentProjectId = ref.id; }); } promise.then(function () { currentProjectName = name; lastSavedSnapshot = snapshot(); if (unsavedIndicator) unsavedIndicator.style.display = 'none'; if (projectStatusLbl) projectStatusLbl.textContent = 'Project: ' + name; showToast('Saved ✔', 'success'); }).catch(function (err) { showToast('Failed: ' + err.message, 'error'); }).finally(function () { saveProjectBtn.disabled = false; saveProjectBtn.textContent = 'Save'; }); }); }
+
+      if (downloadZipBtn) { 
+        downloadZipBtn.addEventListener('click', async function () { 
+          if (!isUserPremium) return showToast('💎 ZIP Export is a Pro feature.', 'error');
+          if (typeof JSZip === 'undefined') { alert('ZIP missing.'); return; } 
+          if (codeEditor && !isAsset(activeFile)) files[activeFile] = codeEditor.value; 
+          downloadZipBtn.disabled = true; downloadZipBtn.textContent = 'Zipping…'; 
+          try { var zip = new JSZip(), assetFolder = zip.folder('assets'); Object.keys(files).forEach(function (name) { if (isAsset(name)) { try { assetFolder.file(assetDisplayName(name), dataUrlToBlob(files[name]), { binary: true }); } catch (e) {} } else zip.file(name, files[name] || ''); }); downloadBlob(await zip.generateAsync({ type: 'blob' }), 'codewix-project.zip'); showToast('Downloaded', 'success'); } catch (err) { showToast('ZIP failed', 'error'); } finally { downloadZipBtn.disabled = false; downloadZipBtn.textContent = '📦 Download All'; } 
+        }); 
+      }
     }
   }
 
@@ -946,7 +1012,6 @@ window.addEventListener('DOMContentLoaded', function () {
       sidebar.id = 'cwHistorySidebar';
       chatCol.id = 'cwChatColumn';
       
-      // ✅ FIX: Add Mobile Menu Button to header
       chatCol.innerHTML = `
         <div class="cw-main-header">
           <div>
@@ -992,15 +1057,12 @@ window.addEventListener('DOMContentLoaded', function () {
       chatArea.appendChild(sidebar);
       chatArea.appendChild(chatCol);
       
-      // ✅ FIX: Hook up Mobile Menu Toggle
       document.getElementById('cwMobileMenuBtn').onclick = function() {
         sidebar.classList.toggle('open');
       };
 
-      // Hook up Attachment
       inputWrapper.querySelector('#newAttachBtn').onclick = function() { attachInput.click(); };
 
-      // Hook up Voice Note (VN)
       var micBtn = inputWrapper.querySelector('#cwMicBtn');
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
           var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1108,7 +1170,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
     var historyListBox = $('cwHistoryList');
     
-    // ✅ FIX: Define setSidebarOpen to prevent ReferenceError
     function setSidebarOpen(isOpen) {
         if (window.innerWidth <= 768) {
             var sidebarEl = document.getElementById('cwHistorySidebar');
@@ -1121,7 +1182,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
     $('cwSbNew').onclick = function() { startNewChat(); setSidebarOpen(false); };
 
-    // Chat Themes Logic
     $('cwThemeBtn').onclick = function() {
         var themeModal = document.createElement('div');
         themeModal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100000; display:flex; align-items:center; justify-content:center;';
@@ -1272,7 +1332,6 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
 
             escaped = escaped.replace(/!\[VIDEO\]\((https?:\/\/[^\s)]+)\)/gi, '<video controls width="100%" style="border-radius:8px; margin-top:10px; border: 1px solid #27272a;"><source src="$1" type="video/mp4">Your browser does not support the video tag.</video>');
             
-            // ✅ Download button placed side-by-side with the AI image
             escaped = escaped.replace(/!\[IMAGE\]\(([^)]+)\)/gi, function(match, prompt) {
                 var imgUrl = '/api/generate-image?prompt=' + encodeURIComponent(prompt);
                 return `
