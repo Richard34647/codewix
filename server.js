@@ -1,11 +1,20 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const { exec } = require('child_process');
+const cron = require('node-cron'); // ✅ Added for the crawler
+
+// 1. Load .env file (Robust loader for Desktop)
+const envPaths = [ path.join(__dirname, '.env'), path.join(process.cwd(), '.env'), path.join(path.dirname(process.execPath), '.env') ];
+let envLoaded = false;
+for (const p of envPaths) {
+  if (fs.existsSync(p)) { require('dotenv').config({ path: p }); envLoaded = true; break; }
+}
+if (!envLoaded) require('dotenv').config();
+
+const express = require('express');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
-const fs = require('fs');
-const cron = require('node-cron'); 
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -16,34 +25,19 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'wilcoxr889@gmail.com').toLowerC
 const SELAR_WEBHOOK_SECRET = process.env.SELAR_WEBHOOK_SECRET || 'my_super_secret_webhook_key';
 
 // ==========================================
-// FIREBASE INITIALIZATION
+// FIREBASE ADMIN INITIALIZATION (Desktop)
 // ==========================================
 try {
-  const localPath = path.join(__dirname, 'firebase-service-account.json');
-  const renderSecretPath = '/etc/secrets/firebase-service-account.json';
-
-  if (fs.existsSync(renderSecretPath)) {
-    const serviceAccount = JSON.parse(fs.readFileSync(renderSecretPath, 'utf8'));
+  const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
+  if (fs.existsSync(serviceAccountPath)) {
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
-    console.log('✅ [Firebase Admin] Initialized via Render Secret File');
-  } else if (fs.existsSync(localPath)) {
-    const serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
-    console.log('✅ [Firebase Admin] Initialized via local JSON file');
-  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-      }),
-      storageBucket: 'codewix-16971.firebasestorage.app'
-    });
-    console.log('✅ [Firebase Admin] Initialized via env variables');
-  } else {
-    console.error('❌ [Firebase Admin] CRITICAL ERROR: No credentials found!');
+    console.log('✅ [Firebase Admin] Initialized via JSON');
+  } else if (process.env.FIREBASE_PROJECT_ID) {
+    admin.initializeApp({ credential: admin.credential.cert({ projectId: process.env.FIREBASE_PROJECT_ID, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') }), storageBucket: 'codewix-16971.firebasestorage.app' });
+    console.log('✅ [Firebase Admin] Initialized via .env');
   }
-} catch (err) { console.error('❌ [Firebase Admin] init failed:', err.message); }
+} catch (err) { console.error('❌ [Firebase Admin] Init failed:', err.message); }
 
 let emailjsReady = false;
 if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
@@ -53,12 +47,9 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
 }
 
 app.use('/api/selar-webhook', express.raw({ type: 'application/json' }));
-app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// ==========================================
-// HELPERS & MIDDLEWARE
-// ==========================================
+// ---- Helpers & Auth Middleware -------------------------------
 function rewritePublishedLinks(html, slug) {
   if (!html) return '';
   return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
@@ -92,6 +83,7 @@ async function requireAuth(req, res, next) {
   }
 }
 
+// ✅ Prevent banned users from using the API
 async function requireNotBanned(req, res, next) {
   try {
     const doc = await admin.firestore().collection('users').doc(req.user.uid).get();
@@ -99,9 +91,7 @@ async function requireNotBanned(req, res, next) {
       return res.status(403).json({ error: 'Account banned. You cannot perform this action.' });
     }
     next();
-  } catch (e) {
-    next(); 
-  }
+  } catch (e) { next(); }
 }
 
 async function checkRateLimit(req, res, next) {
@@ -129,7 +119,6 @@ async function requireAdmin(req, res, next) {
 // ==========================================
 // AI CONTENT MODERATION & BAN CRAWLER
 // ==========================================
-
 async function checkContentForViolations(text) {
   if (!text || text.trim().length < 5) return { violation: false };
   if (!GROQ_API_KEY) return { violation: false }; 
@@ -143,27 +132,15 @@ async function checkContentForViolations(text) {
     "${text.substring(0, 2000)}"`;
 
     const response = await fetch(GROQ_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-120b', 
-        messages: [{ role: 'system', content: prompt }],
-        temperature: 0.1,
-        max_tokens: 500 
-      })
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
+      body: JSON.stringify({ model: 'openai/gpt-oss-120b', messages: [{ role: 'system', content: prompt }], temperature: 0.1, max_tokens: 500 })
     });
 
-    if (!response.ok) {
-       const errText = await response.text();
-       throw new Error(`Groq API Error ${response.status}: ${errText}`);
-    }
-
+    if (!response.ok) throw new Error('Groq API Error');
     const data = await response.json();
     const result = data?.choices?.[0]?.message?.content?.trim() || "";
     
-    if (result.startsWith('VIOLATION:')) {
-      return { violation: true, reason: result.replace('VIOLATION:', '').trim() };
-    }
+    if (result.startsWith('VIOLATION:')) return { violation: true, reason: result.replace('VIOLATION:', '').trim() };
     return { violation: false };
   } catch (err) {
     console.error("Moderation Check Failed:", err.message);
@@ -181,21 +158,12 @@ async function issueStrike(uid, reason, isAutoBan = false) {
 
     if (strikes >= 3 || isAutoBan) {
       didBan = true;
-      // 1. Update Firestore FIRST
       await userRef.set({ banned: true, strikes: strikes, banReason: reason }, { merge: true });
-      
-      // 2. Try to disable in Auth
-      try {
-        await admin.auth().updateUser(uid, { disabled: true });
-      } catch (authErr) {
-        console.error(`[AUTH ERROR] Failed to disable user ${uid} in Firebase Auth:`, authErr.message);
-      }
-      
+      try { await admin.auth().updateUser(uid, { disabled: true }); } catch (authErr) {}
       console.log(`🚫 [BANNED] User ${uid} banned for: ${reason}`);
     } else {
       await userRef.set({ strikes: strikes, lastStrikeReason: reason }, { merge: true });
       
-      // ✅ FIXED: Send notification to the USER'S private subcollection
       await admin.firestore().collection('users').doc(uid).collection('notifications').add({
         title: '⚠️ Terms of Service Warning',
         message: `A violation was detected on your account: "${reason}". You now have ${strikes}/3 strikes. If you reach 3 strikes, your account will be permanently banned.`,
@@ -203,9 +171,7 @@ async function issueStrike(uid, reason, isAutoBan = false) {
       });
       console.log(`⚠️ [STRIKE] User ${uid} got strike ${strikes}/3 for: ${reason}`);
     }
-  } catch (err) {
-    console.error("Failed to issue strike:", err);
-  }
+  } catch (err) { console.error("Failed to issue strike:", err); }
   return didBan;
 }
 
@@ -215,7 +181,6 @@ async function runCrawler() {
 
   try {
     const usersSnap = await admin.firestore().collection('users').get();
-    
     for (const userDoc of usersSnap.docs) {
       const uid = userDoc.id;
       const userData = userDoc.data();
@@ -223,7 +188,6 @@ async function runCrawler() {
       if (userData.banned === true) continue;
       stats.scanned++;
 
-      // 1. Check Usernames
       if (userData.displayName) {
         const check = await checkContentForViolations(userData.displayName);
         if (check.violation) {
@@ -234,7 +198,6 @@ async function runCrawler() {
         }
       }
       
-      // 2. Check Published Sites
       const sitesSnap = await admin.firestore().collection('published').where('uid', '==', uid).get();
       for (const siteDoc of sitesSnap.docs) {
         const site = siteDoc.data();
@@ -252,7 +215,6 @@ async function runCrawler() {
         }
       }
 
-      // 3. Check AI Chat Messages (Latest 5)
       const chatsSnap = await admin.firestore().collection('users').doc(uid).collection('chats').orderBy('updatedAt', 'desc').limit(5).get();
       for (const chatDoc of chatsSnap.docs) {
         const chat = chatDoc.data();
@@ -272,69 +234,13 @@ async function runCrawler() {
     }
     console.log('🕷️ Crawler finished.', stats);
     return stats;
-  } catch (err) {
-    console.error('Crawler error:', err);
-    throw err;
-  }
+  } catch (err) { console.error('Crawler error:', err); throw err; }
 }
 
-// Schedule the crawler every 6 hours
-cron.schedule('0 */6 * * *', () => {
-  runCrawler().catch(console.error);
-});
+cron.schedule('0 */6 * * *', () => { runCrawler().catch(console.error); });
 
-// ✅ Debug Route
-app.post('/api/admin/test-ai', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const textToTest = req.body.text;
-    const prompt = `Analyze the following text for severe violations of a platform's Terms of Service. 
-    Focus strictly on: Hate Speech, Harassment, Explicit Adult Content (pornography), Illegal Acts, or extreme violence.
-    Respond ONLY with exactly "SAFE" if it is okay, or "VIOLATION: [Short Reason]" if it violates.
-    
-    Text to analyze:
-    "${textToTest}"`;
-
-    const response = await fetch(GROQ_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + GROQ_API_KEY },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-120b', 
-        messages: [{ role: 'system', content: prompt }],
-        temperature: 0.1,
-        max_tokens: 500 
-      })
-    });
-
-    const data = await response.json();
-    
-    if (!response.ok) {
-      return res.status(response.status).json({ 
-        error: 'Groq API Error', 
-        message: data.error?.message || 'Unknown error from Groq', 
-        details: data 
-      });
-    }
-
-    const rawContent = data?.choices?.[0]?.message?.content || "No content returned from AI";
-    
-    res.json({ 
-      raw_ai_response: rawContent, 
-      full_groq_data: data,
-      is_api_key_missing: !GROQ_API_KEY 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message, is_api_key_missing: !GROQ_API_KEY });
-  }
-});
-
-// Endpoint to trigger crawler manually
 app.post('/api/admin/run-crawler', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const result = await runCrawler();
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  try { res.json(await runCrawler()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ==========================================
@@ -347,7 +253,6 @@ app.get('/api/admin/stats', requireAuth, requireAdmin, async (req, res) => {
     const lessonsSnap = await admin.firestore().collection('lessons').get();
     let premiumCount = 0; 
     usersList.users.forEach(u => { if (u.customClaims?.premium) premiumCount++; });
-    
     res.json({ totalUsers: usersList.users.length, premiumUsers: premiumCount, totalProjects: projectsSnap.size, totalLessons: lessonsSnap.size });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -356,21 +261,10 @@ app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
   try {
     const listUsersResult = await admin.auth().listUsers(1000);
     const users = [];
-    
     for (const u of listUsersResult.users) {
       const userDoc = await admin.firestore().collection('users').doc(u.uid).get();
       const firestoreData = userDoc.exists ? userDoc.data() : {};
-      
-      users.push({ 
-        uid: u.uid, 
-        email: u.email || 'No Email', 
-        displayName: u.displayName || 'No Name', 
-        premium: u.customClaims?.premium === true,
-        joined: new Date(u.metadata.creationTime).toLocaleDateString(),
-        banned: u.disabled === true,
-        strikes: firestoreData.strikes || 0,
-        lastStrikeReason: firestoreData.lastStrikeReason || ''
-      });
+      users.push({ uid: u.uid, email: u.email || 'No Email', displayName: u.displayName || 'No Name', premium: u.customClaims?.premium === true, joined: new Date(u.metadata.creationTime).toLocaleDateString(), banned: u.disabled === true, strikes: firestoreData.strikes || 0, lastStrikeReason: firestoreData.lastStrikeReason || '' });
     }
     res.json({ users });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -404,9 +298,7 @@ app.post('/api/admin/ban-user', requireAuth, requireAdmin, async (req, res) => {
       await admin.auth().updateUser(uid, { disabled: false });
       await admin.firestore().collection('users').doc(uid).set({ banned: false, strikes: 0 }, { merge: true });
       res.json({ ok: true, message: 'User unbanned successfully.' });
-    } else {
-      res.status(400).json({ error: 'Invalid action.' });
-    }
+    } else { res.status(400).json({ error: 'Invalid action.' }); }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -418,19 +310,14 @@ app.get('/api/admin/projects', requireAuth, requireAdmin, async (req, res) => {
 });
 
 app.delete('/api/admin/projects/:slug', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    await admin.firestore().collection('published').doc(req.params.slug).delete();
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { await admin.firestore().collection('published').doc(req.params.slug).delete(); res.json({ ok: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const listUsersResult = await admin.auth().listUsers(1000);
-    let topConsumers = [];
-    let totalTokens = 0;
-
+    let topConsumers = []; let totalTokens = 0;
     for (const user of listUsersResult.users) {
       const usageDoc = await admin.firestore().collection('users').doc(user.uid).collection('usage').doc(today).get();
       if (usageDoc.exists) {
@@ -444,7 +331,7 @@ app.get('/api/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // ==========================================
-// NOTIFICATIONS, SELAR, AI CHAT
+// NOTIFICATIONS ROUTES
 // ==========================================
 app.get('/api/notifications', requireAuth, async (req, res) => {
   try {
@@ -466,6 +353,9 @@ app.delete('/api/admin/notifications/:id', requireAuth, requireAdmin, async (req
   try { await admin.firestore().collection('notifications').doc(req.params.id).delete(); res.json({ ok: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// SELAR WEBHOOK
+// ==========================================
 app.post('/api/selar-webhook', async (req, res) => {
   try {
     const secret = req.headers['x-selar-signature'] || req.query.secret;
@@ -482,6 +372,7 @@ app.post('/api/selar-webhook', async (req, res) => {
   } catch (err) { res.status(500).send('Webhook failed'); }
 });
 
+// ---- API: Groq chat proxy (STREAMING) ------------------------------------
 app.post('/api/chat', requireAuth, requireNotBanned, checkRateLimit, async (req, res) => {
   if (!GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY.' });
   const { messages, model, temperature, max_completion_tokens, reasoning_effort } = req.body || {};
@@ -538,9 +429,13 @@ app.get('/api/user/usage', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// AI HORDE IMAGE GENERATION ROUTE
+// ==========================================
 app.get('/api/generate-image', async (req, res) => {
   const { prompt } = req.query;
   if (!prompt) return res.status(400).json({ error: 'Prompt required' });
+
   try {
     const generateRes = await fetch('https://aihorde.net/api/v2/generate/async', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': '0000000000' },
@@ -565,26 +460,87 @@ app.get('/api/generate-image', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// THE WIXSCRIPT COMPILER & RUN ROUTE
+// ==========================================
 app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
   const { language, code } = req.body || {};
   if (!language || !code) return res.status(400).json({ error: 'language and code are required.' });
   const lang = language.toLowerCase();
-  const langMap = { 'php': 68, 'js': 63, 'javascript': 63, 'py': 71, 'python': 71, 'cpp': 54, 'c++': 54, 'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 };
+
+  // ✅ WIXSCRIPT COMPILER
+  if (lang === 'wix' || lang === 'wixscript') {
+    try {
+      // 1. Parse @let variables (e.g., @let title = "Hello";)
+      let variables = {};
+      const letRegex = /@let\s+([a-zA-Z_]\w*)\s*=\s*(.+?);/g;
+      let match;
+      while ((match = letRegex.exec(code)) !== null) {
+          try { 
+              // Safely evaluate the JS expression (e.g., "Hello" + " World")
+              variables[match[1]] = new Function(`return ${match[2]}`)(); 
+          } catch(e) { 
+              variables[match[1]] = match[2].replace(/['"]/g, ''); 
+          }
+      }
+
+      // 2. Extract the @html { ... } block
+      const htmlRegex = /@html\s*\{([\s\S]*?)\}/;
+      const htmlMatch = code.match(htmlRegex);
+
+      if (!htmlMatch) {
+          throw new Error("WixScript Error: You must wrap your output in an `@html { ... }` block.");
+      }
+
+      let htmlOutput = htmlMatch[1];
+
+      // 3. Interpolate {{ variables }} into the HTML
+      htmlOutput = htmlOutput.replace(/\{\{\s*([a-zA-Z_]\w*)\s*\}\}/g, (m, v) => {
+          return variables[v] !== undefined ? variables[v] : m;
+      });
+
+      // 4. Return the rendered HTML to the preview window
+      return res.json({ output: htmlOutput, stderr: '', code: 0 });
+
+    } catch (err) {
+      return res.json({ output: '', stderr: err.message, code: 1 });
+    }
+  }
+
+  // Desktop Local Python (Existing code)
+  if (lang === 'py' || lang === 'python') {
+    const tempFile = path.join(os.tmpdir(), `script_${Date.now()}.py`);
+    fs.writeFileSync(tempFile, code);
+    exec(`python3 ${tempFile}`, { timeout: 120000 }, (error, stdout, stderr) => {
+      try { fs.unlinkSync(tempFile); } catch (e) {}
+      let finalErr = stderr;
+      if (error) {
+        if (error.killed) finalErr = "❌ PROCESS KILLED: The script took too long (exceeded 2 minutes) or ran out of memory.";
+        else if (!stderr && !stdout) finalErr = "❌ SERVER KILLED PROCESS: Likely Out of Memory (OOM).";
+        else finalErr = error.message;
+      }
+      res.json({ output: stdout || '', stderr: finalErr || '', code: error ? 1 : 0 });
+    });
+    return;
+  }
+
+  // Judge0 (Other languages)
+  const langMap = { 'php': 68, 'js': 63, 'javascript': 63, 'cpp': 54, 'c++': 54, 'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 };
   const langId = langMap[lang];
   if (!langId) return res.status(400).json({ error: 'Unsupported language.' });
+
   try {
-    const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 15000);
     const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; CodeWixServer/1.0)' }, body: JSON.stringify({ language_id: langId, source_code: code }), signal: controller.signal
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language_id: langId, source_code: code })
     });
-    clearTimeout(timeoutId);
     const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error });
-    if (data.message) return res.status(500).json({ error: data.message });
     res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
-  } catch (err) { res.status(500).json({ error: 'Execution engine failed. The free API might be temporarily down.' }); }
+  } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
 });
 
+// ==========================================
+// CONTACT & VERIFICATION
+// ==========================================
 app.post('/api/contact', async (req, res) => {
   const { name, email, subject, message } = req.body || {};
   if (!name || !email || !message) return res.status(400).json({ error: 'Fields required.' });
@@ -612,6 +568,9 @@ app.post('/api/send-verification-email', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// LESSONS
+// ==========================================
 app.get('/api/lessons', async (req, res) => {
   try { const snap = await admin.firestore().collection('lessons').orderBy('createdAt', 'desc').get(); res.json({ lessons: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) }); } catch (err) { if (err.code === 5) return res.json({ lessons: [] }); res.status(500).json({ error: err.message }); }
 });
@@ -625,6 +584,9 @@ app.delete('/api/admin/lessons/:id', requireAuth, requireAdmin, async (req, res)
   try { await admin.firestore().collection('lessons').doc(req.params.id).delete(); res.json({ ok: true }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// PUBLISH & SITES
+// ==========================================
 app.post('/api/publish', requireAuth, requireNotBanned, async (req, res) => {
   const { slug, projectName, description, files, password } = req.body || {};
   if (!slug || !files) return res.status(400).json({ error: 'slug and files are required.' });
@@ -641,8 +603,10 @@ app.post('/api/publish', requireAuth, requireNotBanned, async (req, res) => {
     const existing = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
     if (existing.size >= 1) return res.status(403).json({ error: 'Free users can only publish 1 site. Upgrade to Pro!' });
   }
+
   let finalPassword = null;
   if (password && req.isPremium) finalPassword = password;
+
   const pubRef = admin.firestore().collection('published').doc(slug);
   try {
     await admin.firestore().runTransaction(async (tx) => {
@@ -665,7 +629,8 @@ app.post('/api/unpublish', requireAuth, async (req, res) => {
   try {
     const ref = admin.firestore().collection('published').doc(req.body.slug);
     const doc = await ref.get();
-    if (doc.exists && doc.data().uid === req.user.uid) { await ref.delete(); res.json({ ok: true }); } else { res.status(403).json({ error: 'Not your site.' }); }
+    if (doc.exists && doc.data().uid === req.user.uid) { await ref.delete(); res.json({ ok: true }); } 
+    else { res.status(403).json({ error: 'Not your site.' }); }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -673,7 +638,11 @@ app.get('/api/my-published', requireAuth, async (req, res) => {
   try {
     const snap = await admin.firestore().collection('published').where('uid', '==', req.user.uid).get();
     let sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
-    sites.sort((a, b) => { const timeA = a.updatedAt ? (a.updatedAt._seconds || 0) : 0; const timeB = b.updatedAt ? (b.updatedAt._seconds || 0) : 0; return timeB - timeA; });
+    sites.sort((a, b) => {
+      const timeA = a.updatedAt ? (a.updatedAt._seconds || 0) : 0;
+      const timeB = b.updatedAt ? (b.updatedAt._seconds || 0) : 0;
+      return timeB - timeA;
+    });
     sites = sites.map(s => ({ ...s, updatedAt: s.updatedAt ? new Date(s.updatedAt._seconds * 1000).toISOString() : null }));
     res.json({ sites });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -701,7 +670,7 @@ app.put('/api/published/:slug', requireAuth, async (req, res) => {
 
 app.get('/api/explore', async (req, res) => {
   try {
-    const snap = await admin.firestore().collection('published').where('hidden', '!=', true).orderBy('updatedAt', 'desc').limit(60).get();
+    const snap = await admin.firestore().collection('published').orderBy('updatedAt', 'desc').limit(60).get();
     const sites = snap.docs.map(doc => ({ slug: doc.id, ...doc.data() }));
     const uids = [...new Set(sites.map(s => s.uid))];
     if (uids.length === 0) return res.json({ sites: [] });
@@ -714,7 +683,7 @@ app.get('/api/explore', async (req, res) => {
 
 app.get('/api/user/:username', async (req, res) => {
   try {
-    const snap = await admin.firestore().collection('published').where('username', '==', req.params.username).where('hidden', '!=', true).orderBy('updatedAt', 'desc').get();
+    const snap = await admin.firestore().collection('published').where('username', '==', req.params.username).orderBy('updatedAt', 'desc').get();
     res.json({ username: req.params.username, count: snap.size, sites: snap.docs.map(doc => ({ slug: doc.id, ...doc.data(), updatedAt: doc.data().updatedAt?.toDate().toISOString() })) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -723,18 +692,25 @@ app.get('/s/:slug', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
     const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
-    if (!doc.exists || doc.data().hidden) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
     const data = doc.data();
+    
     if (data.password && data.password !== req.query.pw) {
       return res.send(`<html><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:100px;"><h2>🔒 Password Protected</h2><form method="GET" style="margin-top:20px;"><input type="password" name="pw" placeholder="Password" style="padding:10px;border-radius:5px;"><button type="submit" style="padding:10px 20px;background:#38bdf8;border:none;border-radius:5px;">Unlock</button></form></body></html>`);
     }
+
     let isPremiumOwner = false;
     try { const ownerRecord = await admin.auth().getUser(data.uid); isPremiumOwner = ownerRecord.customClaims?.premium === true; } catch (err) {}
+
     const files = data.files || {};
     doc.ref.update({ views: admin.firestore.FieldValue.increment(1) }).catch(() => {});
+    
     let rawHtml = resolveAssetUrls(files['index.html'] || '', files);
     let watermarkHtml = '';
-    if (!isPremiumOwner) watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
+    if (!isPremiumOwner) {
+      watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
+    }
+
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
     res.send(html);
   } catch (err) { next(); }
@@ -744,7 +720,7 @@ app.get('/s/:slug/*', async (req, res, next) => {
   if (!admin.apps.length) return next();
   try {
     const doc = await admin.firestore().collection('published').doc(req.params.slug).get();
-    if (!doc.exists || doc.data().hidden) return res.status(404).sendFile(path.join(__dirname, '404.html'));
+    if (!doc.exists) return res.status(404).sendFile(path.join(__dirname, '404.html'));
     const data = doc.data();
     if (data.password && data.password !== req.query.pw) return res.status(401).send('Password required');
     const filename = req.params[0];
@@ -757,27 +733,35 @@ app.get('/s/:slug/*', async (req, res, next) => {
         try { const ownerRecord = await admin.auth().getUser(data.uid); isPremiumOwner = ownerRecord.customClaims?.premium === true; } catch (err) {}
         let rawHtml = resolveAssetUrls(content, files);
         let watermarkHtml = '';
-        if (!isPremiumOwner) watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
+        if (!isPremiumOwner) {
+          watermarkHtml = `<div style="position:fixed;bottom:20px;right:20px;background:#020617;color:#38bdf8;padding:10px 16px;border-radius:20px;font-family:sans-serif;font-size:14px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:9999;border:1px solid #38bdf8;"><a href="https://codewi.onrender.com" target="_blank" style="color:#38bdf8;text-decoration:none;">Built with CodeWix 🚀</a></div>`;
+        }
         const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${data.projectName || req.params.slug}</title><style>${files['style.css'] || ''}</style></head><body>${rewritePublishedLinks(rawHtml, req.params.slug)}${watermarkHtml}<script>${files['script.js'] || ''}<\/script></body></html>`;
         return res.send(html);
       }
       if (content.startsWith('data:')) {
-        const parts = content.split(','); const mimeMatch = parts[0].match(/:(.*?);/);
+        const parts = content.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
         const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
         const buffer = Buffer.from(parts[1], 'base64');
         return res.type(mime).send(buffer);
       }
       let contentType = 'text/plain';
-      if (ext === '.css') contentType = 'text/css'; else if (ext === '.js') contentType = 'application/javascript'; else if (ext === '.json') contentType = 'application/json'; else if (ext === '.svg') contentType = 'image/svg+xml';
+      if (ext === '.css') contentType = 'text/css';
+      else if (ext === '.js') contentType = 'application/javascript';
+      else if (ext === '.json') contentType = 'application/json';
+      else if (ext === '.svg') contentType = 'image/svg+xml';
       return res.type(contentType).send(content);
     }
     return res.status(404).sendFile(path.join(__dirname, '404.html'));
   } catch (err) { next(); }
 });
 
+// ---- Other Routes -------------------------------------------------------
 app.get('/u/:username', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
+
 app.use('/api', (req, res) => res.status(404).json({ error: 'Unknown API route.' }));
 app.use(express.static(path.join(__dirname)));
 app.use((req, res) => res.status(404).sendFile(path.join(__dirname, '404.html')));
 
-app.listen(PORT, '0.0.0.0', () => console.log('\n✅ CodeWix running on port ' + PORT + '\n'));
+app.listen(PORT, '0.0.0.0', () => console.log('\n✅ CodeWix Desktop running on port ' + PORT + '\n'));
