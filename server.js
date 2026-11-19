@@ -461,7 +461,7 @@ app.get('/api/generate-image', async (req, res) => {
 });
 
 // ==========================================
-// THE WIXSCRIPT COMPILER & RUN ROUTE
+// THE WIXSCRIPT COMPILER & RUN ROUTE (RENDER)
 // ==========================================
 app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
   const { language, code } = req.body || {};
@@ -471,13 +471,13 @@ app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
   // ✅ WIXSCRIPT COMPILER
   if (lang === 'wix' || lang === 'wixscript') {
     try {
-      // 1. Parse @let variables (e.g., @let title = "Hello";)
+      // 1. Parse @let variables
       let variables = {};
       const letRegex = /@let\s+([a-zA-Z_]\w*)\s*=\s*(.+?);/g;
       let match;
       while ((match = letRegex.exec(code)) !== null) {
           try { 
-              // Safely evaluate the JS expression (e.g., "Hello" + " World")
+              // Safely evaluate JS (e.g., "Hello" + " World")
               variables[match[1]] = new Function(`return ${match[2]}`)(); 
           } catch(e) { 
               variables[match[1]] = match[2].replace(/['"]/g, ''); 
@@ -494,37 +494,22 @@ app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
 
       let htmlOutput = htmlMatch[1];
 
-      // 3. Interpolate {{ variables }} into the HTML
+      // 3. Interpolate {{ variables }}
       htmlOutput = htmlOutput.replace(/\{\{\s*([a-zA-Z_]\w*)\s*\}\}/g, (m, v) => {
           return variables[v] !== undefined ? variables[v] : m;
       });
 
-      // 4. Return the rendered HTML to the preview window
-      return res.json({ output: htmlOutput, stderr: '', code: 0 });
+      // 4. Wrap in basic HTML so the iframe renders it perfectly
+      const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;}</style></head><body>${htmlOutput}</body></html>`;
+
+      return res.json({ output: finalHtml, stderr: '', code: 0 });
 
     } catch (err) {
       return res.json({ output: '', stderr: err.message, code: 1 });
     }
   }
 
-  // Desktop Local Python (Existing code)
-  if (lang === 'py' || lang === 'python') {
-    const tempFile = path.join(os.tmpdir(), `script_${Date.now()}.py`);
-    fs.writeFileSync(tempFile, code);
-    exec(`python3 ${tempFile}`, { timeout: 120000 }, (error, stdout, stderr) => {
-      try { fs.unlinkSync(tempFile); } catch (e) {}
-      let finalErr = stderr;
-      if (error) {
-        if (error.killed) finalErr = "❌ PROCESS KILLED: The script took too long (exceeded 2 minutes) or ran out of memory.";
-        else if (!stderr && !stdout) finalErr = "❌ SERVER KILLED PROCESS: Likely Out of Memory (OOM).";
-        else finalErr = error.message;
-      }
-      res.json({ output: stdout || '', stderr: finalErr || '', code: error ? 1 : 0 });
-    });
-    return;
-  }
-
-  // Judge0 (Other languages)
+  // Judge0 (All other languages)
   const langMap = { 'php': 68, 'js': 63, 'javascript': 63, 'cpp': 54, 'c++': 54, 'c': 50, 'java': 62, 'rb': 72, 'ruby': 72, 'go': 60, 'rs': 73, 'rust': 73, 'ts': 74, 'cs': 51 };
   const langId = langMap[lang];
   if (!langId) return res.status(400).json({ error: 'Unsupported language.' });
@@ -537,7 +522,6 @@ app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
     res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
   } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
 });
-
 // ==========================================
 // CONTACT & VERIFICATION
 // ==========================================
