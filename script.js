@@ -1,8 +1,5 @@
-
-
-
 // ==========================================================================
-// CodeWix — script.js (Full Master File - With Moderation Strikes & Autocomplete)
+// CodeWix — script.js (Full Master File - With Moderation Strikes & WixScript)
 // ==========================================================================
 
 console.log('[CodeWix] script.js evaluated');
@@ -90,14 +87,12 @@ window.addEventListener('DOMContentLoaded', function () {
   var studioHeader = document.querySelector('.studio-header');
   var navMenu = document.querySelector('nav') || document.querySelector('.studio-nav');
   
-  // ✅ Inject Mobile Menu Button for Dashboard
   if (studioHeader && !isAdminPage) {
       if (!document.getElementById('mobileMenuBtn')) {
           var mobileMenuBtn = document.createElement('button');
           mobileMenuBtn.id = 'mobileMenuBtn';
           mobileMenuBtn.className = 'mobile-menu-btn';
           mobileMenuBtn.innerHTML = '☰';
-          
           mobileMenuBtn.onclick = function() {
               var isOpen = studioHeader.classList.toggle('mobile-menu-open');
               mobileMenuBtn.innerHTML = isOpen ? '✕' : '☰';
@@ -126,7 +121,6 @@ window.addEventListener('DOMContentLoaded', function () {
         navMenu.appendChild(builderLink);
     }
 
-    // NOTIFICATION BELL
     var notifBtn = document.createElement('button'); notifBtn.id = 'notifBellBtn'; notifBtn.className = 'theme-toggle-btn'; notifBtn.innerHTML = '🔔'; notifBtn.title = 'Notifications'; notifBtn.style.position = 'relative';
     var badge = document.createElement('span'); badge.id = 'notifBadge'; badge.style.cssText = 'position:absolute;top:0;right:0;width:8px;height:8px;background:#ef4444;border-radius:50%;display:none;'; notifBtn.appendChild(badge);
     navMenu.appendChild(notifBtn);
@@ -162,7 +156,6 @@ window.addEventListener('DOMContentLoaded', function () {
         });
       }
 
-      // Fetch BOTH global announcements AND private user warnings
       if (db) {
         try {
           const globalSnap = await db.collection('notifications').orderBy('createdAt', 'desc').limit(5).get();
@@ -574,7 +567,6 @@ window.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   var cm = null, codeEditor = null;
   
-  // ✅ NEW: Function to dynamically load CodeMirror Hint Addons
   function loadCodeMirrorHints(callback) {
     if (window.CodeMirror && window.CodeMirror.hint) return callback();
     
@@ -604,7 +596,6 @@ window.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // Initialize CodeMirror after loading hints
   loadCodeMirrorHints(function() {
     (function initCodeMirror() {
       var sourceEl = $('codeEditorSource');
@@ -614,31 +605,15 @@ window.addEventListener('DOMContentLoaded', function () {
       }
       
       cm = CodeMirror.fromTextArea(sourceEl, { 
-          theme: 'dracula', 
-          lineNumbers: true, 
-          lineWrapping: false, 
-          indentUnit: 2, 
-          tabSize: 2, 
-          smartIndent: true, 
-          autoCloseBrackets: true, 
-          autoCloseTags: true, 
-          matchBrackets: true, 
-          mode: 'htmlmixed', 
-          extraKeys: { 
-              'Ctrl-Space': 'autocomplete',
-              'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } 
-          } 
+          theme: 'dracula', lineNumbers: true, lineWrapping: false, indentUnit: 2, tabSize: 2, smartIndent: true, autoCloseBrackets: true, autoCloseTags: true, matchBrackets: true, mode: 'htmlmixed', 
+          extraKeys: { 'Ctrl-Space': 'autocomplete', 'Tab': function (editor) { if (editor.somethingSelected()) editor.indentSelection('add'); else editor.replaceSelection('  '); } } 
       });
       
-      // ✅ NEW: Trigger autocomplete automatically as the user types
       cm.on("inputRead", function(editor, change) {
           if (change.origin !== "+input") return;
           var char = change.text[0];
-          // Trigger suggestions on letters, dots, or HTML tags
           if (/^[a-zA-Z<>\.]$/.test(char)) {
-              setTimeout(function() {
-                  editor.showHint({ completeSingle: false, alignWithWord: true });
-              }, 50);
+              setTimeout(function() { editor.showHint({ completeSingle: false, alignWithWord: true }); }, 50);
           }
       });
 
@@ -649,12 +624,12 @@ window.addEventListener('DOMContentLoaded', function () {
           var mode = 'htmlmixed', lower = (filename || '').toLowerCase(); 
           if (lower.endsWith('.css')) mode = 'css'; 
           else if (lower.endsWith('.js')) mode = 'javascript'; 
+          else if (lower.endsWith('.wix')) mode = 'javascript'; // ✅ WixScript uses JS highlighting
           else if (lower.endsWith('.py')) mode = 'python'; 
           else if (lower.endsWith('.json')) mode = { name: 'javascript', json: true }; 
           try { cm.setOption('mode', mode); } catch(e) { console.warn("CodeMirror Mode Error:", e); }
       };
       
-      // Manually trigger the rest of the IDE setup that depends on `codeEditor` being defined
       setupIDE();
     })();
   });
@@ -684,6 +659,7 @@ window.addEventListener('DOMContentLoaded', function () {
           if (name.endsWith('.html')) return '🌐 '; 
           if (name.endsWith('.css')) return '🎨 '; 
           if (name.endsWith('.js')) return '⚡ '; 
+          if (name.endsWith('.wix')) return '🪄 '; 
           if (name.endsWith('.py')) return '🐍 '; 
           if (name.endsWith('.php')) return '🐘 '; 
           if (name.endsWith('.c') || name.endsWith('.cpp') || name.endsWith('.h')) return '🇨 '; 
@@ -849,64 +825,64 @@ window.addEventListener('DOMContentLoaded', function () {
       if (remixId && db && auth && auth.currentUser) { localStorage.removeItem('codewix_remix_project_id'); db.collection('users').doc(auth.currentUser.uid).collection('projects').doc(remixId).get().then(function(doc) { if (doc.exists) { var data = doc.data(); loadFilesIntoEditor(data.files || {}, doc.id, data.name || 'Remix', null); showToast('Remix loaded!', 'success'); } }).catch(function(err) { console.error(err); }); }
 
       if (runCodeBtn) {
-      runCodeBtn.addEventListener('click', async function () {
-        var ext = activeFile.split('.').pop().toLowerCase();
-        
-        if (['html', 'css', 'js', 'htm'].includes(ext)) { 
-            renderPreview(); 
-            showToast('Preview refreshed'); 
-            var term = $('terminalOutput'); 
-            if (term) term.style.display = 'none'; 
-            return; 
-        }
-
-        if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; } 
-        if (!codeEditor) return; 
-        var code = codeEditor.value; 
-        if (!code.trim()) { showToast('No code to run.', 'error'); return; }
-
-        var outputContainer = $('terminalOutput');
-        if (!outputContainer) { 
-            outputContainer = document.createElement('div'); 
-            outputContainer.id = 'terminalOutput'; 
-            outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;'; 
-            var parent = livePreviewFrame ? livePreviewFrame.parentNode : null; 
-            if (parent) { parent.style.position = 'relative'; parent.appendChild(outputContainer); } 
-        }
-        outputContainer.style.display = 'block'; 
-        outputContainer.textContent = 'Compiling ' + activeFile + '...\n\n';
-
-        try {
-          var idToken = await auth.currentUser.getIdToken(); 
-          var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); 
-          var data = await res.json(); 
+        runCodeBtn.addEventListener('click', async function () {
+          var ext = activeFile.split('.').pop().toLowerCase();
           
-          if (data.stderr) {
-             outputContainer.textContent = '❌ Compile Error:\n\n' + data.stderr;
-             var closeBtn = document.createElement('button'); 
-             closeBtn.textContent = '✕ Close Terminal'; 
-             closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; 
-             closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; 
-             outputContainer.appendChild(closeBtn);
-             return;
-          }
-
-          var finalOutput = data.output || ''; 
-          
-          if (ext === 'wix' || finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html') || finalOutput.toLowerCase().includes('<div')) { 
-              if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; 
-              outputContainer.style.display = 'none'; 
-              showToast('WixScript Compiled Successfully', 'success'); 
+          if (['html', 'css', 'js', 'htm'].includes(ext)) { 
+              renderPreview(); 
+              showToast('Preview refreshed'); 
+              var term = $('terminalOutput'); 
+              if (term) term.style.display = 'none'; 
               return; 
           }
 
-          outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
-          
-        } catch (err) { 
-          outputContainer.textContent = 'Error: ' + err.message; 
-        }
-      });
-    }
+          if (!auth || !auth.currentUser) { showToast('Sign in first.', 'error'); return; } 
+          if (!codeEditor) return; 
+          var code = codeEditor.value; 
+          if (!code.trim()) { showToast('No code to run.', 'error'); return; }
+
+          var outputContainer = $('terminalOutput');
+          if (!outputContainer) { 
+              outputContainer = document.createElement('div'); 
+              outputContainer.id = 'terminalOutput'; 
+              outputContainer.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:#020617;color:#34d399;font-family:monospace;padding:16px;overflow:auto;z-index:100;white-space:pre-wrap;'; 
+              var parent = livePreviewFrame ? livePreviewFrame.parentNode : null; 
+              if (parent) { parent.style.position = 'relative'; parent.appendChild(outputContainer); } 
+          }
+          outputContainer.style.display = 'block'; 
+          outputContainer.textContent = 'Compiling ' + activeFile + '...\n\n';
+
+          try {
+            var idToken = await auth.currentUser.getIdToken(); 
+            var res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }, body: JSON.stringify({ language: ext, code: code }) }); 
+            var data = await res.json(); 
+            
+            if (data.stderr) {
+               outputContainer.textContent = '❌ Compile Error:\n\n' + data.stderr;
+               var closeBtn = document.createElement('button'); 
+               closeBtn.textContent = '✕ Close Terminal'; 
+               closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;'; 
+               closeBtn.onclick = function() { outputContainer.style.display = 'none'; }; 
+               outputContainer.appendChild(closeBtn);
+               return;
+            }
+
+            var finalOutput = data.output || ''; 
+            
+            if (ext === 'wix' || finalOutput.toLowerCase().includes('<!doctype html') || finalOutput.toLowerCase().includes('<html') || finalOutput.toLowerCase().includes('<div')) { 
+                if (livePreviewFrame) livePreviewFrame.srcdoc = finalOutput; 
+                outputContainer.style.display = 'none'; 
+                showToast('WixScript Compiled Successfully', 'success'); 
+                return; 
+            }
+
+            outputContainer.textContent = '> Running ' + activeFile + '...\n\n' + finalOutput;
+            
+          } catch (err) { 
+            outputContainer.textContent = 'Error: ' + err.message; 
+          }
+        });
+      }
       renderPreview();
 
       if (fileTreeList) {
@@ -2059,7 +2035,3 @@ VIDEO GENERATION: If the user asks you to generate a video, you must respond wit
   }
 
 }); // end DOMContentLoaded
-
-
-
-
