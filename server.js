@@ -1,20 +1,11 @@
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const { exec } = require('child_process');
-const cron = require('node-cron'); // ✅ Added for the crawler
-
-// 1. Load .env file (Robust loader for Desktop)
-const envPaths = [ path.join(__dirname, '.env'), path.join(process.cwd(), '.env'), path.join(path.dirname(process.execPath), '.env') ];
-let envLoaded = false;
-for (const p of envPaths) {
-  if (fs.existsSync(p)) { require('dotenv').config({ path: p }); envLoaded = true; break; }
-}
-if (!envLoaded) require('dotenv').config();
-
+require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
+const path = require('path');
 const admin = require('firebase-admin');
 const emailjs = require('@emailjs/nodejs');
+const fs = require('fs');
+const cron = require('node-cron'); 
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -25,19 +16,34 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'wilcoxr889@gmail.com').toLowerC
 const SELAR_WEBHOOK_SECRET = process.env.SELAR_WEBHOOK_SECRET || 'my_super_secret_webhook_key';
 
 // ==========================================
-// FIREBASE ADMIN INITIALIZATION (Desktop)
+// FIREBASE INITIALIZATION
 // ==========================================
 try {
-  const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
-  if (fs.existsSync(serviceAccountPath)) {
-    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+  const localPath = path.join(__dirname, 'firebase-service-account.json');
+  const renderSecretPath = '/etc/secrets/firebase-service-account.json';
+
+  if (fs.existsSync(renderSecretPath)) {
+    const serviceAccount = JSON.parse(fs.readFileSync(renderSecretPath, 'utf8'));
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
-    console.log('✅ [Firebase Admin] Initialized via JSON');
-  } else if (process.env.FIREBASE_PROJECT_ID) {
-    admin.initializeApp({ credential: admin.credential.cert({ projectId: process.env.FIREBASE_PROJECT_ID, clientEmail: process.env.FIREBASE_CLIENT_EMAIL, privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') }), storageBucket: 'codewix-16971.firebasestorage.app' });
-    console.log('✅ [Firebase Admin] Initialized via .env');
+    console.log('✅ [Firebase Admin] Initialized via Render Secret File');
+  } else if (fs.existsSync(localPath)) {
+    const serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount), storageBucket: 'codewix-16971.firebasestorage.app' });
+    console.log('✅ [Firebase Admin] Initialized via local JSON file');
+  } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+      }),
+      storageBucket: 'codewix-16971.firebasestorage.app'
+    });
+    console.log('✅ [Firebase Admin] Initialized via env variables');
+  } else {
+    console.error('❌ [Firebase Admin] CRITICAL ERROR: No credentials found!');
   }
-} catch (err) { console.error('❌ [Firebase Admin] Init failed:', err.message); }
+} catch (err) { console.error('❌ [Firebase Admin] init failed:', err.message); }
 
 let emailjsReady = false;
 if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
@@ -47,9 +53,12 @@ if (process.env.EMAILJS_PUBLIC_KEY && process.env.EMAILJS_PRIVATE_KEY) {
 }
 
 app.use('/api/selar-webhook', express.raw({ type: 'application/json' }));
+app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// ---- Helpers & Auth Middleware -------------------------------
+// ==========================================
+// HELPERS & MIDDLEWARE
+// ==========================================
 function rewritePublishedLinks(html, slug) {
   if (!html) return '';
   return html.replace(/(href|src)=(["'])(?!(?:[a-z]+:|\/\/|#|mailto:|tel:))([^"']+)\2/gi, function (match, attr, quote, url) {
@@ -83,7 +92,6 @@ async function requireAuth(req, res, next) {
   }
 }
 
-// ✅ Prevent banned users from using the API
 async function requireNotBanned(req, res, next) {
   try {
     const doc = await admin.firestore().collection('users').doc(req.user.uid).get();
@@ -461,7 +469,7 @@ app.get('/api/generate-image', async (req, res) => {
 });
 
 // ==========================================
-// THE WIXSCRIPT COMPILER & RUN ROUTE (RENDER)
+// THE WIXSCRIPT COMPILER & RUN ROUTE
 // ==========================================
 app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
   const { language, code } = req.body || {};
@@ -471,37 +479,36 @@ app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
   // ✅ WIXSCRIPT COMPILER
   if (lang === 'wix' || lang === 'wixscript') {
     try {
-      // 1. Parse @let variables
       let variables = {};
       const letRegex = /@let\s+([a-zA-Z_]\w*)\s*=\s*(.+?);/g;
       let match;
       while ((match = letRegex.exec(code)) !== null) {
-          try { 
-              // Safely evaluate JS (e.g., "Hello" + " World")
-              variables[match[1]] = new Function(`return ${match[2]}`)(); 
-          } catch(e) { 
-              variables[match[1]] = match[2].replace(/['"]/g, ''); 
+          try { variables[match[1]] = new Function(`return ${match[2]}`)(); } catch(e) { variables[match[1]] = match[2].replace(/['"]/g, ''); }
+      }
+
+      const startIdx = code.indexOf('@html');
+      let htmlOutput = "";
+      if (startIdx !== -1) {
+          const openBrace = code.indexOf('{', startIdx);
+          if (openBrace !== -1) {
+              let braceCount = 1;
+              let i = openBrace + 1;
+              for (; i < code.length; i++) {
+                  if (code[i] === '{') braceCount++;
+                  if (code[i] === '}') braceCount--;
+                  if (braceCount === 0) break;
+              }
+              if (braceCount === 0) htmlOutput = code.substring(openBrace + 1, i);
           }
       }
 
-      // 2. Extract the @html { ... } block
-      const htmlRegex = /@html\s*\{([\s\S]*?)\}/;
-      const htmlMatch = code.match(htmlRegex);
+      if (!htmlOutput) throw new Error("WixScript Error: You must wrap your output in an `@html { ... }` block.");
 
-      if (!htmlMatch) {
-          throw new Error("WixScript Error: You must wrap your output in an `@html { ... }` block.");
-      }
-
-      let htmlOutput = htmlMatch[1];
-
-      // 3. Interpolate {{ variables }}
       htmlOutput = htmlOutput.replace(/\{\{\s*([a-zA-Z_]\w*)\s*\}\}/g, (m, v) => {
           return variables[v] !== undefined ? variables[v] : m;
       });
 
-      // 4. Wrap in basic HTML so the iframe renders it perfectly
       const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{margin:0;}</style></head><body>${htmlOutput}</body></html>`;
-
       return res.json({ output: finalHtml, stderr: '', code: 0 });
 
     } catch (err) {
@@ -522,6 +529,7 @@ app.post('/api/run', requireAuth, requireNotBanned, async (req, res) => {
     res.json({ output: data.stdout || '', stderr: data.stderr || data.compile_output || '', code: data.status ? data.status.id : 0 });
   } catch (err) { res.status(500).json({ error: 'Execution engine failed: ' + err.message }); }
 });
+
 // ==========================================
 // CONTACT & VERIFICATION
 // ==========================================
@@ -741,11 +749,9 @@ app.get('/s/:slug/*', async (req, res, next) => {
   } catch (err) { next(); }
 });
 
-// ---- Other Routes -------------------------------------------------------
 app.get('/u/:username', (req, res) => res.sendFile(path.join(__dirname, 'profile.html')));
-
 app.use('/api', (req, res) => res.status(404).json({ error: 'Unknown API route.' }));
 app.use(express.static(path.join(__dirname)));
 app.use((req, res) => res.status(404).sendFile(path.join(__dirname, '404.html')));
 
-app.listen(PORT, '0.0.0.0', () => console.log('\n✅ CodeWix Desktop running on port ' + PORT + '\n'));
+app.listen(PORT, '0.0.0.0', () => console.log('\n✅ CodeWix running on port ' + PORT + '\n'));
